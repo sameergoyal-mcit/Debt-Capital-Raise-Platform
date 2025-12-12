@@ -1,57 +1,56 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export type UserRole = "issuer" | "bookrunner" | "investor";
+export type Role = "issuer" | "bookrunner" | "investor";
 
-interface RoleContextType {
-  role: UserRole;
-  setRole: (role: UserRole) => void;
-}
+type RoleCtx = {
+  role: Role;
+  setRole: (r: Role) => void;
+};
 
-const RoleContext = createContext<RoleContextType | undefined>(undefined);
+const RoleContext = createContext<RoleCtx | null>(null);
+
+const STORAGE_KEY = "capitalflow_role";
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<UserRole>("issuer");
-  const [location] = useLocation();
+  const [role, setRoleState] = useState<Role>("issuer");
 
   useEffect(() => {
-    // 1. Check URL search params
-    const searchParams = new URLSearchParams(window.location.search);
-    const roleParam = searchParams.get("role") as UserRole;
-    
-    if (roleParam && ["issuer", "bookrunner", "investor"].includes(roleParam)) {
-      setRoleState(roleParam);
-      localStorage.setItem("capitalflow_role", roleParam);
-    } else {
-      // 2. Check localStorage
-      const storedRole = localStorage.getItem("capitalflow_role") as UserRole;
-      if (storedRole && ["issuer", "bookrunner", "investor"].includes(storedRole)) {
-        setRoleState(storedRole);
-      }
-    }
-  }, [location]); // Re-check on location change if needed, though mostly on mount or query param change
+    // Check URL params first (added back to support ?role= requirement)
+    const params = new URLSearchParams(window.location.search);
+    const urlRole = params.get("role") as Role | null;
 
-  const setRole = (newRole: UserRole) => {
-    setRoleState(newRole);
-    localStorage.setItem("capitalflow_role", newRole);
+    if (urlRole === "issuer" || urlRole === "bookrunner" || urlRole === "investor") {
+      setRoleState(urlRole);
+      window.localStorage.setItem(STORAGE_KEY, urlRole);
+      return;
+    }
+
+    // Fallback to local storage
+    const saved = window.localStorage.getItem(STORAGE_KEY) as Role | null;
+    if (saved === "issuer" || saved === "bookrunner" || saved === "investor") {
+      setRoleState(saved);
+    }
+  }, []);
+
+  const setRole = (r: Role) => {
+    setRoleState(r);
+    window.localStorage.setItem(STORAGE_KEY, r);
     
-    // Update URL query param to reflect change (optional but good for sharing)
+    // Update URL if present to keep state consistent
     const url = new URL(window.location.href);
-    url.searchParams.set("role", newRole);
-    window.history.pushState({}, "", url.toString());
+    if (url.searchParams.has("role")) {
+      url.searchParams.set("role", r);
+      window.history.replaceState({}, "", url.toString());
+    }
   };
 
-  return (
-    <RoleContext.Provider value={{ role, setRole }}>
-      {children}
-    </RoleContext.Provider>
-  );
+  const value = useMemo(() => ({ role, setRole }), [role]);
+
+  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 
 export function useRole() {
-  const context = useContext(RoleContext);
-  if (context === undefined) {
-    throw new Error("useRole must be used within a RoleProvider");
-  }
-  return context;
+  const ctx = useContext(RoleContext);
+  if (!ctx) throw new Error("useRole must be used within RoleProvider");
+  return ctx;
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { useRole, UserRole } from "@/lib/roleContext";
+import { useRole, Role } from "@/lib/roleContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
