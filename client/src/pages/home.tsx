@@ -4,13 +4,11 @@ import {
   ArrowUpRight, 
   TrendingUp, 
   Users, 
-  DollarSign, 
   Clock, 
   ArrowRight,
   MoreHorizontal,
   Activity,
-  AlertTriangle,
-  Percent
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -65,13 +63,11 @@ export default function Home() {
             title="Total Debt Raised (LTM)" 
             value="$245.8M" 
             change="WAS: S+575 bps" 
-            icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
           />
           <StatCard 
             title="Avg Debt Pricing (SOFR +)" 
             value="625 bps" 
             change="-25 bps vs last quarter" 
-            icon={<Percent className="h-4 w-4 text-muted-foreground" />}
           />
           <StatCard 
             title="Committed vs Target" 
@@ -200,7 +196,7 @@ export default function Home() {
   );
 }
 
-function StatCard({ title, value, change, icon, destructive, alert }: { title: string; value: string; change: string; icon: React.ReactNode, destructive?: boolean, alert?: boolean }) {
+function StatCard({ title, value, change, icon, destructive, alert }: { title: string; value: string; change: string; icon?: React.ReactNode, destructive?: boolean, alert?: boolean }) {
   return (
     <Card className={cn(
       "shadow-sm border-border/60",
