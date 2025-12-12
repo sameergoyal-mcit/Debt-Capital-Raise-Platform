@@ -1,0 +1,163 @@
+✅ 1. Clearly Show Deal Economics
+
+For debt deals, issuers care about:
+
+Target amount vs. committed / soft-circled amount
+
+Pricing guidance / expected spread (e.g., SOFR + X)
+
+Weighted average pricing from indications
+
+Expected vs. achieved fees
+
+Projected uses of debt proceeds
+
+Add to Deal Overview UI:
+
+A card or panel labeled “Debt Economics” with:
+
+Target size
+
+Committed amount with % progress
+
+Spread range
+
+OID (Original Issue Discount)
+
+Fee guidance (Arrangement, Commitment)
+
+Expected amortization schedule (if relevant)
+
+✅ 2. Show Key Covenant Summary Up Front
+
+Unlike equity, debt deals involve covenants. Issuers want quick visibility into:
+
+Financial covenants (Leverage, Interest Coverage)
+
+Incurrence tests
+
+Maintenance tests
+
+Restricted payments baskets
+
+Add a “Covenant Preview” panel in overview that summarizes key financial tests.
+
+✅ 3. Include Investor Engagement Metrics
+
+For the issuer, understanding demand is essential. Add:
+
+Investor engagement chart
+
+NDA signed (%)
+
+CIM downloads
+
+Indications of Interest (IOIs)
+
+Firm commitments
+
+Investor type breakdown
+
+CLOs vs. direct lenders vs. banks vs. insurance
+
+This feedback helps issuers and the bookrunner adjust pricing and allocation strategy.
+
+✅ 4. Show Real-Time Book Status
+
+A static pipeline isn’t enough for debt deals—issuers want real-time traction:
+
+Live book snapshot
+
+Tickets by investor
+
+Pricing bands selected
+
+Pro-rata demand curves
+
+Over/Under subscription alerts
+
+Time to soft close / hard close countdown
+
+A real-time interactive book status widget is helpful.
+
+✅ 5. Link to Document Markups
+
+Debt deals have heavy documentation:
+
+Credit Agreement
+
+Security documents
+
+Intercreditor agreements
+
+Ancillary compliance docs
+
+Issuers need:
+
+Latest redlines
+
+Outstanding comments from lenders
+
+Approval status by party
+
+So make the Documents widget more prominent and contextually labeled — e.g., “Docs Requiring Issuer Review”.
+
+✅ 6. Add “Actionable Alerts”
+
+Debt deals are often timing-sensitive. Show:
+
+Upcoming milestone deadlines
+
+Pending issuer tasks
+
+Finish covenant comps
+
+Approve final pricing
+
+Respond to lender requests
+
+Escalation alerts (if book liquidity is slow)
+
+Place this in a task panel on the right.
+
+✅ 7. Put a “Deal Status Timeline” at the Top
+
+Debt deals have well-defined stages:
+
+Structuring
+
+NDA execution
+
+CIM delivery
+
+Marketing
+
+IOI collection
+
+Bookbuilding
+
+Allocation
+
+Closing
+
+A horizontal timeline with colored progress helps issuers visualize where they are.
+
+✅ 8. Add Export / Report Buttons
+
+Issuers often produce internal updates:
+
+Export PDFs
+
+Daily executive summary
+
+Waterfall charts
+
+Pricing sensitivity analysis
+
+Add buttons like:
+
+Export Deal Summary
+
+Print Investor Engagement
+
+Download IOI Report
