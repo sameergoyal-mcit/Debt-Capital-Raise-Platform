@@ -1,0 +1,113 @@
+import React from "react";
+import { useRoute } from "wouter";
+import { Layout } from "@/components/layout";
+import { Badge } from "@/components/ui/badge";
+import { mockDeals } from "@/data/deals";
+import { RoleSwitcher } from "@/components/role-switcher";
+import { useRole } from "@/context/role";
+import { Briefcase, TrendingUp, Activity, Shield } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+
+export default function IssuerViewer() {
+  const [, params] = useRoute("/deal/:id/viewer/issuer");
+  const dealId = params?.id;
+  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const { setRole } = useRole();
+
+  // Force role to issuer when visiting this route
+  React.useEffect(() => {
+    setRole("issuer");
+  }, [setRole]);
+
+  return (
+    <Layout>
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Role Portal</h1>
+              <Badge variant="outline" className="bg-secondary text-secondary-foreground">
+                Current View: Issuer
+              </Badge>
+            </div>
+            <p className="text-muted-foreground">
+              Demonstrating role-based access and views for {deal.dealName}.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+             <RoleSwitcher />
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+            <Briefcase className="h-4 w-4" />
+            <AlertTitle>Issuer (Sponsor) View</AlertTitle>
+            <AlertDescription>
+              Focus on execution cost, speed, and covenant flexibility.
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                 <CardTitle className="text-base flex items-center gap-2">
+                   <TrendingUp className="h-4 w-4 text-primary" /> Cost of Capital
+                 </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                   <div>
+                     <p className="text-xs text-muted-foreground uppercase">Est. All-In Yield</p>
+                     <p className="text-2xl font-serif font-bold text-primary">11.25%</p>
+                   </div>
+                   <div>
+                     <p className="text-xs text-muted-foreground uppercase">Pricing Sensitivity</p>
+                     <p className="text-sm font-medium text-amber-600">+25 bps Flex = +$112k/yr</p>
+                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                 <CardTitle className="text-base flex items-center gap-2">
+                   <Activity className="h-4 w-4 text-primary" /> Pricing Pressure
+                 </CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-md border border-green-100">
+                   <TrendingUp className="h-5 w-5" />
+                   <span className="font-bold">Tightening</span>
+                 </div>
+                 <p className="text-xs text-muted-foreground mt-2">
+                   Strong demand allows for potential reverse flex (-25 bps).
+                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                 <CardTitle className="text-base flex items-center gap-2">
+                   <Shield className="h-4 w-4 text-primary" /> Covenant Headroom
+                 </CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <div className="space-y-3">
+                   <div className="flex justify-between text-sm">
+                     <span className="text-muted-foreground">Leverage</span>
+                     <span className="font-medium">4.50x / 4.75x Cap</span>
+                   </div>
+                   <Progress value={90} className="h-2" />
+                   <p className="text-xs text-amber-600 mt-1">Tight headroom in Year 1</p>
+                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

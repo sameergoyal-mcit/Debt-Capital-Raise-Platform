@@ -12,7 +12,10 @@ import Documents from "@/pages/documents";
 import QACenter from "@/pages/qa";
 import Timeline from "@/pages/timeline";
 import Closing from "@/pages/closing";
-import Viewer from "@/pages/viewer";
+import ViewerIndex from "@/pages/viewer/index";
+import IssuerViewer from "@/pages/viewer/issuer";
+import BookrunnerViewer from "@/pages/viewer/bookrunner";
+import InvestorViewer from "@/pages/viewer/investor";
 
 function Router() {
   return (
@@ -25,7 +28,10 @@ function Router() {
       <Route path="/deal/:id/qa" component={QACenter} />
       <Route path="/deal/:id/timeline" component={Timeline} />
       <Route path="/deal/:id/closing" component={Closing} />
-      <Route path="/deal/:id/viewer" component={Viewer} />
+      <Route path="/deal/:id/viewer" component={ViewerIndex} />
+      <Route path="/deal/:id/viewer/issuer" component={IssuerViewer} />
+      <Route path="/deal/:id/viewer/bookrunner" component={BookrunnerViewer} />
+      <Route path="/deal/:id/viewer/investor" component={InvestorViewer} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,5 +1,6 @@
 import React from "react";
 import { useRole, Role } from "@/context/role";
+import { useLocation } from "wouter";
 
 const options: { key: Role; label: string }[] = [
   { key: "issuer", label: "Issuer (PE)" },
@@ -9,6 +10,17 @@ const options: { key: Role; label: string }[] = [
 
 export function RoleSwitcher() {
   const { role, setRole } = useRole();
+  const [location, setLocation] = useLocation();
+
+  const handleRoleChange = (newRole: Role) => {
+    setRole(newRole);
+    // If we are in the viewer pages, also navigate to the correct route
+    if (location.includes("/viewer")) {
+      const dealIdMatch = location.match(/\/deal\/([^/]+)/);
+      const dealId = dealIdMatch ? dealIdMatch[1] : "101"; // Fallback
+      setLocation(`/deal/${dealId}/viewer/${newRole}`);
+    }
+  };
 
   return (
     <div className="flex items-center gap-2">
@@ -17,7 +29,7 @@ export function RoleSwitcher() {
         {options.map((o) => (
           <button
             key={o.key}
-            onClick={() => setRole(o.key)}
+            onClick={() => handleRoleChange(o.key)}
             className={[
               "px-3 py-1.5 text-sm rounded-md transition",
               role === o.key
