@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Private Debt Platform – Screen Architecture</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Mermaid (ESM) -->
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default"
+    });
+  </script>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    p.subtitle {
+      margin-top: 0;
+      margin-bottom: 24px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .diagram-container {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e2e8f0;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Private Debt Platform – Screen Architecture</h1>
+  <p class="subtitle">
+    High-level screen and navigation flow for the private equity / private credit capital-raising platform.
+  </p>
+
+  <div class="diagram-container">
+    <div class="mermaid">
+flowchart LR
+  A["Home Dashboard"] --> B["Deal Overview (Deal Workspace Home)"]
+  A --> J["Analytics"]
+  A --> K["Messages"]
+
+  %% Deal Workspace Cluster
+  subgraph Deal_Workspace["Deal Workspace (per Deal)"]
+    B --> B1["Timeline"]
+    B --> C["Deal Terms"]
+    B --> D["Investor Book (Bookbuilding)"]
+    B --> E["Investor List (Investor CRM)"]
+    B --> F["Documents & Legal Workspace"]
+    B --> G["Q&A Center"]
+    B --> H["Allocations"]
+    B --> I["Closing Checklist"]
+  end
+
+  %% Role Dashboards
+  O["PE Fund Dashboard"] --> B
+  N["Banker Dashboard"] --> B
+  M["Lawyer Dashboard"] --> F
+  L["Investor View (Lender Portal)"] --> B
+
+  %% Investor View Links
+  L --> D
+  L --> F
+  L --> G
+    </div>
+  </div>
+
+  <!-- Optional: you can add more diagrams below if you want a second, more detailed one. -->
+  <!--
+  <h2 style="margin-top:32px;">Deal Workspace – Detailed View</h2>
+  <div class="diagram-container">
+    <div class="mermaid">
+flowchart TB
+  OV["Deal Overview"] --> TL["Timeline"]
+  OV --> DT["Deal Terms"]
+  OV --> BK["Investor Book"]
+  OV --> IL["Investor List"]
+  OV --> DOC["D]()
