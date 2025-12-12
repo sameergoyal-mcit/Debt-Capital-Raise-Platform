@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { 
+import {
   LayoutDashboard, 
   Briefcase, 
   PieChart, 
@@ -13,7 +13,8 @@ import {
   Users,
   CheckSquare,
   Clock,
-  HelpCircle
+  HelpCircle,
+  Megaphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} />
               <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} />
               <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} />
+              <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} />
               <NavItem href={`/deal/${dealId}/viewer`} icon={<Briefcase size={20} />} label="Role Viewer" active={location.includes(`/deal/${dealId}/viewer`)} />
             </div>
           )}

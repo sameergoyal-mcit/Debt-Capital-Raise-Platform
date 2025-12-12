@@ -13,6 +13,7 @@ import QACenter from "@/pages/qa";
 import Timeline from "@/pages/timeline";
 import Closing from "@/pages/closing";
 import Analytics from "@/pages/analytics";
+import Publish from "@/pages/publish";
 import ViewerIndex from "@/pages/viewer/index";
 import IssuerViewer from "@/pages/viewer/issuer";
 import BookrunnerViewer from "@/pages/viewer/bookrunner";
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/deal/:id/qa" component={QACenter} />
       <Route path="/deal/:id/timeline" component={Timeline} />
       <Route path="/deal/:id/closing" component={Closing} />
+      <Route path="/deal/:id/publish" component={Publish} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/deal/:id/viewer" component={ViewerIndex} />
       <Route path="/deal/:id/viewer/issuer" component={IssuerViewer} />
