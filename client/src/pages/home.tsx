@@ -31,13 +31,11 @@ import {
 import { Layout } from "@/components/layout";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 
-const capitalRaisedData = [
-  { month: "Jan", "Project Titan": 45, "Helios Energy": 30, "Apex Logistics": 0, "Quantum Health": 0 },
-  { month: "Feb", "Project Titan": 12, "Helios Energy": 45, "Apex Logistics": 20, "Quantum Health": 0 },
-  { month: "Mar", "Project Titan": 0, "Helios Energy": 25, "Apex Logistics": 15, "Quantum Health": 50 },
-  { month: "Apr", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 35, "Quantum Health": 40 },
-  { month: "May", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 0, "Quantum Health": 30 },
-  { month: "Jun", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 0, "Quantum Health": 20 },
+const debtMaturityData = [
+  { period: "0-3 mos", "Senior Secured": 15, "Mezzanine": 5, "Unitranche": 0 },
+  { period: "3-6 mos", "Senior Secured": 30, "Mezzanine": 10, "Unitranche": 25 },
+  { period: "6-12 mos", "Senior Secured": 45, "Mezzanine": 20, "Unitranche": 40 },
+  { period: "12-24 mos", "Senior Secured": 60, "Mezzanine": 35, "Unitranche": 15 },
 ];
 
 export default function Home() {
@@ -150,17 +148,17 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Capital Raised Chart */}
+          {/* Debt Maturing Chart */}
           <Card className="col-span-3 shadow-sm border-border/60">
             <CardHeader>
-              <CardTitle>Capital Raised</CardTitle>
-              <CardDescription>Monthly capital raised by portfolio company.</CardDescription>
+              <CardTitle>Debt Maturing</CardTitle>
+              <CardDescription>Upcoming debt maturities by time horizon.</CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={capitalRaisedData}>
+                <BarChart data={debtMaturityData}>
                   <XAxis 
-                    dataKey="month" 
+                    dataKey="period" 
                     stroke="#888888" 
                     fontSize={12} 
                     tickLine={false} 
@@ -182,10 +180,9 @@ export default function Home() {
                     itemStyle={{ color: "hsl(var(--foreground))" }}
                   />
                   <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
-                  <Bar dataKey="Project Titan" stackId="a" fill="hsl(var(--chart-1))" radius={[0, 0, 4, 4]} />
-                  <Bar dataKey="Helios Energy" stackId="a" fill="hsl(var(--chart-2))" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Apex Logistics" stackId="a" fill="hsl(var(--chart-3))" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Quantum Health" stackId="a" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Senior Secured" stackId="a" fill="hsl(var(--chart-1))" radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="Mezzanine" stackId="a" fill="hsl(var(--chart-2))" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Unitranche" stackId="a" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
