@@ -10,6 +10,10 @@ import Deals from "@/pages/deals";
 import InvestorBook from "@/pages/investor-book";
 import Documents from "@/pages/documents";
 import QACenter from "@/pages/qa";
+import Timeline from "@/pages/timeline";
+import Closing from "@/pages/closing";
+import Viewer from "@/pages/viewer";
+import { RoleProvider } from "@/lib/roleContext";
 
 function Router() {
   return (
@@ -20,6 +24,9 @@ function Router() {
       <Route path="/deal/:id/book" component={InvestorBook} />
       <Route path="/deal/:id/documents" component={Documents} />
       <Route path="/deal/:id/qa" component={QACenter} />
+      <Route path="/deal/:id/timeline" component={Timeline} />
+      <Route path="/deal/:id/closing" component={Closing} />
+      <Route path="/deal/:id/viewer" component={Viewer} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -28,10 +35,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <RoleProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </RoleProvider>
     </QueryClientProvider>
   );
 }

@@ -35,6 +35,10 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const isDealWorkspace = location.startsWith("/deal/");
+  
+  // Extract deal ID from URL path: /deal/123/overview -> 123
+  const dealIdMatch = location.match(/\/deal\/([^/]+)/);
+  const dealId = dealIdMatch ? dealIdMatch[1] : "101"; // Fallback to 101 if not found
 
   return (
     <div className="min-h-screen bg-background flex font-sans text-foreground">
@@ -60,12 +64,13 @@ export function Layout({ children }: LayoutProps) {
               <h4 className="px-4 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-2">
                 Current Deal
               </h4>
-              <NavItem href="/deal/123/overview" icon={<LayoutDashboard size={20} />} label="Overview" active={location.includes("/overview")} />
-              <NavItem href="/deal/123/book" icon={<Users size={20} />} label="Debt Investor Book" active={location.includes("/book")} />
-              <NavItem href="/deal/123/documents" icon={<FileText size={20} />} label="Documents" active={location.includes("/documents")} />
-              <NavItem href="/deal/123/qa" icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={location.includes("/qa")} />
-              <NavItem href="/deal/123/timeline" icon={<Clock size={20} />} label="Timeline" active={location.includes("/timeline")} />
-              <NavItem href="/deal/123/closing" icon={<CheckSquare size={20} />} label="Closing" active={location.includes("/closing")} />
+              <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={location.includes("/overview")} />
+              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={location.includes("/book")} />
+              <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Documents" active={location.includes("/documents")} />
+              <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={location.includes("/qa")} />
+              <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={location.includes("/timeline")} />
+              <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing" active={location.includes("/closing")} />
+              <NavItem href={`/deal/${dealId}/viewer`} icon={<Briefcase size={20} />} label="Role Portal" active={location.includes("/viewer")} />
             </div>
           )}
         </nav>
