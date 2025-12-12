@@ -185,13 +185,28 @@ export default function DealOverview() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[250px] w-full">
+                <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={engagementData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
+                      <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12, fontWeight: 500}} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: "hsl(var(--popover))", borderRadius: "8px", border: "1px solid hsl(var(--border))" }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-popover border border-border rounded-lg p-3 shadow-md max-w-[300px]">
+                                <div className="font-semibold mb-2">{data.name} ({data.value})</div>
+                                <div className="text-xs text-muted-foreground flex flex-wrap gap-1">
+                                  {data.companies.split(', ').map((company: string, i: number) => (
+                                    <span key={i} className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{company}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
                         cursor={{fill: 'transparent'}}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
@@ -201,6 +216,14 @@ export default function DealOverview() {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-2">
+                  {engagementData.map((item, index) => (
+                    <div key={index} className="flex items-start text-xs border-b border-border/40 pb-2 last:border-0">
+                      <div className="w-24 font-medium shrink-0">{item.name}</div>
+                      <div className="text-muted-foreground">{item.companies}</div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -458,9 +481,9 @@ function TeamMember({ name, role, initials }: { name: string; role: string; init
 }
 
 const engagementData = [
-  { name: 'NDA Signed', value: 45, color: '#0f172a' }, // Primary
-  { name: 'CIM Access', value: 38, color: '#334155' }, // Slate-700
-  { name: 'Questions', value: 24, color: '#475569' }, // Slate-600
-  { name: 'IOIs', value: 12, color: '#d97706' },      // Amber-600
-  { name: 'Firm Bids', value: 8, color: '#16a34a' },   // Green-600
+  { name: 'NDA Signed', value: 45, color: '#0f172a', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock, BlueOwl, Blackstone, Vista, Thoma Bravo, TPG' },
+  { name: 'CIM Access', value: 38, color: '#334155', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock' },
+  { name: 'Questions', value: 24, color: '#475569', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings' },
+  { name: 'IOIs', value: 12, color: '#d97706', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle' },
+  { name: 'Firm Bids', value: 8, color: '#16a34a', companies: 'BlackRock, Apollo, Ares, Oaktree' },
 ];
