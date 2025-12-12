@@ -88,6 +88,7 @@ export default function Documents() {
               <FolderItem label="Financial Model" count={5} />
               <FolderItem label="Supplementary Info" count={12} />
               <FolderItem label="Legal Docs" count={8} />
+              <FolderItem label="KYC Documents" count={4} />
               <FolderItem label="Due Diligence" count={15} />
             </CardContent>
           </Card>
@@ -200,6 +201,45 @@ export default function Documents() {
                     </Table>
                   </InvestorFolder>
                 </div>
+              </div>
+
+              {/* KYC Documents Section */}
+              <div className="mb-8">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
+                  KYC Documents
+                </h3>
+                <Table>
+                  <TableBody>
+                    <FileRow 
+                      name="Certificate of Incorporation.pdf" 
+                      type="PDF" 
+                      size="1.2 MB" 
+                      date="Oct 10" 
+                      icon={<FileText className="h-4 w-4 text-red-500" />}
+                    />
+                    <FileRow 
+                      name="Articles of Association.pdf" 
+                      type="PDF" 
+                      size="3.5 MB" 
+                      date="Oct 10" 
+                      icon={<FileText className="h-4 w-4 text-red-500" />}
+                    />
+                    <FileRow 
+                      name="UBO Declaration Form.pdf" 
+                      type="PDF" 
+                      size="850 KB" 
+                      date="Oct 12" 
+                      icon={<FileText className="h-4 w-4 text-red-500" />}
+                    />
+                    <FileRow 
+                      name="Director Passports (Redacted).pdf" 
+                      type="PDF" 
+                      size="4.2 MB" 
+                      date="Oct 12" 
+                      icon={<FileText className="h-4 w-4 text-red-500" />}
+                    />
+                  </TableBody>
+                </Table>
               </div>
 
             </CardContent>
