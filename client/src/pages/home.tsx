@@ -27,15 +27,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Layout } from "@/components/layout";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 
-const performanceData = [
-  { month: "Jan", value: 400 },
-  { month: "Feb", value: 300 },
-  { month: "Mar", value: 550 },
-  { month: "Apr", value: 450 },
-  { month: "May", value: 650 },
-  { month: "Jun", value: 600 },
+const capitalRaisedData = [
+  { month: "Jan", "Project Titan": 45, "Helios Energy": 30, "Apex Logistics": 0, "Quantum Health": 0 },
+  { month: "Feb", "Project Titan": 12, "Helios Energy": 45, "Apex Logistics": 20, "Quantum Health": 0 },
+  { month: "Mar", "Project Titan": 0, "Helios Energy": 25, "Apex Logistics": 15, "Quantum Health": 50 },
+  { month: "Apr", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 35, "Quantum Health": 40 },
+  { month: "May", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 0, "Quantum Health": 30 },
+  { month: "Jun", "Project Titan": 0, "Helios Energy": 0, "Apex Logistics": 0, "Quantum Health": 20 },
 ];
 
 export default function Home() {
@@ -58,7 +58,7 @@ export default function Home() {
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard 
-            title="Total Capital Deployed" 
+            title="Total Capital Raised" 
             value="$245.8M" 
             change="+12.5% from last quarter" 
             icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
@@ -70,9 +70,9 @@ export default function Home() {
             icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
           />
           <StatCard 
-            title="Investor Commitments" 
+            title="Investor Debt Commitments" 
             value="$850M" 
-            change="92% of fund target" 
+            change="92% of Total Target Debt Raise" 
             icon={<Users className="h-4 w-4 text-muted-foreground" />}
           />
           <StatCard 
@@ -142,21 +142,15 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Capital Deployment Chart */}
+          {/* Capital Raised Chart */}
           <Card className="col-span-3 shadow-sm border-border/60">
             <CardHeader>
-              <CardTitle>Capital Deployment</CardTitle>
-              <CardDescription>Monthly deployment trends (YTD).</CardDescription>
+              <CardTitle>Capital Raised</CardTitle>
+              <CardDescription>Monthly capital raised by portfolio company.</CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={performanceData}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
+                <BarChart data={capitalRaisedData}>
                   <XAxis 
                     dataKey="month" 
                     stroke="#888888" 
@@ -179,15 +173,12 @@ export default function Home() {
                     }}
                     itemStyle={{ color: "hsl(var(--foreground))" }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorValue)" 
-                  />
-                </AreaChart>
+                  <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
+                  <Bar dataKey="Project Titan" stackId="a" fill="hsl(var(--chart-1))" radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="Helios Energy" stackId="a" fill="hsl(var(--chart-2))" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Apex Logistics" stackId="a" fill="hsl(var(--chart-3))" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="Quantum Health" stackId="a" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
