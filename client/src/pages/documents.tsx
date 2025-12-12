@@ -11,13 +11,16 @@ import {
   History,
   GitBranch,
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  Eye,
+  Clock,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -48,6 +51,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Documents() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -76,175 +81,206 @@ export default function Documents() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-4">
-          {/* Folders Navigation */}
-          <Card className="col-span-1 border-border/60 shadow-sm h-fit">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Folders</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 p-2">
-              <FolderItem label="Grids" count={3} active />
-              <FolderItem label="Lender Presentation" count={2} />
-              <FolderItem label="Financial Model" count={5} />
-              <FolderItem label="Supplementary Info" count={12} />
-              <FolderItem label="Legal Docs" count={8} />
-              <FolderItem label="KYC Documents" count={4} />
-              <FolderItem label="Due Diligence" count={15} />
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="files" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="files">Files & Folders</TabsTrigger>
+            <TabsTrigger value="access">Investor Access Logs</TabsTrigger>
+          </TabsList>
 
-          {/* Files List */}
-          <Card className="col-span-3 border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Folder className="h-4 w-4 text-primary" /> Grids
-                </CardTitle>
-                <div className="relative w-64">
-                  <Input 
-                    placeholder="Search files..." 
-                    className="h-8 text-sm"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Master Grids Section */}
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
-                  Master Files (Distribution)
-                </h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[40%]">Name</TableHead>
-                      <TableHead>Version</TableHead>
-                      <TableHead>Last Modified</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <FileRow 
-                      name="Capital Structure Grid - Master.xlsx" 
-                      type="XLSX" 
-                      size="245 KB" 
-                      date="2 days ago" 
-                      version="v3.2"
-                      hasHistory
-                      icon={<Grid className="h-4 w-4 text-green-600" />}
-                    />
-                    <FileRow 
-                      name="Lender Comparables Grid.xlsx" 
-                      type="XLSX" 
-                      size="1.2 MB" 
-                      date="1 week ago"
-                      version="v1.0"
-                      hasHistory
-                      icon={<Grid className="h-4 w-4 text-green-600" />}
-                    />
-                  </TableBody>
-                </Table>
-              </div>
+          <TabsContent value="files">
+            <div className="grid gap-6 md:grid-cols-4">
+              {/* Folders Navigation */}
+              <Card className="col-span-1 border-border/60 shadow-sm h-fit">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Folders</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1 p-2">
+                  <div className="px-2 py-1.5 text-sm font-medium flex items-center gap-2 text-foreground">
+                    <FolderOpen className="h-4 w-4 text-primary" />
+                    Data Room
+                  </div>
+                  <div className="pl-4 space-y-1 border-l border-border ml-3">
+                    <FolderItem label="Grids" count={3} />
+                    <FolderItem label="Lender Presentation" count={2} />
+                    <FolderItem label="Financial Model" count={5} />
+                    <FolderItem label="Supplementary Info" count={12} />
+                    <FolderItem label="Legal Documents" count={8} active />
+                    <FolderItem label="KYC Documents" count={4} />
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* Investor Responses Section */}
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
-                  Investor Responses
-                </h3>
-                <div className="space-y-2">
-                  <InvestorFolder name="BlackRock Credit" count={2} updated="Today">
-                     <Table>
+              {/* Files List */}
+              <Card className="col-span-3 border-border/60 shadow-sm">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Folder className="h-4 w-4 text-primary" /> Legal Documents
+                    </CardTitle>
+                    <div className="relative w-64">
+                      <Input 
+                        placeholder="Search files..." 
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-8">
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
+                      Credit Agreement Drafts
+                    </h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[45%]">Name</TableHead>
+                          <TableHead>Version</TableHead>
+                          <TableHead>Last Modified</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
                         <FileRow 
-                          name="BlackRock_Response_Grid_v1.xlsx" 
-                          type="XLSX" 
-                          size="250 KB" 
-                          date="Today 10:30 AM" 
-                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
+                          name="Credit Agreement - Draft v4 (Lender Comments).docx" 
+                          type="DOCX" 
+                          size="2.4 MB" 
+                          date="Today 9:15 AM"
+                          version="v4.0"
+                          hasHistory
+                          icon={<FileText className="h-4 w-4 text-blue-600" />}
+                        />
+                        <FileRow 
+                          name="Credit Agreement - Draft v3 (Clean).docx" 
+                          type="DOCX" 
+                          size="2.3 MB" 
+                          date="2 days ago"
+                          version="v3.0"
+                          hasHistory
+                          icon={<FileText className="h-4 w-4 text-blue-600" />}
                         />
                          <FileRow 
-                          name="BlackRock_Questions_Log.docx" 
+                          name="Credit Agreement - Draft v2 (Redline).pdf" 
+                          type="PDF" 
+                          size="3.1 MB" 
+                          date="5 days ago"
+                          version="v2.0"
+                          hasHistory
+                          icon={<FileText className="h-4 w-4 text-red-600" />}
+                        />
+                        <FileRow 
+                          name="Term Sheet - Executed.pdf" 
+                          type="PDF" 
+                          size="1.5 MB" 
+                          date="2 weeks ago"
+                          icon={<FileText className="h-4 w-4 text-red-600" />}
+                        />
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
+                      Ancillary Documents
+                    </h3>
+                    <Table>
+                      <TableBody>
+                        <FileRow 
+                          name="Intercreditor Agreement.docx" 
                           type="DOCX" 
-                          size="45 KB" 
-                          date="Today 10:30 AM" 
+                          size="1.1 MB" 
+                          date="3 days ago"
+                          icon={<FileText className="h-4 w-4 text-blue-600" />}
+                        />
+                        <FileRow 
+                          name="Security Agreement.docx" 
+                          type="DOCX" 
+                          size="950 KB" 
+                          date="3 days ago"
                           icon={<FileText className="h-4 w-4 text-blue-600" />}
                         />
                       </TableBody>
                     </Table>
-                  </InvestorFolder>
-                  
-                  <InvestorFolder name="Apollo Global" count={1} updated="Yesterday">
-                     <Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="access">
+             <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Investor Access Activity</CardTitle>
+                  <CardDescription>Track who has viewed and downloaded data room files.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <InvestorAccessCard 
+                      name="BlackRock Credit"
+                      lastActive="10 mins ago"
+                      views={145}
+                      downloads={42}
+                      recentFiles={[
+                        "Credit Agreement - Draft v4 (Lender Comments).docx",
+                        "Titan Financial Model - Base Case.xlsx",
+                        "Lender Presentation Deck.pptx"
+                      ]}
+                    />
+                    <InvestorAccessCard 
+                      name="Apollo Global"
+                      lastActive="2 hours ago"
+                      views={98}
+                      downloads={25}
+                      recentFiles={[
+                        "Commercial Due Diligence Report (McK).pdf",
+                        "Capital Structure Grid - Master.xlsx"
+                      ]}
+                    />
+                    <InvestorAccessCard 
+                      name="Oak Hill Advisors"
+                      lastActive="Yesterday"
+                      views={65}
+                      downloads={12}
+                      recentFiles={[
+                        "Lender Presentation Deck.pptx",
+                        "Term Sheet - Executed.pdf"
+                      ]}
+                    />
+                     <InvestorAccessCard 
+                      name="Barings"
+                      lastActive="3 days ago"
+                      views={32}
+                      downloads={8}
+                      recentFiles={[
+                        "Lender Presentation Deck.pptx"
+                      ]}
+                    />
+                  </div>
+
+                  <div className="mt-8">
+                    <h3 className="text-sm font-semibold text-foreground mb-4">Detailed Access Log</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Investor</TableHead>
+                          <TableHead>User</TableHead>
+                          <TableHead>Action</TableHead>
+                          <TableHead>File</TableHead>
+                          <TableHead>Time</TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
-                        <FileRow 
-                          name="Apollo_Grid_Response_v2.xlsx" 
-                          type="XLSX" 
-                          size="265 KB" 
-                          date="Yesterday" 
-                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
-                        />
+                        <AccessRow investor="BlackRock" user="John Smith" action="Downloaded" file="Credit Agreement - Draft v4.docx" time="10 mins ago" />
+                        <AccessRow investor="BlackRock" user="Sarah Jones" action="Viewed" file="Financial Model v3.xlsx" time="45 mins ago" />
+                        <AccessRow investor="Apollo" user="Mike Ross" action="Viewed" file="Commercial DD Report.pdf" time="2 hours ago" />
+                        <AccessRow investor="BlackRock" user="John Smith" action="Downloaded" file="Q3 Financials.xlsx" time="3 hours ago" />
+                        <AccessRow investor="Apollo" user="Jessica Pearson" action="Viewed" file="Lender Presentation.pptx" time="4 hours ago" />
                       </TableBody>
                     </Table>
-                  </InvestorFolder>
-
-                  <InvestorFolder name="Oak Hill Advisors" count={1} updated="3 days ago">
-                     <Table>
-                      <TableBody>
-                        <FileRow 
-                          name="OakHill_Prelim_Grid.xlsx" 
-                          type="XLSX" 
-                          size="240 KB" 
-                          date="3 days ago" 
-                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
-                        />
-                      </TableBody>
-                    </Table>
-                  </InvestorFolder>
-                </div>
-              </div>
-
-              {/* KYC Documents Section */}
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
-                  KYC Documents
-                </h3>
-                <Table>
-                  <TableBody>
-                    <FileRow 
-                      name="Certificate of Incorporation.pdf" 
-                      type="PDF" 
-                      size="1.2 MB" 
-                      date="Oct 10" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                    <FileRow 
-                      name="Articles of Association.pdf" 
-                      type="PDF" 
-                      size="3.5 MB" 
-                      date="Oct 10" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                    <FileRow 
-                      name="UBO Declaration Form.pdf" 
-                      type="PDF" 
-                      size="850 KB" 
-                      date="Oct 12" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                    <FileRow 
-                      name="Director Passports (Redacted).pdf" 
-                      type="PDF" 
-                      size="4.2 MB" 
-                      date="Oct 12" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                  </TableBody>
-                </Table>
-              </div>
-
-            </CardContent>
-          </Card>
-        </div>
+                  </div>
+                </CardContent>
+             </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
@@ -262,34 +298,6 @@ function FolderItem({ label, count, active }: { label: string; count: number; ac
       </div>
       <span className="text-xs opacity-70">{count}</span>
     </div>
-  );
-}
-
-function InvestorFolder({ name, count, updated, children }: { name: string; count: number; updated: string; children: React.ReactNode }) {
-  return (
-    <Accordion type="single" collapsible className="w-full border border-border/40 rounded-lg bg-secondary/10">
-      <AccordionItem value={name} className="border-none">
-        <AccordionTrigger className="px-4 py-3 hover:bg-secondary/20 hover:no-underline">
-          <div className="flex items-center gap-3 w-full">
-            <div className="h-8 w-8 bg-primary/10 rounded flex items-center justify-center text-primary">
-              <FolderOpen className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col items-start text-left flex-1">
-              <span className="text-sm font-medium text-foreground">{name}</span>
-              <span className="text-xs text-muted-foreground">Last updated {updated}</span>
-            </div>
-            <Badge variant="secondary" className="mr-2 text-xs font-normal">
-              {count} files
-            </Badge>
-          </div>
-        </AccordionTrigger>
-        <AccordionContent className="px-4 pb-4 border-t border-border/40 bg-background/50">
-          <div className="pt-2 pl-4 border-l-2 border-border/60 ml-3">
-             {children}
-          </div>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
   );
 }
 
@@ -318,65 +326,10 @@ function FileRow({ name, type, size, date, icon, version, hasHistory }: { name: 
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {hasHistory && (
-             <Sheet>
-               <SheetTrigger asChild>
-                 <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-primary">
-                   <History className="h-4 w-4" />
-                   <span className="hidden sm:inline">History</span>
-                 </Button>
-               </SheetTrigger>
-               <SheetContent>
-                 <SheetHeader>
-                   <SheetTitle>Version History</SheetTitle>
-                   <SheetDescription>
-                     Track changes for {name}
-                   </SheetDescription>
-                 </SheetHeader>
-                 <div className="mt-6 space-y-6">
-                   <div className="relative border-l border-border ml-2 pl-6 space-y-6">
-                     <div className="relative">
-                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
-                       <div className="flex flex-col gap-1">
-                         <div className="flex items-center gap-2">
-                           <span className="font-semibold text-sm">Version 3.2</span>
-                           <Badge variant="secondary" className="text-[10px] h-5">Current</Badge>
-                         </div>
-                         <p className="text-xs text-muted-foreground">Updated by Alex Davis • 2 days ago</p>
-                         <p className="text-sm mt-1 bg-secondary/30 p-2 rounded text-foreground/80">
-                           Updated tranche B pricing assumptions based on feedback.
-                         </p>
-                       </div>
-                     </div>
-                     <div className="relative">
-                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-border ring-4 ring-background" />
-                        <div className="flex flex-col gap-1">
-                         <div className="flex items-center gap-2">
-                           <span className="font-medium text-sm text-muted-foreground">Version 3.1</span>
-                         </div>
-                         <p className="text-xs text-muted-foreground">Updated by Sarah Jenkins • 4 days ago</p>
-                         <p className="text-sm mt-1 text-muted-foreground">
-                           Added new downside case sensitivity rows.
-                         </p>
-                       </div>
-                     </div>
-                     <div className="relative">
-                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-border ring-4 ring-background" />
-                        <div className="flex flex-col gap-1">
-                         <div className="flex items-center gap-2">
-                           <span className="font-medium text-sm text-muted-foreground">Version 2.0</span>
-                         </div>
-                         <p className="text-xs text-muted-foreground">Updated by Alex Davis • 1 week ago</p>
-                         <p className="text-sm mt-1 text-muted-foreground">
-                           Initial distribution version.
-                         </p>
-                       </div>
-                     </div>
-                   </div>
-                 </div>
-               </SheetContent>
-             </Sheet>
+             <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-primary">
+               <History className="h-4 w-4" />
+             </Button>
           )}
-          
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Download className="h-4 w-4" />
           </Button>
@@ -398,4 +351,70 @@ function FileRow({ name, type, size, date, icon, version, hasHistory }: { name: 
       </TableCell>
     </TableRow>
   );
+}
+
+function InvestorAccessCard({ name, lastActive, views, downloads, recentFiles }: { name: string; lastActive: string; views: number; downloads: number; recentFiles: string[] }) {
+  return (
+    <Card className="border border-border/60 bg-secondary/10">
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+             <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs font-bold text-primary bg-primary/10">
+                  {name.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+             </Avatar>
+             <div>
+               <div className="font-semibold text-sm">{name}</div>
+               <div className="text-xs text-muted-foreground flex items-center gap-1">
+                 <Clock className="h-3 w-3" /> Active {lastActive}
+               </div>
+             </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2 text-center">
+           <div className="bg-background border rounded p-2">
+             <div className="text-lg font-bold text-primary">{views}</div>
+             <div className="text-[10px] text-muted-foreground uppercase">File Views</div>
+           </div>
+           <div className="bg-background border rounded p-2">
+             <div className="text-lg font-bold text-primary">{downloads}</div>
+             <div className="text-[10px] text-muted-foreground uppercase">Downloads</div>
+           </div>
+        </div>
+
+        <div className="space-y-2">
+           <div className="text-xs font-medium text-muted-foreground uppercase">Recently Accessed</div>
+           <div className="space-y-1">
+             {recentFiles.map((file, i) => (
+               <div key={i} className="flex items-start gap-2 text-xs p-1.5 bg-background rounded border border-border/40">
+                 <Eye className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                 <span className="truncate">{file}</span>
+               </div>
+             ))}
+           </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AccessRow({ investor, user, action, file, time }: { investor: string; user: string; action: string; file: string; time: string }) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{investor}</TableCell>
+      <TableCell className="text-muted-foreground">{user}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className={cn(
+          "font-normal",
+          action === "Downloaded" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-700 border-gray-200"
+        )}>
+          {action}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm">{file}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">{time}</TableCell>
+    </TableRow>
+  )
 }
