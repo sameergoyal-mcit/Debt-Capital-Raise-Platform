@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useRoute } from "wouter";
 import { 
   FileText, 
@@ -7,15 +7,17 @@ import {
   Upload, 
   MoreHorizontal,
   FileSpreadsheet,
-  File,
-  FileBarChart,
-  Grid
+  Grid,
+  History,
+  GitBranch,
+  ChevronRight,
+  FolderOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -31,6 +33,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
 export default function Documents() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -91,118 +108,98 @@ export default function Documents() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40%]">Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Last Modified</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <FileRow 
-                    name="Capital Structure Grid - v3.xlsx" 
-                    type="XLSX" 
-                    size="245 KB" 
-                    date="2 days ago" 
-                    icon={<Grid className="h-4 w-4 text-green-600" />}
-                  />
-                  <FileRow 
-                    name="Lender Comparables Grid.xlsx" 
-                    type="XLSX" 
-                    size="1.2 MB" 
-                    date="1 week ago" 
-                    icon={<Grid className="h-4 w-4 text-green-600" />}
-                  />
-                  <FileRow 
-                    name="Pricing Grid Sensitivity.xlsx" 
-                    type="XLSX" 
-                    size="850 KB" 
-                    date="3 days ago" 
-                    icon={<Grid className="h-4 w-4 text-green-600" />}
-                  />
-                </TableBody>
-              </Table>
-
-              <div className="mt-8 mb-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Folder className="h-4 w-4" /> Lender Presentation
+              {/* Master Grids Section */}
+              <div className="mb-8">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
+                  Master Files (Distribution)
                 </h3>
                 <Table>
-                   <TableBody>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40%]">Name</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Last Modified</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     <FileRow 
-                      name="Project Titan - Management Presentation.pdf" 
-                      type="PDF" 
-                      size="15.4 MB" 
-                      date="Nov 05" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
+                      name="Capital Structure Grid - Master.xlsx" 
+                      type="XLSX" 
+                      size="245 KB" 
+                      date="2 days ago" 
+                      version="v3.2"
+                      hasHistory
+                      icon={<Grid className="h-4 w-4 text-green-600" />}
                     />
                     <FileRow 
-                      name="Lender Presentation Deck.pptx" 
-                      type="PPTX" 
-                      size="24 MB" 
-                      date="Nov 01" 
-                      icon={<FileText className="h-4 w-4 text-orange-500" />}
+                      name="Lender Comparables Grid.xlsx" 
+                      type="XLSX" 
+                      size="1.2 MB" 
+                      date="1 week ago"
+                      version="v1.0"
+                      hasHistory
+                      icon={<Grid className="h-4 w-4 text-green-600" />}
                     />
-                   </TableBody>
+                  </TableBody>
                 </Table>
               </div>
 
-               <div className="mt-8 mb-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Folder className="h-4 w-4" /> Financial Model
+              {/* Investor Responses Section */}
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
+                  Investor Responses
                 </h3>
-                <Table>
-                   <TableBody>
-                    <FileRow 
-                      name="Titan Financial Model - Base Case.xlsx" 
-                      type="XLSX" 
-                      size="8.2 MB" 
-                      date="Oct 28" 
-                      icon={<FileSpreadsheet className="h-4 w-4 text-green-600" />}
-                    />
-                    <FileRow 
-                      name="Downside Scenario Analysis.xlsx" 
-                      type="XLSX" 
-                      size="4.5 MB" 
-                      date="Oct 30" 
-                      icon={<FileSpreadsheet className="h-4 w-4 text-green-600" />}
-                    />
-                   </TableBody>
-                </Table>
-              </div>
+                <div className="space-y-2">
+                  <InvestorFolder name="BlackRock Credit" count={2} updated="Today">
+                     <Table>
+                      <TableBody>
+                        <FileRow 
+                          name="BlackRock_Response_Grid_v1.xlsx" 
+                          type="XLSX" 
+                          size="250 KB" 
+                          date="Today 10:30 AM" 
+                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
+                        />
+                         <FileRow 
+                          name="BlackRock_Questions_Log.docx" 
+                          type="DOCX" 
+                          size="45 KB" 
+                          date="Today 10:30 AM" 
+                          icon={<FileText className="h-4 w-4 text-blue-600" />}
+                        />
+                      </TableBody>
+                    </Table>
+                  </InvestorFolder>
+                  
+                  <InvestorFolder name="Apollo Global" count={1} updated="Yesterday">
+                     <Table>
+                      <TableBody>
+                        <FileRow 
+                          name="Apollo_Grid_Response_v2.xlsx" 
+                          type="XLSX" 
+                          size="265 KB" 
+                          date="Yesterday" 
+                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
+                        />
+                      </TableBody>
+                    </Table>
+                  </InvestorFolder>
 
-               <div className="mt-8 mb-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Folder className="h-4 w-4" /> Supplementary Information
-                </h3>
-                <Table>
-                   <TableBody>
-                    <FileRow 
-                      name="Commercial Due Diligence Report (McK).pdf" 
-                      type="PDF" 
-                      size="12 MB" 
-                      date="Oct 15" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                    <FileRow 
-                      name="Quality of Earnings (KPMG).pdf" 
-                      type="PDF" 
-                      size="8.4 MB" 
-                      date="Oct 12" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                     <FileRow 
-                      name="Legal Vendor Due Diligence.pdf" 
-                      type="PDF" 
-                      size="5.1 MB" 
-                      date="Oct 20" 
-                      icon={<FileText className="h-4 w-4 text-red-500" />}
-                    />
-                   </TableBody>
-                </Table>
+                  <InvestorFolder name="Oak Hill Advisors" count={1} updated="3 days ago">
+                     <Table>
+                      <TableBody>
+                        <FileRow 
+                          name="OakHill_Prelim_Grid.xlsx" 
+                          type="XLSX" 
+                          size="240 KB" 
+                          date="3 days ago" 
+                          icon={<FileSpreadsheet className="h-4 w-4 text-blue-600" />}
+                        />
+                      </TableBody>
+                    </Table>
+                  </InvestorFolder>
+                </div>
               </div>
 
             </CardContent>
@@ -228,22 +225,118 @@ function FolderItem({ label, count, active }: { label: string; count: number; ac
   );
 }
 
-function FileRow({ name, type, size, date, icon }: { name: string; type: string; size: string; date: string; icon: React.ReactNode }) {
+function InvestorFolder({ name, count, updated, children }: { name: string; count: number; updated: string; children: React.ReactNode }) {
   return (
-    <TableRow className="group cursor-pointer">
+    <Accordion type="single" collapsible className="w-full border border-border/40 rounded-lg bg-secondary/10">
+      <AccordionItem value={name} className="border-none">
+        <AccordionTrigger className="px-4 py-3 hover:bg-secondary/20 hover:no-underline">
+          <div className="flex items-center gap-3 w-full">
+            <div className="h-8 w-8 bg-primary/10 rounded flex items-center justify-center text-primary">
+              <FolderOpen className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col items-start text-left flex-1">
+              <span className="text-sm font-medium text-foreground">{name}</span>
+              <span className="text-xs text-muted-foreground">Last updated {updated}</span>
+            </div>
+            <Badge variant="secondary" className="mr-2 text-xs font-normal">
+              {count} files
+            </Badge>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="px-4 pb-4 border-t border-border/40 bg-background/50">
+          <div className="pt-2 pl-4 border-l-2 border-border/60 ml-3">
+             {children}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+function FileRow({ name, type, size, date, icon, version, hasHistory }: { name: string; type: string; size: string; date: string; icon: React.ReactNode; version?: string; hasHistory?: boolean }) {
+  return (
+    <TableRow className="group cursor-pointer hover:bg-secondary/30">
       <TableCell className="font-medium">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 bg-secondary/30 rounded flex items-center justify-center">
             {icon}
           </div>
-          {name}
+          <div className="flex flex-col">
+            <span>{name}</span>
+            <span className="text-xs text-muted-foreground md:hidden">{size} • {date}</span>
+          </div>
         </div>
       </TableCell>
-      <TableCell>{type}</TableCell>
-      <TableCell>{size}</TableCell>
-      <TableCell className="text-muted-foreground">{date}</TableCell>
+      <TableCell>
+        {version && (
+          <Badge variant="outline" className="font-mono text-xs text-muted-foreground">
+            {version}
+          </Badge>
+        )}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">{date}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {hasHistory && (
+             <Sheet>
+               <SheetTrigger asChild>
+                 <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-primary">
+                   <History className="h-4 w-4" />
+                   <span className="hidden sm:inline">History</span>
+                 </Button>
+               </SheetTrigger>
+               <SheetContent>
+                 <SheetHeader>
+                   <SheetTitle>Version History</SheetTitle>
+                   <SheetDescription>
+                     Track changes for {name}
+                   </SheetDescription>
+                 </SheetHeader>
+                 <div className="mt-6 space-y-6">
+                   <div className="relative border-l border-border ml-2 pl-6 space-y-6">
+                     <div className="relative">
+                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
+                       <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-2">
+                           <span className="font-semibold text-sm">Version 3.2</span>
+                           <Badge variant="secondary" className="text-[10px] h-5">Current</Badge>
+                         </div>
+                         <p className="text-xs text-muted-foreground">Updated by Alex Davis • 2 days ago</p>
+                         <p className="text-sm mt-1 bg-secondary/30 p-2 rounded text-foreground/80">
+                           Updated tranche B pricing assumptions based on feedback.
+                         </p>
+                       </div>
+                     </div>
+                     <div className="relative">
+                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-border ring-4 ring-background" />
+                        <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-2">
+                           <span className="font-medium text-sm text-muted-foreground">Version 3.1</span>
+                         </div>
+                         <p className="text-xs text-muted-foreground">Updated by Sarah Jenkins • 4 days ago</p>
+                         <p className="text-sm mt-1 text-muted-foreground">
+                           Added new downside case sensitivity rows.
+                         </p>
+                       </div>
+                     </div>
+                     <div className="relative">
+                       <div className="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-border ring-4 ring-background" />
+                        <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-2">
+                           <span className="font-medium text-sm text-muted-foreground">Version 2.0</span>
+                         </div>
+                         <p className="text-xs text-muted-foreground">Updated by Alex Davis • 1 week ago</p>
+                         <p className="text-sm mt-1 text-muted-foreground">
+                           Initial distribution version.
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               </SheetContent>
+             </Sheet>
+          )}
+          
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Download className="h-4 w-4" />
           </Button>
