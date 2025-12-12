@@ -1,0 +1,235 @@
+# Replit Build Instructions: Populate Deals Tab (CapitalFlow)
+
+## Goal
+Populate the Deals tab with a real, working deal list UI (table + filters + actions)
+using seeded/mock data first, then easy swap to DB later.
+
+The Deals tab should match the existing dashboard style and support navigation to:
+- /deal/:dealId/overview
+- /deal/:dealId/investor-book
+- /deal/:dealId/documents
+- /deal/:dealId/due-diligence
+- /deal/:dealId/timeline
+- /deal/:dealId/closing
+
+Add dedicated sections for:
+- Active / In-Process Deals
+- Closed Deals
+- Processes on Hold
+
+---
+
+## 1) Data Model (Deal)
+Create a Deal type with these fields:
+
+Required:
+- id: string (e.g. "123")
+- dealName: string (e.g. "Project Titan")
+- borrowerName: string (e.g. "Titan Software Inc.")
+- sector: string (e.g. "Enterprise SaaS")
+- instrument: string (e.g. "Senior Secured Term Loan")
+- facilityType: string (e.g. "First Lien", "Unitranche")
+- facilitySize: number (e.g. 45000000)
+- currency: "USD" | "EUR" | "GBP"
+- stage: oneOf ["Structuring","NDA","CIM","Marketing","IOI","Bookbuilding","Allocation","Closing"]
+- status: oneOf ["Active","Diligence","Closing","Closed","Paused","At Risk"]
+- targetSize: number
+- committed: number
+- committedPct: number (computed)
+- pricing: {
+  benchmark: "SOFR" | "EURIBOR" | "SONIA"
+  spreadLowBps: number
+  spreadHighBps: number
+  oid: number
+  feesPct: number
+}
+- closeDate: string (ISO date)
+- updatedAt: string (ISO date)
+
+### Additional fields for Closed / On Hold
+- closedDate?: string (ISO date)            // required when status = "Closed"
+- holdReason?: string                       // required when status = "Paused"
+- holdSince?: string (ISO date)             // required when status = "Paused"
+- reopenedCount?: number                    // optional
+- lastStageBeforeHold?: string              // optional, store stage at time of pause
+- outcome?: oneOf ["Funded","Pulled","Refinanced","Replaced","Other"]  // optional
+
+---
+
+## 2) Seed Data
+Create 12–18 mock deals:
+- 8–12 Active/In-process (Active, Diligence, Closing, At Risk)
+- 3–5 Closed
+- 2–4 On Hold (Paused)
+
+Include realistic hold reasons:
+- "Market volatility"
+- "Pricing too wide"
+- "Company financials restatement"
+- "Sponsor paused process"
+- "Regulatory / KYC delay"
+- "Lender syndication stalled"
+
+Store in:
+- /src/data/deals.ts OR /server/seed/deals.ts
+
+---
+
+## 3) Backend API (Mock first)
+Implement:
+GET /api/deals
+Response:
+{ deals: Deal[] }
+
+Optional server filters:
+GET /api/deals?status=Closed
+GET /api/deals?status=Paused
+GET /api/deals?status=Active&stage=Bookbuilding
+
+---
+
+## 4) Deals Tab UI
+### Header Row
+- Title: "Deals"
+- Subtitle: "Track portfolio company debt raises and execution status."
+- Buttons:
+  - "New Deal"
+  - "Export" (CSV of currently visible list)
+
+### Filters Row
+- Search input (dealName, borrowerName)
+- Status dropdown (All / Active / Diligence / Closing / At Risk / Closed / On Hold)
+- Stage dropdown (only meaningful for non-Closed; still allow filter)
+- Sector dropdown
+- Sort dropdown:
+  - Updated (default)
+  - Close date
+  - Committed %
+  - Facility size
+  - Closed date (only when viewing Closed)
+
+---
+
+## 5) Deals Layout: 3 Sections
+Render three collapsible sections (accordions) on the Deals page:
+
+### Section A: Active Deals (default expanded)
+Includes status in:
+- Active
+- Diligence
+- Closing
+- At Risk
+
+Label:
+"Active Deals" + count badge
+
+Default sort:
+- UpdatedAt desc OR CloseDate asc (choose one)
+
+### Section B: Processes on Hold (default expanded if any exist)
+Includes status:
+- Paused
+
+Label:
+"Processes on Hold" + count badge
+
+Show an “At a glance” subtext:
+- "Most common hold reason: Pricing too wide" (derived from holdReason frequency)
+
+Default sort:
+- holdSince desc (most recently paused first)
+
+### Section C: Closed Deals (default collapsed)
+Includes status:
+- Closed
+
+Label:
+"Closed Deals" + count badge
+
+Default sort:
+- closedDate desc (most recent closed first)
+
+---
+
+## 6) Deals Table (Reusable)
+Use one table component but allow column sets per section.
+
+### Shared Columns (all sections)
+- Deal Name (clickable)
+- Sector
+- Size
+- Status badge (pill)
+- Action menu (three dots)
+
+### Active Deals Columns (include debt execution fields)
+- Committed % (progress + "$X / $Y")
+- Stage (pill)
+- Close date (countdown like "Closing in 14 days")
+
+### Processes on Hold Columns (replace committed/stage emphasis)
+- Hold Reason (text, truncated + tooltip)
+- Hold Since (date + "X days on hold")
+- Last Stage Before Hold (pill)
+
+### Closed Deals Columns (replace committed/stage emphasis)
+- Closed Date
+- Outcome (Funded / Pulled / etc.)
+- Final Economics (optional, if available):
+  - Final spread (SOFR + XXX)
+  - Final OID
+  - Final fees
+
+---
+
+## 7) Row Actions (Three Dots Menu)
+Actions vary by section:
+
+### Active Deals actions
+- Open Overview
+- Investor Book
+- Documents
+- Due Diligence Q&A
+- Timeline
+- Closing Checklist
+
+### On Hold actions
+- Open Overview
+- View Hold Notes
+- Resume Process (UI action; can be stubbed)
+- Update Hold Reason (UI action; can be stubbed)
+
+### Closed Deals actions
+- Open Final Summary
+- Export IC Debt Memo
+- View Document Archive
+
+---
+
+## 8) Routing
+Ensure these routes exist:
+- /deal/:dealId/overview
+- /deal/:dealId/investor-book
+- /deal/:dealId/documents
+- /deal/:dealId/due-diligence
+- /deal/:dealId/timeline
+- /deal/:dealId/closing
+
+For closed deals, allow overview but render in "read-only" mode:
+- show banner: "Closed Deal – Read Only"
+
+---
+
+## 9) Loading + Empty States
+- Skeleton rows while loading.
+- Empty states per section:
+  - Active: "No active deals. Create a new debt raise."
+  - On Hold: "No processes on hold."
+  - Closed: "No closed deals yet."
+
+---
+
+## 10) Acceptance Criteria
+- Deals tab shows three sections: Active, On Hold, Closed.
+- Each section has correct deals and tailored columns.
+- Filters/search apply across sections OR optionally within current section (choose one).
+- Clicking a deal goes to /dea
