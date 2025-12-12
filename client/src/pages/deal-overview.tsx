@@ -482,8 +482,8 @@ function TeamMember({ name, role, initials }: { name: string; role: string; init
 
 const engagementData = [
   { name: 'NDA Signed', value: 45, color: '#0f172a', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock, BlueOwl, Blackstone, Vista, Thoma Bravo, TPG' },
-  { name: 'CIM Access', value: 38, color: '#334155', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock' },
-  { name: 'Questions', value: 24, color: '#475569', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings' },
-  { name: 'IOIs', value: 12, color: '#d97706', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle' },
-  { name: 'Firm Bids', value: 8, color: '#16a34a', companies: 'BlackRock, Apollo, Ares, Oaktree' },
+  { name: 'Lender Presentation Completed', value: 38, color: '#334155', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock' },
+  { name: 'Due Diligence Questions', value: 24, color: '#475569', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings' },
+  { name: 'Grid Submitted', value: 12, color: '#d97706', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle' },
+  { name: 'Closed', value: 8, color: '#16a34a', companies: 'BlackRock, Apollo, Ares, Oaktree' },
 ];
