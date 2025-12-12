@@ -41,9 +41,9 @@ export default function InvestorBook() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Link href={`/deal/${dealId}/overview`} className="hover:text-primary">Project Titan</Link>
               <span>/</span>
-              <span>Investor Book</span>
+              <span>Debt Investor Book</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Investor Book</h1>
+            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Debt Investor Book</h1>
             <p className="text-muted-foreground mt-1">Manage investor interest, allocations, and commitments.</p>
           </div>
           <div className="flex gap-3">

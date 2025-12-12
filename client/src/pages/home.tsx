@@ -130,7 +130,7 @@ export default function Home() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>View Overview</DropdownMenuItem>
-                            <DropdownMenuItem>Investor Book</DropdownMenuItem>
+                            <DropdownMenuItem>Debt Investor Book</DropdownMenuItem>
                             <DropdownMenuItem>Documents</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
