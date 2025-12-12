@@ -7,8 +7,12 @@ import {
   DollarSign, 
   Clock, 
   ArrowRight,
-  MoreHorizontal
+  MoreHorizontal,
+  Activity,
+  AlertTriangle,
+  Percent
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,30 +60,38 @@ export default function Home() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <StatCard 
-            title="Total Capital Raised" 
+            title="Total Debt Raised (LTM)" 
             value="$245.8M" 
-            change="+12.5% from last quarter" 
+            change="WAS: S+575 bps" 
             icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+          />
+          <StatCard 
+            title="Avg Debt Pricing (SOFR +)" 
+            value="625 bps" 
+            change="-25 bps vs last quarter" 
+            icon={<Percent className="h-4 w-4 text-muted-foreground" />}
+          />
+          <StatCard 
+            title="Committed vs Target" 
+            value="82%" 
+            change="Across Active Deals" 
+            icon={<Users className="h-4 w-4 text-muted-foreground" />}
           />
           <StatCard 
             title="Active Deals" 
             value="12" 
-            change="+2 new this month" 
-            icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
+            change="2 At Risk" 
+            icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+            alert
           />
           <StatCard 
-            title="Investor Debt Commitments" 
-            value="$850M" 
-            change="92% of Total Target Debt Raise" 
-            icon={<Users className="h-4 w-4 text-muted-foreground" />}
-          />
-          <StatCard 
-            title="Pending Closings" 
-            value="3" 
-            change="Due in next 30 days" 
-            icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+            title="Closings at Risk" 
+            value="1" 
+            change="Next 30 Days" 
+            icon={<AlertTriangle className="h-4 w-4 text-destructive" />}
+            destructive
           />
         </div>
 
@@ -188,9 +200,13 @@ export default function Home() {
   );
 }
 
-function StatCard({ title, value, change, icon }: { title: string; value: string; change: string; icon: React.ReactNode }) {
+function StatCard({ title, value, change, icon, destructive, alert }: { title: string; value: string; change: string; icon: React.ReactNode, destructive?: boolean, alert?: boolean }) {
   return (
-    <Card className="shadow-sm border-border/60">
+    <Card className={cn(
+      "shadow-sm border-border/60",
+      destructive && "border-destructive/50 bg-destructive/5",
+      alert && "border-amber-500/50 bg-amber-500/5"
+    )}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
@@ -198,8 +214,8 @@ function StatCard({ title, value, change, icon }: { title: string; value: string
         {icon}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold font-serif text-primary">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <div className={cn("text-2xl font-bold font-serif", destructive ? "text-destructive" : "text-primary")}>{value}</div>
+        <p className={cn("text-xs mt-1", destructive ? "text-destructive/80 font-medium" : "text-muted-foreground")}>
           {change}
         </p>
       </CardContent>
