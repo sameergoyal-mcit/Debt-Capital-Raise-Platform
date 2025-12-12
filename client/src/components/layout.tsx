@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RoleSwitcher } from "@/components/role-switcher";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -37,8 +38,10 @@ export function Layout({ children }: LayoutProps) {
   const isDealWorkspace = location.startsWith("/deal/");
   
   // Extract deal ID from URL path: /deal/123/overview -> 123
-  const dealIdMatch = location.match(/\/deal\/([^/]+)/);
-  const dealId = dealIdMatch ? dealIdMatch[1] : "101"; // Fallback to 101 if not found
+  const dealIdMatch = location.match(/^\/deal\/([^/]+)/);
+  const dealId = dealIdMatch?.[1];
+
+  const isActive = (path: string) => location.startsWith(path);
 
   return (
     <div className="min-h-screen bg-background flex font-sans text-foreground">
@@ -59,18 +62,18 @@ export function Layout({ children }: LayoutProps) {
           <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} />
           <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
           
-          {isDealWorkspace && (
+          {isDealWorkspace && dealId && (
             <div className="mt-8 pt-4 border-t border-sidebar-border">
               <h4 className="px-4 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-2">
                 Current Deal
               </h4>
-              <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={location.includes("/overview")} />
-              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={location.includes("/book")} />
-              <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Documents" active={location.includes("/documents")} />
-              <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={location.includes("/qa")} />
-              <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={location.includes("/timeline")} />
-              <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing" active={location.includes("/closing")} />
-              <NavItem href={`/deal/${dealId}/viewer`} icon={<Briefcase size={20} />} label="Role Portal" active={location.includes("/viewer")} />
+              <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} />
+              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={isActive(`/deal/${dealId}/book`)} />
+              <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} />
+              <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} />
+              <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} />
+              <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} />
+              <NavItem href={`/deal/${dealId}/viewer`} icon={<Briefcase size={20} />} label="Role Viewer" active={location.includes(`/deal/${dealId}/viewer`)} />
             </div>
           )}
         </nav>
@@ -98,6 +101,11 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-4">
+            {isDealWorkspace && (
+              <div className="hidden md:block">
+                <RoleSwitcher />
+              </div>
+            )}
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-primary">
               <Bell size={20} />
               <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full" />
