@@ -45,7 +45,7 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Overview of your deal pipeline and fund performance.</p>
+            <p className="text-muted-foreground mt-1">Overview of your Debt Market Activity and Active Deals</p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline">Download Report</Button>
