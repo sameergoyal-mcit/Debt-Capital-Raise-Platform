@@ -13,7 +13,6 @@ import QACenter from "@/pages/qa";
 import Timeline from "@/pages/timeline";
 import Closing from "@/pages/closing";
 import Viewer from "@/pages/viewer";
-import { RoleProvider } from "@/lib/roleContext";
 
 function Router() {
   return (
@@ -35,12 +34,10 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <RoleProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </RoleProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

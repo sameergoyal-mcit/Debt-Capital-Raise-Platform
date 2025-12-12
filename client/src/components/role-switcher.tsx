@@ -1,5 +1,5 @@
 import React from "react";
-import { useRole, Role } from "@/lib/roleContext";
+import { useRole, Role } from "@/context/role";
 
 const options: { key: Role; label: string }[] = [
   { key: "issuer", label: "Issuer (PE)" },

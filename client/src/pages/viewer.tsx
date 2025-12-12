@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
 import { RoleSwitcher } from "@/components/role-switcher";
-import { useRole } from "@/lib/roleContext";
+import { useRole } from "@/context/role";
 
 export default function Viewer() {
   const [, params] = useRoute("/deal/:id/viewer");
