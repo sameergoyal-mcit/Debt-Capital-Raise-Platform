@@ -12,7 +12,8 @@ import {
   FileText,
   Users,
   CheckSquare,
-  Clock
+  Clock,
+  HelpCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href="/deal/123/overview" icon={<LayoutDashboard size={20} />} label="Overview" active={location.includes("/overview")} />
               <NavItem href="/deal/123/book" icon={<Users size={20} />} label="Investor Book" active={location.includes("/book")} />
               <NavItem href="/deal/123/documents" icon={<FileText size={20} />} label="Documents" active={location.includes("/documents")} />
+              <NavItem href="/deal/123/qa" icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={location.includes("/qa")} />
               <NavItem href="/deal/123/timeline" icon={<Clock size={20} />} label="Timeline" active={location.includes("/timeline")} />
               <NavItem href="/deal/123/closing" icon={<CheckSquare size={20} />} label="Closing" active={location.includes("/closing")} />
             </div>

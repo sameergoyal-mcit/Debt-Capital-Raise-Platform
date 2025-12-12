@@ -7,6 +7,8 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import DealOverview from "@/pages/deal-overview";
 import InvestorBook from "@/pages/investor-book";
+import Documents from "@/pages/documents";
+import QACenter from "@/pages/qa";
 
 function Router() {
   return (
@@ -14,6 +16,8 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/deal/:id/overview" component={DealOverview} />
       <Route path="/deal/:id/book" component={InvestorBook} />
+      <Route path="/deal/:id/documents" component={Documents} />
+      <Route path="/deal/:id/qa" component={QACenter} />
       <Route component={NotFound} />
     </Switch>
   );
