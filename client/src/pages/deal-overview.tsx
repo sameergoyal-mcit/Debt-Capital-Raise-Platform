@@ -43,7 +43,7 @@ export default function DealOverview() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                Series B
+                Senior Secured Term Loan
               </Badge>
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Clock className="h-3 w-3" /> Closing in 14 days

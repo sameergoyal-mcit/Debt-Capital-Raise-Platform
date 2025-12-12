@@ -110,7 +110,7 @@ export default function QACenter() {
               <QAItem 
                 id="q2"
                 status="draft"
-                question="Please clarify the change of control provisions in the current term sheet draft regarding the sponsor equity cure."
+                question="Please clarify the change of control provisions in the current credit agreement draft regarding the sponsor equity cure."
                 asker="Apollo Global"
                 date="5 hours ago"
                 topic="Legal"
@@ -128,7 +128,7 @@ export default function QACenter() {
               <QAItem 
                 id="q4"
                 status="closed"
-                question="Are there any outstanding litigation matters related to the IP portfolio?"
+                question="Are there any outstanding litigation matters related to the IP portfolio that could impact collateral value?"
                 asker="Barings"
                 date="2 days ago"
                 topic="Legal"

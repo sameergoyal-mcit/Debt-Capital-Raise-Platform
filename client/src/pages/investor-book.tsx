@@ -206,10 +206,13 @@ function StatusBadge({ status }: { status: string }) {
 
 const investors = [
   { id: 1, name: "BlackRock Credit", type: "Asset Manager", status: "Committed", ask: "$10M", committed: "$10M", lastActivity: "2 days ago" },
-  { id: 2, name: "Apollo Global", type: "Private Equity", status: "Committed", ask: "$15M", committed: "$15M", lastActivity: "5 days ago" },
+  { id: 2, name: "Apollo Global", type: "Direct Lender / Private Credit", status: "Committed", ask: "$15M", committed: "$15M", lastActivity: "5 days ago" },
   { id: 3, name: "Oak Hill Advisors", type: "Credit Fund", status: "Soft Circle", ask: "$8M", committed: "$5M", lastActivity: "Today" },
   { id: 4, name: "Barings", type: "Asset Manager", status: "Diligence", ask: "$5M", committed: "-", lastActivity: "Yesterday" },
-  { id: 5, name: "Golub Capital", type: "Private Debt", status: "Diligence", ask: "$10M", committed: "-", lastActivity: "3 days ago" },
-  { id: 6, name: "Ares Management", type: "Alternative Asset", status: "Committed", ask: "$7.5M", committed: "$7.5M", lastActivity: "1 week ago" },
-  { id: 7, name: "KKR Credit", type: "Private Equity", status: "Declined", ask: "$10M", committed: "-", lastActivity: "2 weeks ago" },
+  { id: 5, name: "Golub Capital", type: "BDC", status: "Diligence", ask: "$10M", committed: "-", lastActivity: "3 days ago" },
+  { id: 6, name: "Ares Management", type: "Direct Lender / Private Credit", status: "Committed", ask: "$7.5M", committed: "$7.5M", lastActivity: "1 week ago" },
+  { id: 7, name: "KKR Credit", type: "CLO", status: "Declined", ask: "$10M", committed: "-", lastActivity: "2 weeks ago" },
+  { id: 8, name: "HPS Investment Partners", type: "Credit Fund", status: "Diligence", ask: "$12M", committed: "-", lastActivity: "Today" },
+  { id: 9, name: "Sixth Street", type: "Insurance", status: "Soft Circle", ask: "$20M", committed: "$15M", lastActivity: "Yesterday" },
+  { id: 10, name: "JPMorgan", type: "Bank", status: "Diligence", ask: "$5M", committed: "-", lastActivity: "4 days ago" },
 ];
