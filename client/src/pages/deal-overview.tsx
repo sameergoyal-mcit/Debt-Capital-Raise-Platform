@@ -16,7 +16,11 @@ import {
   ShieldCheck,
   FileCheck,
   Layers,
-  ChevronRight
+  ChevronRight,
+  DollarSign,
+  TrendingDown,
+  TrendingUp,
+  Minus
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -110,10 +114,12 @@ export default function DealOverview() {
                    <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Spread Guidance</p>
                     <p className="text-xl font-medium text-foreground">S + 625-650</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Est. All-In Yield: 11.2% – 11.5%</p>
                   </div>
                    <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">OID / Fees</p>
                     <p className="text-xl font-medium text-foreground">98.0 / 2.0%</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">+25 bps = +$112k/yr Interest</p>
                   </div>
                 </div>
               </CardContent>
@@ -126,12 +132,11 @@ export default function DealOverview() {
                   <CardTitle className="flex items-center gap-2">
                     <Layers className="h-5 w-5 text-primary" /> Live Book Status
                   </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    <span className="text-xs font-medium text-green-600">Live Updates</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2 py-1 rounded border border-emerald-100">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-semibold">Pricing Pressure: Tightening</span>
+                    </div>
                   </div>
                 </div>
                 <CardDescription>Real-time demand tracking and subscription levels.</CardDescription>
@@ -238,20 +243,34 @@ export default function DealOverview() {
                   <AlertCircle className="h-5 w-5" /> Action Required
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <AlertItem 
-                  title="Approve Final Pricing" 
-                  desc="Lead investor requesting confirmation on OID flex."
-                  urgent 
-                />
-                <AlertItem 
-                  title="Respond to BlackRock" 
-                  desc="Outstanding diligence question on FY24 churn." 
-                />
-                <AlertItem 
-                  title="Finish Covenant Comps" 
-                  desc="Legal counsel needs input for draft v2." 
-                />
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Pricing Decisions</h4>
+                  <AlertItem 
+                    title="Approve Final Pricing" 
+                    desc="Lead investor requesting confirmation on OID flex."
+                    impact="Delays closing by 2 days"
+                    urgent 
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Diligence</h4>
+                  <AlertItem 
+                    title="Respond to BlackRock" 
+                    desc="Outstanding diligence question on FY24 churn." 
+                    impact="Blocks credit committee approval"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Legal</h4>
+                  <AlertItem 
+                    title="Finish Covenant Comps" 
+                    desc="Legal counsel needs input for draft v2." 
+                    impact="Delays CA distribution"
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -390,13 +409,14 @@ function CovenantRow({ label, value, status }: { label: string; value: string; s
   );
 }
 
-function AlertItem({ title, desc, urgent }: { title: string; desc: string; urgent?: boolean }) {
+function AlertItem({ title, desc, impact, urgent }: { title: string; desc: string; impact?: string, urgent?: boolean }) {
   return (
     <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer">
       <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${urgent ? "bg-red-500 animate-pulse" : "bg-amber-400"}`} />
-      <div>
+      <div className="flex-1">
         <p className="text-sm font-medium leading-none mb-1">{title}</p>
         <p className="text-xs text-muted-foreground leading-snug">{desc}</p>
+        {impact && <p className="text-[10px] text-red-600 font-medium mt-1">Impact: {impact}</p>}
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto self-center" />
     </div>
