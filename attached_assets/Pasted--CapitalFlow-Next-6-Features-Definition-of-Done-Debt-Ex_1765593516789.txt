@@ -1,0 +1,144 @@
+# CapitalFlow – Next 6 Features: Definition of Done (Debt Execution Platform)
+
+Use this as the acceptance checklist after Replit AI implements each feature.
+A feature is “Done” only when all items in its checklist pass.
+
+---
+
+## Feature 1 — Debt Deal Lifecycle Engine (Stages + Gating + At-Risk)
+
+### Definition of Done
+- [ ] Deal model includes canonical debt stages:
+      Structuring, NDA, CIM, Marketing, IOI, Bookbuilding, Allocation, Docs, Signing, Funding, Closed, Paused
+- [ ] Every deal has:
+      stage, hardCloseDate, stageDueDates (optional), blockersCount, coverageRatio (committed/target)
+- [ ] Deals table shows:
+      Stage pill + Coverage % + Days to hard close + Risk pill (Normal / At Risk)
+- [ ] At Risk logic works:
+      - coverageRatio < 0.60 AND daysToHardClose <= 14 => At Risk
+      - blockersCount >= 3 AND stage in Docs/Signing => At Risk
+- [ ] Stage gating works:
+      - Investor IOI actions are disabled/hide unless stage is IOI/Bookbuilding
+      - Closing checklist is read-only unless stage is Docs/Signing/Funding
+- [ ] No equity terminology remains in stage labels or gating text
+- [ ] All routes still compile with TypeScript and render without console errors
+
+---
+
+## Feature 2 — Bookrunner Investor Book (Actions + Follow-ups + Drawer)
+
+### Definition of Done
+- [ ] Lender model expanded:
+      type, status, ticketMin/ticketMax, pricingBps, lastContactAt, owner, nextAction(+due), notes
+- [ ] Investor Book page shows a sortable/filterable table by:
+      status, lender type, seriousness score, owner
+- [ ] “Seriousness score” is computed and displayed (0–100) with a simple badge
+- [ ] Clicking a lender row opens a right-side drawer with:
+      - lender profile fields
+      - interaction timeline list (can be mock)
+      - actions: Log interaction, Mark IOI, Mark Firm, Request firm-up (stub ok)
+- [ ] Role behavior:
+      - Issuer: sees summary only (top lenders + demand/pricing chart)
+      - Bookrunner: full table + actions + drawer
+      - Investor: cannot see other lenders; only “My Interest” view
+- [ ] No lender is labeled “Private Equity” (all types are debt categories)
+
+---
+
+## Feature 3 — IOI + Firm Commitment Workflow (Investor Portal → Book)
+
+### Definition of Done
+- [ ] Investor view has an IOI form with:
+      ticket min/max, pricing, conditions, notes, submit/update
+- [ ] IOIs are stored per deal + lender with timestamp (mock persistence ok)
+- [ ] Bookrunner investor book table shows latest IOI values per lender
+- [ ] Bookrunner can “Mark Firm” which:
+      - flips lender status to Firm
+      - records firmAt timestamp
+- [ ] Issuer overview shows aggregated demand:
+      - total IOI demand
+      - total firm demand
+      - distribution across pricing bands (tight/mid/wide)
+- [ ] Investor cannot see book totals, allocations, or other lenders’ IOIs
+
+---
+
+## Feature 4 — Covenant & Headroom Dashboard (Issuer Must-Have)
+
+### Definition of Done
+- [ ] Deals contain covenants array:
+      name, type (maintenance/incurrence), threshold, unit, proForma, notes
+- [ ] UI displays covenant table with:
+      threshold, pro forma, computed headroom
+- [ ] Headroom computation is correct for:
+      - maximum tests (max leverage): threshold - proForma
+      - minimum tests (min ICR): proForma - threshold
+- [ ] Tightness flags:
+      - red if headroom below configured threshold (e.g., <0.25x for turns)
+      - yellow for moderate tightness
+- [ ] Issuer Deal Overview includes covenant preview + headroom (not buried)
+- [ ] “Export Covenant Summary” produces a printable/exportable summary (HTML print is fine)
+
+---
+
+## Feature 5 — Docs Redline Tracker + Blockers + Closing Checklist
+
+### Definition of Done
+- [ ] Documents have:
+      category, status, version, lastUpdatedAt, owner (Issuer Counsel / Lender Counsel / Bank), openCommentsCount
+- [ ] Documents page supports:
+      - grouped doc list by category
+      - selecting a doc shows metadata + status + comments (mock ok)
+      - blockers panel lists docs not “Ready to Sign” when stage is Docs/Signing
+- [ ] Closing page shows a checklist table with:
+      item, owner, status, due date, linked doc
+- [ ] Closing checklist automatically includes key closing items:
+      - Credit Agreement, Security Agreement, Intercreditor (if applicable)
+      - KYC, funds flow, officer certs (mock items ok)
+- [ ] Deal Overview shows “Docs blockers count” in Action Required / Alerts
+- [ ] No equity-only artifacts remain (rename “term sheet” to commitment/credit docs where needed)
+
+---
+
+## Feature 6 — Analytics Page + Publish Priced Deal Module
+
+### Analytics — Definition of Done
+- [ ] /analytics route exists and is linked in sidebar
+- [ ] Analytics contains tabs:
+      Deal Analytics, Execution Benchmarking, Portfolio Dashboard
+- [ ] Deal Analytics includes charts:
+      - coverage ratio over time
+      - lender type mix
+      - funnel NDA → IOI → Firm
+      - pricing band distribution
+- [ ] Execution Benchmarking includes:
+      - time in stage bars
+      - blocker counts by category
+- [ ] Portfolio Dashboard includes:
+      - total debt raised YTD
+      - WAS (weighted avg spread) / avg OID / avg fees
+      - maturity wall (mock ok)
+- [ ] Charts render with mock data (no blank states)
+
+### Publish Module — Definition of Done
+- [ ] /deal/:id/publish route exists + sidebar link “Publish”
+- [ ] Publish screen supports:
+      - auto-generated pricing announcement templates (short + long)
+      - editable fields: size, pricing, OID, fees, maturity, security, bookrunner
+      - destination checklist: Debt Domain, PitchBook/LCD, 9fin, Internal Email, PR Newswire
+      - approval toggles: Issuer, Counsel, Bookrunner
+      - output actions: copy-to-clipboard + mailto draft + print/download summary
+      - audit log list of sent drafts (timestamp, destinations, content)
+- [ ] No real posting is performed; this is “distribution packaging” only
+
+---
+
+## Global Debt-First QA Checklist
+- [ ] No “Series A/B/C”, “equity raise”, “cap table”, or VC-style language visible
+- [ ] Replace “Investor” with “Lender” where appropriate (except UI meant for lender user)
+- [ ] All deal types/instruments use debt terms (Term Loan, Unitranche, Revolver, HY bond)
+- [ ] Role-based access respected:
+      - Investor cannot see other lenders, allocations, internal notes
+      - Issuer sees sponsor-relevant execution + risk info
+      - Bookrunner sees operational book + follow-ups
+- [ ] App builds and runs in Replit with no runtime errors

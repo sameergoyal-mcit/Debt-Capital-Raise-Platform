@@ -12,6 +12,17 @@ export interface Interaction {
   user: string;
 }
 
+export interface IOI {
+  lenderId: string;
+  submittedAt: string; // ISO date
+  ticketMin: number;
+  ticketMax: number;
+  pricingBps: number;
+  conditions: string;
+  isFirm: boolean;
+  firmAt?: string; // ISO date
+}
+
 export interface Lender {
   id: string;
   name: string;
@@ -29,6 +40,7 @@ export interface Lender {
   notes: string;
   interactions: Interaction[];
   seriousnessScore: number; // Computed 0-100
+  ioi?: IOI;
 }
 
 export function computeSeriousnessScore(lender: Lender): number {
@@ -90,6 +102,16 @@ export const mockLenders: Lender[] = [
       { id: "i2", date: new Date(Date.now() - 86400000 * 3).toISOString(), type: "Email", note: "Sent final term sheet.", user: "Michael Ross" }
     ],
     seriousnessScore: 0, // Calculated at runtime
+    ioi: {
+      lenderId: "1",
+      submittedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+      ticketMin: 15000000,
+      ticketMax: 15000000,
+      pricingBps: 625,
+      conditions: "Subject to final legal review.",
+      isFirm: true,
+      firmAt: new Date().toISOString()
+    }
   },
   {
     id: "2",
@@ -107,6 +129,15 @@ export const mockLenders: Lender[] = [
       { id: "i3", date: new Date(Date.now() - 86400000 * 2).toISOString(), type: "Email", note: "Received questions list.", user: "Sarah Jenkins" }
     ],
     seriousnessScore: 0,
+    ioi: {
+      lenderId: "2",
+      submittedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+      ticketMin: 15000000,
+      ticketMax: 30000000,
+      pricingBps: 650,
+      conditions: "Need IP diligence call.",
+      isFirm: false
+    }
   },
   {
     id: "3",

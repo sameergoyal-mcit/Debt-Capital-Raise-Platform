@@ -4,6 +4,16 @@ export type DealStage = "Structuring" | "NDA" | "CIM" | "Marketing" | "IOI" | "B
 export type DealStatus = "Active" | "Diligence" | "Closing" | "Closed" | "Paused" | "At Risk";
 export type DealOutcome = "Funded" | "Pulled" | "Refinanced" | "Replaced" | "Other";
 
+export interface Covenant {
+  id: string;
+  name: string;
+  type: "Maintenance" | "Incurrence";
+  threshold: number;
+  unit: "x" | "%" | "$";
+  proForma: number;
+  notes: string;
+}
+
 export interface Deal {
   id: string;
   dealName: string;
@@ -26,6 +36,7 @@ export interface Deal {
     oid: number;
     feesPct: number;
   };
+  covenants?: Covenant[];
   closeDate: string; // ISO date
   hardCloseDate?: string; // ISO date
   stageDueDates?: Partial<Record<DealStage, string>>;
@@ -59,6 +70,12 @@ export const mockDeals: Deal[] = [
     committedPct: 100,
     coverageRatio: 1.0,
     pricing: { benchmark: "SOFR", spreadLowBps: 625, spreadHighBps: 650, oid: 98, feesPct: 2 },
+    covenants: [
+      { id: "c1", name: "Max Total Net Leverage", type: "Maintenance", threshold: 4.50, unit: "x", proForma: 4.25, notes: "Step down to 4.00x after 24 months" },
+      { id: "c2", name: "Min Interest Coverage", type: "Maintenance", threshold: 2.50, unit: "x", proForma: 3.10, notes: "EBITDA / Cash Interest" },
+      { id: "c3", name: "Max Capex", type: "Incurrence", threshold: 5000000, unit: "$", proForma: 2500000, notes: "Annual limit, carry forward 50%" },
+      { id: "c4", name: "Min Liquidity", type: "Maintenance", threshold: 2000000, unit: "$", proForma: 4500000, notes: "Tested quarterly" }
+    ],
     closeDate: "2025-06-30",
     hardCloseDate: "2025-07-15",
     blockersCount: 1,

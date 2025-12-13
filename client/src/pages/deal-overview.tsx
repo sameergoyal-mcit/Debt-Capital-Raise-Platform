@@ -244,31 +244,98 @@ export default function DealOverview() {
               </CardContent>
             </Card>
 
-            {/* Covenant Preview */}
+import { Covenant } from "@/data/deals";
+
+// ... [existing imports]
+
+// Inside DealOverview function, before return:
+  const handleExportCovenants = () => {
+    // Mock export
+    alert("Downloading Covenant Compliance Certificate...");
+  };
+
+// Replace the "Covenant Preview" Card with this:
             <Card className="border-border/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-primary" /> Covenant Preview
-                </CardTitle>
-                <CardDescription>Key financial tests and baskets summary.</CardDescription>
+              <CardHeader className="pb-3 border-b border-border/40">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-primary" /> Covenant Headroom
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={handleExportCovenants}>
+                    <Download className="h-3 w-3" /> Export Summary
+                  </Button>
+                </div>
+                <CardDescription>Key financial tests and baskets analysis.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-foreground border-b pb-1">Financial Covenants</h4>
-                    <CovenantRow label="Max Leverage (Total Net)" value="4.50x" status="Maintenance" />
-                    <CovenantRow label="Min Interest Coverage" value="2.50x" status="Maintenance" />
-                    <CovenantRow label="Max Capex" value="$5.0M" status="Incurrence" />
+                    {deal.covenants?.filter(c => c.type === "Maintenance").map(c => (
+                      <CovenantRow key={c.id} covenant={c} />
+                    ))}
+                    {!deal.covenants && (
+                      <div className="text-sm text-muted-foreground italic">No covenants defined.</div>
+                    )}
                   </div>
                    <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-foreground border-b pb-1">Baskets & Restricted Payments</h4>
-                    <CovenantRow label="General Basket" value="$2.0M" />
-                    <CovenantRow label="Unlimited RP" value="< 3.00x Lev" />
-                    <CovenantRow label="Incremental Facility" value="Free + MFN" />
+                    <h4 className="text-sm font-medium text-foreground border-b pb-1">Baskets & Incurrence</h4>
+                    {deal.covenants?.filter(c => c.type === "Incurrence").map(c => (
+                      <CovenantRow key={c.id} covenant={c} />
+                    ))}
+                     {!deal.covenants && (
+                      <div className="text-sm text-muted-foreground italic">No baskets defined.</div>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+// ... [rest of file]
+
+function CovenantRow({ covenant }: { covenant: Covenant }) {
+  const isMaxTest = covenant.name.includes("Max") || covenant.name.includes("Capex") || covenant.name.includes("Leverage");
+  const headroom = isMaxTest 
+    ? covenant.threshold - covenant.proForma 
+    : covenant.proForma - covenant.threshold;
+  
+  // Risk logic
+  let isTight = false;
+  let isWarning = false;
+  
+  if (covenant.unit === "x") {
+    if (headroom < 0.25) isTight = true;
+    else if (headroom < 0.50) isWarning = true;
+  } else if (covenant.unit === "%") {
+    if (headroom < 5) isTight = true;
+  } else if (covenant.unit === "$") {
+    // e.g. Liquidity < 10% buffer
+    if (headroom < covenant.threshold * 0.1) isTight = true; 
+  }
+
+  return (
+    <div className="flex items-center justify-between text-sm py-1.5 border-b border-border/50 last:border-0">
+      <div>
+        <div className="flex items-center gap-2">
+           <span className="text-muted-foreground">{covenant.name}</span>
+           {isTight && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-red-50 text-red-600 border-red-200">Tight</Badge>}
+           {isWarning && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-50 text-amber-600 border-amber-200">Watch</Badge>}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+           Headroom: {covenant.unit === "$" ? "$" + (headroom/1000000).toFixed(1) + "M" : headroom.toFixed(2) + covenant.unit}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-medium font-serif">
+          {covenant.unit === "$" ? "$" + (covenant.proForma/1000000).toFixed(1) + "M" : covenant.proForma.toFixed(2) + covenant.unit}
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          Limit: {covenant.unit === "$" ? "$" + (covenant.threshold/1000000).toFixed(1) + "M" : covenant.threshold.toFixed(2) + covenant.unit}
+        </div>
+      </div>
+    </div>
+  );
+}
 
           </div>
 
@@ -436,7 +503,7 @@ function DemandRow({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-function CovenantRow({ label, value, status }: { label: string; value: string; status?: string }) {
+function CovenantRowOld({ label, value, status }: { label: string; value: string; status?: string }) {
   return (
     <div className="flex items-center justify-between text-sm py-1">
       <span className="text-muted-foreground">{label}</span>

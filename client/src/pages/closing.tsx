@@ -16,12 +16,21 @@ import {
   Download
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
+import { mockClosingItems, ClosingItem } from "@/data/documents";
 import { RoleSwitcher } from "@/components/role-switcher";
 
 export default function Closing() {
   const [, params] = useRoute("/deal/:id/closing");
   const dealId = params?.id;
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+
+  const legalItems = mockClosingItems.filter(i => i.category === "Legal");
+  const financialItems = mockClosingItems.filter(i => i.category === "Financial");
+  const operationalItems = mockClosingItems.filter(i => i.category === "Operational");
+
+  const completedCount = mockClosingItems.filter(i => i.status === "Completed").length;
+  const totalCount = mockClosingItems.length;
+  const progress = Math.round((completedCount / totalCount) * 100);
 
   return (
     <Layout>
@@ -51,23 +60,23 @@ export default function Closing() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle>Conditions Precedent Progress</CardTitle>
-                  <span className="text-sm font-medium text-muted-foreground">18/24 Completed</span>
+                  <span className="text-sm font-medium text-muted-foreground">{completedCount}/{totalCount} Completed</span>
                 </div>
               </CardHeader>
               <CardContent>
-                <Progress value={75} className="h-3 bg-secondary" />
+                <Progress value={progress} className="h-3 bg-secondary" />
                 <div className="grid grid-cols-3 gap-4 mt-6 text-center">
                    <div>
-                     <p className="text-2xl font-bold text-primary">4</p>
+                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Legal" && i.status !== "Completed").length}</p>
                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Legal CPs</p>
                    </div>
                    <div>
-                     <p className="text-2xl font-bold text-primary">2</p>
+                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Financial" && i.status !== "Completed").length}</p>
                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Financial CPs</p>
                    </div>
                    <div>
-                     <p className="text-2xl font-bold text-primary">0</p>
-                     <p className="text-xs text-muted-foreground uppercase tracking-wide">KYC Outstanding</p>
+                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Operational" && i.status !== "Completed").length}</p>
+                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Ops Outstanding</p>
                    </div>
                 </div>
               </CardContent>
@@ -78,35 +87,19 @@ export default function Closing() {
               <ChecklistGroup 
                 title="Legal Documentation" 
                 icon={<Scale className="h-5 w-5 text-blue-600" />}
-                items={[
-                  { label: "Credit Agreement - Execution Version", status: "completed" },
-                  { label: "Intercreditor Agreement", status: "completed" },
-                  { label: "Security Agreement", status: "completed" },
-                  { label: "Legal Opinions", status: "pending", assignee: "Latham & Watkins" },
-                  { label: "Corporate Resolutions", status: "pending", assignee: "Borrower Counsel" },
-                ]}
+                items={legalItems}
               />
 
               <ChecklistGroup 
                 title="Financial & Funding" 
                 icon={<Banknote className="h-5 w-5 text-green-600" />}
-                items={[
-                  { label: "Funds Flow Memorandum", status: "completed" },
-                  { label: "Borrowing Notice", status: "completed" },
-                  { label: "Solvency Certificate", status: "pending", assignee: "CFO" },
-                  { label: "Wire Instructions Verification", status: "completed" },
-                ]}
+                items={financialItems}
               />
 
               <ChecklistGroup 
                 title="Diligence & Compliance" 
                 icon={<FileCheck className="h-5 w-5 text-purple-600" />}
-                items={[
-                  { label: "KYC / PATRIOT Act Compliance", status: "completed" },
-                  { label: "Insurance Certificates", status: "completed" },
-                  { label: "Good Standing Certificates", status: "completed" },
-                  { label: "Bring-Down Certificate", status: "pending", assignee: "Company" },
-                ]}
+                items={operationalItems}
               />
             </div>
           </div>
@@ -119,24 +112,17 @@ export default function Closing() {
                  </CardTitle>
                </CardHeader>
                <CardContent className="space-y-3">
-                 <div className="flex items-start gap-2 text-sm">
-                   <Checkbox id="item1" />
-                   <div className="grid gap-1.5 leading-none">
-                     <label htmlFor="item1" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                       Legal Opinions
-                     </label>
-                     <p className="text-xs text-muted-foreground">Waiting on Borrower Counsel final review.</p>
+                 {mockClosingItems.filter(i => i.status !== "Completed").slice(0, 3).map(item => (
+                   <div key={item.id} className="flex items-start gap-2 text-sm">
+                     <Checkbox id={item.id} />
+                     <div className="grid gap-1.5 leading-none">
+                       <label htmlFor={item.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                         {item.item}
+                       </label>
+                       <p className="text-xs text-muted-foreground">Owner: {item.owner}</p>
+                     </div>
                    </div>
-                 </div>
-                 <div className="flex items-start gap-2 text-sm">
-                   <Checkbox id="item2" />
-                   <div className="grid gap-1.5 leading-none">
-                     <label htmlFor="item2" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                       Solvency Certificate
-                     </label>
-                     <p className="text-xs text-muted-foreground">Requires Board signature.</p>
-                   </div>
-                 </div>
+                 ))}
                </CardContent>
              </Card>
 
@@ -168,7 +154,7 @@ export default function Closing() {
   );
 }
 
-function ChecklistGroup({ title, icon, items }: { title: string, icon: React.ReactNode, items: any[] }) {
+function ChecklistGroup({ title, icon, items }: { title: string, icon: React.ReactNode, items: ClosingItem[] }) {
   return (
     <Card className="border-border/60 shadow-sm">
       <CardHeader className="py-3 border-b border-border/50 bg-secondary/20">
@@ -180,16 +166,16 @@ function ChecklistGroup({ title, icon, items }: { title: string, icon: React.Rea
         {items.map((item, idx) => (
           <div key={idx} className="flex items-center justify-between py-2 border-b border-border/40 last:border-0 last:pb-0">
             <div className="flex items-center gap-3">
-               <div className={`h-5 w-5 rounded-full flex items-center justify-center border ${item.status === 'completed' ? 'bg-green-100 border-green-200 text-green-700' : 'border-muted-foreground/30'}`}>
-                 {item.status === 'completed' && <CheckSquare className="h-3 w-3" />}
+               <div className={`h-5 w-5 rounded-full flex items-center justify-center border ${item.status === 'Completed' ? 'bg-green-100 border-green-200 text-green-700' : 'border-muted-foreground/30'}`}>
+                 {item.status === 'Completed' && <CheckSquare className="h-3 w-3" />}
                </div>
-               <span className={`text-sm ${item.status === 'completed' ? 'text-muted-foreground line-through' : 'font-medium'}`}>
-                 {item.label}
+               <span className={`text-sm ${item.status === 'Completed' ? 'text-muted-foreground line-through' : 'font-medium'}`}>
+                 {item.item}
                </span>
             </div>
-            {item.assignee && (
+            {item.owner && (
               <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-                {item.assignee}
+                {item.owner}
               </Badge>
             )}
           </div>

@@ -77,28 +77,33 @@ export default function InvestorBook() {
   const [, params] = useRoute("/deal/:id/book");
   const dealId = params?.id || "123";
   const { role } = useRole();
+  const [lenders, setLenders] = useState<Lender[]>(mockLenders);
   const [selectedLenderId, setSelectedLenderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const selectedLender = useMemo(() => 
-    mockLenders.find(l => l.id === selectedLenderId), 
-  [selectedLenderId]);
+    lenders.find(l => l.id === selectedLenderId), 
+  [lenders, selectedLenderId]);
 
   const filteredLenders = useMemo(() => {
-    return mockLenders.filter(l => {
+    return lenders.filter(l => {
       const matchesSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             l.owner.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || l.status === statusFilter;
       const matchesType = typeFilter === "all" || l.type === typeFilter;
       return matchesSearch && matchesStatus && matchesType;
     }).sort((a, b) => b.seriousnessScore - a.seriousnessScore); // Default sort by score
-  }, [searchQuery, statusFilter, typeFilter]);
+  }, [lenders, searchQuery, statusFilter, typeFilter]);
+
+  const handleUpdateLender = (updatedLender: Lender) => {
+    setLenders(prev => prev.map(l => l.id === updatedLender.id ? updatedLender : l));
+  };
 
   // View Switching based on Role
   if (role === "investor") {
-    return <InvestorView />;
+    return <InvestorView lenders={lenders} onUpdateLender={handleUpdateLender} />;
   }
 
   return (
@@ -130,7 +135,7 @@ export default function InvestorBook() {
           </div>
         </div>
 
-        <BookStats lenders={mockLenders} />
+        <BookStats lenders={lenders} />
 
         {/* Main Content Area */}
         <div className="grid grid-cols-1 gap-6">
@@ -191,7 +196,12 @@ export default function InvestorBook() {
         {/* Right Drawer for Bookrunner Details */}
         <Sheet open={!!selectedLenderId} onOpenChange={(open) => !open && setSelectedLenderId(null)}>
           <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
-            {selectedLender && <LenderDetailDrawer lender={selectedLender} />}
+            {selectedLender && (
+              <LenderDetailDrawer 
+                lender={selectedLender} 
+                onUpdateLender={handleUpdateLender} 
+              />
+            )}
           </SheetContent>
         </Sheet>
 
@@ -202,16 +212,87 @@ export default function InvestorBook() {
 
 // --- Views & Components ---
 
-function InvestorView() {
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+
+function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdateLender: (l: Lender) => void }) {
   // Mocking the "current user" as BlackRock (ID 1)
-  const myLender = mockLenders.find(l => l.id === "1");
+  const myLender = lenders.find(l => l.id === "1");
+  const [showIOIForm, setShowIOIForm] = useState(false);
+  const [ioiTicketMin, setIoiTicketMin] = useState(myLender?.ticketMin || 0);
+  const [ioiTicketMax, setIoiTicketMax] = useState(myLender?.ticketMax || 0);
+  const [ioiPricing, setIoiPricing] = useState(myLender?.pricingBps || 0);
+  const [ioiConditions, setIoiConditions] = useState(myLender?.ioi?.conditions || "");
+
+  const handleSubmitIOI = () => {
+    if (!myLender) return;
+    
+    const updatedLender = {
+      ...myLender,
+      status: "IOI" as LenderStatus,
+      ticketMin: ioiTicketMin,
+      ticketMax: ioiTicketMax,
+      pricingBps: ioiPricing,
+      ioi: {
+        lenderId: myLender.id,
+        submittedAt: new Date().toISOString(),
+        ticketMin: ioiTicketMin,
+        ticketMax: ioiTicketMax,
+        pricingBps: ioiPricing,
+        conditions: ioiConditions,
+        isFirm: false
+      }
+    };
+    onUpdateLender(updatedLender);
+    setShowIOIForm(false);
+  };
 
   return (
     <Layout>
       <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto">
-        <div>
-           <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Project Titan</h1>
-           <p className="text-muted-foreground mt-1">My Interest & Allocation Status</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Project Titan</h1>
+            <p className="text-muted-foreground mt-1">My Interest & Allocation Status</p>
+          </div>
+          <Dialog open={showIOIForm} onOpenChange={setShowIOIForm}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <FileText className="h-4 w-4" /> {myLender?.ioi ? "Update IOI" : "Submit IOI"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Submit Indication of Interest</DialogTitle>
+                <DialogDescription>
+                  Provide your indicative ticket size and pricing feedback.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="ticket-min">Min Ticket ($)</Label>
+                    <Input id="ticket-min" type="number" value={ioiTicketMin} onChange={(e) => setIoiTicketMin(Number(e.target.value))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="ticket-max">Max Ticket ($)</Label>
+                    <Input id="ticket-max" type="number" value={ioiTicketMax} onChange={(e) => setIoiTicketMax(Number(e.target.value))} />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="pricing">Pricing (Spread bps)</Label>
+                  <Input id="pricing" type="number" value={ioiPricing} onChange={(e) => setIoiPricing(Number(e.target.value))} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="conditions">Conditions / Feedback</Label>
+                  <Textarea id="conditions" value={ioiConditions} onChange={(e) => setIoiConditions(e.target.value)} placeholder="e.g. Subject to final IC approval..." />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" onClick={handleSubmitIOI}>Submit IOI</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {myLender ? (
@@ -226,6 +307,34 @@ function InvestorView() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {myLender.ioi && (
+                 <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg mb-4">
+                   <div className="flex items-center gap-2 mb-2 text-primary font-semibold">
+                     <FileText className="h-4 w-4" /> Latest IOI Submission
+                   </div>
+                   <div className="grid grid-cols-3 gap-4 text-sm">
+                     <div>
+                       <span className="text-muted-foreground block text-xs">Ticket</span>
+                       <span className="font-mono font-medium">${(myLender.ioi.ticketMin/1000000).toFixed(1)}M - ${(myLender.ioi.ticketMax/1000000).toFixed(1)}M</span>
+                     </div>
+                     <div>
+                       <span className="text-muted-foreground block text-xs">Pricing</span>
+                       <span className="font-mono font-medium">S+{myLender.ioi.pricingBps}</span>
+                     </div>
+                     <div>
+                       <span className="text-muted-foreground block text-xs">Date</span>
+                       <span className="font-medium">{format(parseISO(myLender.ioi.submittedAt), "MMM d")}</span>
+                     </div>
+                   </div>
+                   {myLender.ioi.conditions && (
+                     <div className="mt-2 pt-2 border-t border-primary/10">
+                       <span className="text-muted-foreground text-xs block">Conditions</span>
+                       <p className="text-sm italic text-foreground/80">{myLender.ioi.conditions}</p>
+                     </div>
+                   )}
+                 </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/20 rounded-lg">
                  <div>
                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Indicative Ticket</p>
