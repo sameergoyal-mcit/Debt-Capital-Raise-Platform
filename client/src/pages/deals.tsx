@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { mockDeals, Deal, DealStatus } from "@/data/deals";
+import { mockDeals, Deal, DealStatus, computeDealRisk } from "@/data/deals";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays } from "date-fns";
 
@@ -322,25 +322,38 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                          ${(deal.committed / 1000000).toFixed(1)}M
                        </span>
                        <span className={cn("font-medium", deal.committedPct >= 100 ? "text-green-600" : "text-foreground")}>
-                         {deal.committedPct}%
+                         {(deal.coverageRatio * 100).toFixed(0)}%
                        </span>
                     </div>
                     <Progress value={deal.committedPct} className="h-1.5" />
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="font-normal text-xs">
-                    {deal.stage}
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="secondary" className="font-normal text-xs w-fit">
+                      {deal.stage}
+                    </Badge>
+                    {(() => {
+                      const risk = computeDealRisk(deal);
+                      if (risk.label !== "Normal") {
+                        return (
+                          <Badge variant="outline" className={`text-[10px] w-fit px-1.5 py-0 h-5 ${risk.color}`}>
+                            {risk.label}
+                          </Badge>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-xs font-medium whitespace-nowrap">
-                      {format(parseISO(deal.closeDate), "MMM d, yyyy")}
+                      {format(parseISO(deal.hardCloseDate || deal.closeDate), "MMM d, yyyy")}
                     </span>
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
                       <Clock className="h-3 w-3" />
-                      {differenceInDays(parseISO(deal.closeDate), new Date())} days
+                      {differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date())}d to close
                     </span>
                   </div>
                 </TableCell>

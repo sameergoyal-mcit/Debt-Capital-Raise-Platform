@@ -30,10 +30,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, Legend } from "recharts";
+import { mockDeals, computeDealRisk } from "@/data/deals";
+import { differenceInDays, parseISO } from "date-fns";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
-  const dealId = params?.id || "123";
+  const dealId = params?.id || "101";
+  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const risk = computeDealRisk(deal);
+  const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
 
   return (
     <Layout>
@@ -43,14 +48,25 @@ export default function DealOverview() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                Senior Secured Term Loan
+                {deal.instrument}
               </Badge>
+              <Badge variant="secondary" className="font-normal">
+                {deal.stage}
+              </Badge>
+              {risk.label !== "Normal" && (
+                <Badge variant="outline" className={`font-normal ${risk.color}`}>
+                  {risk.label}
+                </Badge>
+              )}
               <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" /> Closing in 14 days
+                <Clock className="h-3 w-3" /> {daysToClose} days to close
+              </span>
+              <span className="text-sm text-muted-foreground flex items-center gap-1 border-l pl-3 ml-1">
+                Coverage: {(deal.coverageRatio * 100).toFixed(0)}%
               </span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Project Titan</h1>
-            <p className="text-muted-foreground mt-1">Enterprise SaaS • $45M Senior Secured Term Loan</p>
+            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">{deal.dealName}</h1>
+            <p className="text-muted-foreground mt-1">{deal.sector} • ${(deal.facilitySize / 1000000).toFixed(1)}M {deal.instrument}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="gap-2">
