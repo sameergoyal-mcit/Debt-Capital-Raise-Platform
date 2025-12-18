@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, Legend } from "recharts";
-import { mockDeals, computeDealRisk } from "@/data/deals";
+import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
 import { differenceInDays, parseISO } from "date-fns";
 
 export default function DealOverview() {
@@ -39,6 +39,11 @@ export default function DealOverview() {
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const risk = computeDealRisk(deal);
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
+
+  const handleExportCovenants = () => {
+    // Mock export
+    alert("Downloading Covenant Compliance Certificate...");
+  };
 
   return (
     <Layout>
@@ -244,17 +249,6 @@ export default function DealOverview() {
               </CardContent>
             </Card>
 
-import { Covenant } from "@/data/deals";
-
-// ... [existing imports]
-
-// Inside DealOverview function, before return:
-  const handleExportCovenants = () => {
-    // Mock export
-    alert("Downloading Covenant Compliance Certificate...");
-  };
-
-// Replace the "Covenant Preview" Card with this:
             <Card className="border-border/60 shadow-sm">
               <CardHeader className="pb-3 border-b border-border/40">
                 <div className="flex items-center justify-between">
@@ -290,52 +284,6 @@ import { Covenant } from "@/data/deals";
                 </div>
               </CardContent>
             </Card>
-
-// ... [rest of file]
-
-function CovenantRow({ covenant }: { covenant: Covenant }) {
-  const isMaxTest = covenant.name.includes("Max") || covenant.name.includes("Capex") || covenant.name.includes("Leverage");
-  const headroom = isMaxTest 
-    ? covenant.threshold - covenant.proForma 
-    : covenant.proForma - covenant.threshold;
-  
-  // Risk logic
-  let isTight = false;
-  let isWarning = false;
-  
-  if (covenant.unit === "x") {
-    if (headroom < 0.25) isTight = true;
-    else if (headroom < 0.50) isWarning = true;
-  } else if (covenant.unit === "%") {
-    if (headroom < 5) isTight = true;
-  } else if (covenant.unit === "$") {
-    // e.g. Liquidity < 10% buffer
-    if (headroom < covenant.threshold * 0.1) isTight = true; 
-  }
-
-  return (
-    <div className="flex items-center justify-between text-sm py-1.5 border-b border-border/50 last:border-0">
-      <div>
-        <div className="flex items-center gap-2">
-           <span className="text-muted-foreground">{covenant.name}</span>
-           {isTight && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-red-50 text-red-600 border-red-200">Tight</Badge>}
-           {isWarning && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-50 text-amber-600 border-amber-200">Watch</Badge>}
-        </div>
-        <div className="text-[10px] text-muted-foreground mt-0.5">
-           Headroom: {covenant.unit === "$" ? "$" + (headroom/1000000).toFixed(1) + "M" : headroom.toFixed(2) + covenant.unit}
-        </div>
-      </div>
-      <div className="text-right">
-        <div className="font-medium font-serif">
-          {covenant.unit === "$" ? "$" + (covenant.proForma/1000000).toFixed(1) + "M" : covenant.proForma.toFixed(2) + covenant.unit}
-        </div>
-        <div className="text-[10px] text-muted-foreground">
-          Limit: {covenant.unit === "$" ? "$" + (covenant.threshold/1000000).toFixed(1) + "M" : covenant.threshold.toFixed(2) + covenant.unit}
-        </div>
-      </div>
-    </div>
-  );
-}
 
           </div>
 
@@ -451,6 +399,50 @@ function CovenantRow({ covenant }: { covenant: Covenant }) {
 
 // --- Sub-components ---
 
+function CovenantRow({ covenant }: { covenant: Covenant }) {
+  const isMaxTest = covenant.name.includes("Max") || covenant.name.includes("Capex") || covenant.name.includes("Leverage");
+  const headroom = isMaxTest 
+    ? covenant.threshold - covenant.proForma 
+    : covenant.proForma - covenant.threshold;
+  
+  // Risk logic
+  let isTight = false;
+  let isWarning = false;
+  
+  if (covenant.unit === "x") {
+    if (headroom < 0.25) isTight = true;
+    else if (headroom < 0.50) isWarning = true;
+  } else if (covenant.unit === "%") {
+    if (headroom < 5) isTight = true;
+  } else if (covenant.unit === "$") {
+    // e.g. Liquidity < 10% buffer
+    if (headroom < covenant.threshold * 0.1) isTight = true; 
+  }
+
+  return (
+    <div className="flex items-center justify-between text-sm py-1.5 border-b border-border/50 last:border-0">
+      <div>
+        <div className="flex items-center gap-2">
+           <span className="text-muted-foreground">{covenant.name}</span>
+           {isTight && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-red-50 text-red-600 border-red-200">Tight</Badge>}
+           {isWarning && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-50 text-amber-600 border-amber-200">Watch</Badge>}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+           Headroom: {covenant.unit === "$" ? "$" + (headroom/1000000).toFixed(1) + "M" : headroom.toFixed(2) + covenant.unit}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="font-medium font-serif">
+          {covenant.unit === "$" ? "$" + (covenant.proForma/1000000).toFixed(1) + "M" : covenant.proForma.toFixed(2) + covenant.unit}
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          Limit: {covenant.unit === "$" ? "$" + (covenant.threshold/1000000).toFixed(1) + "M" : covenant.threshold.toFixed(2) + covenant.unit}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelineStep({ step, status }: { step: string; status: 'completed' | 'active' | 'pending' }) {
   const statusColors = {
     completed: "bg-primary border-primary text-primary-foreground",
@@ -495,24 +487,14 @@ function DollarSignIcon({ className }: { className?: string }) {
 
 function DemandRow({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <div className={`h-2 w-2 rounded-full ${color}`} />
-      <span className="flex-1 text-muted-foreground">{label}</span>
+    <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center gap-2">
+        <div className={`h-2 w-2 rounded-full ${color}`} />
+        <span className="text-muted-foreground">{label}</span>
+      </div>
       <span className="font-medium">{value}</span>
     </div>
-  );
-}
-
-function CovenantRowOld({ label, value, status }: { label: string; value: string; status?: string }) {
-  return (
-    <div className="flex items-center justify-between text-sm py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <span className="font-medium font-serif">{value}</span>
-        {status && <Badge variant="outline" className="text-[10px] h-4 px-1">{status}</Badge>}
-      </div>
-    </div>
-  );
+  )
 }
 
 function AlertItem({ title, desc, impact, urgent }: { title: string; desc: string; impact?: string, urgent?: boolean }) {
@@ -521,32 +503,32 @@ function AlertItem({ title, desc, impact, urgent }: { title: string; desc: strin
       <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${urgent ? "bg-red-500 animate-pulse" : "bg-amber-400"}`} />
       <div className="flex-1">
         <p className="text-sm font-medium leading-none mb-1">{title}</p>
-        <p className="text-xs text-muted-foreground leading-snug">{desc}</p>
-        {impact && <p className="text-[10px] text-red-600 font-medium mt-1">Impact: {impact}</p>}
+        <p className="text-xs text-muted-foreground mb-1">{desc}</p>
+        {impact && <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">{impact}</p>}
       </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto self-center" />
     </div>
-  );
-}
-
-function DocActionRow({ name, action }: { name: string; action: string }) {
-  return (
-    <div className="flex items-center justify-between bg-white p-2 rounded border border-red-100">
-      <span className="text-sm font-medium truncate max-w-[120px]" title={name}>{name}</span>
-      <Button size="sm" variant="ghost" className="h-6 text-[10px] bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 px-2">
-        {action}
-      </Button>
-    </div>
-  );
+  )
 }
 
 function DetailRow({ label, value, dark }: { label: string; value: string; dark?: boolean }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className={dark ? "text-primary-foreground/70 text-sm" : "text-muted-foreground text-sm"}>{label}</span>
-      <span className="font-medium font-serif">{value}</span>
+    <div className="flex justify-between items-center text-sm">
+      <span className={dark ? "text-primary-foreground/70" : "text-muted-foreground"}>{label}</span>
+      <span className="font-medium font-serif tracking-tight">{value}</span>
     </div>
-  );
+  )
+}
+
+function DocActionRow({ name, action }: { name: string; action: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs p-1.5 bg-white border border-red-100 rounded">
+      <div className="flex items-center gap-2">
+        <FileText className="h-3 w-3 text-red-400" />
+        <span className="font-medium text-red-900 truncate max-w-[120px]">{name}</span>
+      </div>
+      <span className="text-red-600 font-bold text-[10px] uppercase">{action}</span>
+    </div>
+  )
 }
 
 function TeamMember({ name, role, initials }: { name: string; role: string; initials: string }) {
@@ -556,17 +538,18 @@ function TeamMember({ name, role, initials }: { name: string; role: string; init
         {initials}
       </div>
       <div>
-        <div className="text-sm font-medium">{name}</div>
-        <div className="text-xs text-muted-foreground">{role}</div>
+        <p className="text-sm font-medium leading-none">{name}</p>
+        <p className="text-xs text-muted-foreground">{role}</p>
       </div>
     </div>
-  );
+  )
 }
 
+// Mock Data for Charts
 const engagementData = [
-  { name: 'NDA Signed', value: 45, color: '#0f172a', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock, BlueOwl, Blackstone, Vista, Thoma Bravo, TPG' },
-  { name: 'Lender Presentation Completed', value: 38, color: '#334155', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings, Bain Capital, Monroe, Churchill, Antares, Owl Rock' },
-  { name: 'Due Diligence Questions', value: 24, color: '#475569', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle, Golub, HPS, Sixth Street, Barings' },
-  { name: 'Grid Submitted', value: 12, color: '#d97706', companies: 'BlackRock, Apollo, Ares, Oaktree, KKR, Carlyle' },
-  { name: 'Closed', value: 8, color: '#16a34a', companies: 'BlackRock, Apollo, Ares, Oaktree' },
+  { name: 'NDA', value: 45, color: '#3b82f6', companies: 'Apollo, Ares, BlackRock' },
+  { name: 'CIM', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
+  { name: 'Mgmt', value: 24, color: '#8b5cf6', companies: 'HPS, Golub, Owl Rock' },
+  { name: 'IOI', value: 12, color: '#d946ef', companies: 'Barings, Antares' },
+  { name: 'Bid', value: 5, color: '#ec4899', companies: 'Sixth Street, Churchill' },
 ];
