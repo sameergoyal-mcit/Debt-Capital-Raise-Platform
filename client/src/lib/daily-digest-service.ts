@@ -1,7 +1,9 @@
 import { getInvestorDeals, InvestorDealSummary } from "@/lib/investor-utils";
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
-import { format } from "date-fns";
+import { format, parseISO, isAfter, differenceInDays } from "date-fns";
+import { mockDocuments, Document } from "@/data/documents";
+import { mockQAs, QA } from "@/data/qa";
 
 // Mock store for last digest timestamps (In a real app, this would be in the database)
 // key: lenderId, value: ISO string
@@ -26,50 +28,78 @@ export const dailyDigestService = {
   },
 
   // Main function to trigger digests
-  async sendDailyDigests(currentUser: any) {
-    if (currentUser?.role !== "Investor") {
-      console.warn("⚠️ [Digest] Only investors can receive digests (mock restriction for testing)");
-      // In production, this would loop through ALL investors. 
-      // For this mock, we only send to the currently logged-in investor if they are an investor.
-      if (!currentUser || currentUser.role !== "Investor") {
-        return { success: false, message: "Current user is not an investor. Please log in as an investor to test." };
-      }
+  async sendDailyDigests(currentUser: any, triggerForAll: boolean = false) {
+    console.group(`📬 [Digest] Triggering Daily Digest`);
+    
+    if (triggerForAll) {
+       // Mock Logic: Since we don't have a real DB of users, we'll simulate sending to a few "known" mock investors
+       // in a real app, this would iterate over all users with role="Investor"
+       const mockInvestors = [
+           { name: "Mock BlackRock User", email: "investor@blackrock.com", lenderId: "1", role: "Investor" },
+           { name: "Mock Apollo User", email: "investor@apollo.com", lenderId: "2", role: "Investor" }
+       ];
+       
+       console.log(`Processing bulk digest for ${mockInvestors.length} mock investors...`);
+       
+       let sentCount = 0;
+       for (const investor of mockInvestors) {
+           const result = await this.sendDigestToInvestor(investor);
+           if (result.success) sentCount++;
+       }
+       
+       console.groupEnd();
+       return { success: true, message: `Bulk digest complete. Sent ${sentCount} emails.` };
+    } else {
+        // Individual Trigger (for testing current user)
+        if (currentUser?.role !== "Investor") {
+          console.warn("⚠️ [Digest] Current user is not an investor. Skipping.");
+          console.groupEnd();
+          return { success: false, message: "Current user is not an investor." };
+        }
+        
+        const result = await this.sendDigestToInvestor(currentUser);
+        console.groupEnd();
+        return result;
     }
+  },
 
-    const lenderId = currentUser.lenderId;
-    if (!lenderId) return { success: false, message: "No lender ID found for user." };
+  async sendDigestToInvestor(user: any) {
+    const lenderId = user.lenderId;
+    if (!lenderId) return { success: false, message: "No lender ID found." };
 
-    console.group(`📬 [Digest] Generating Daily Digest for ${currentUser.name} (${lenderId})`);
+    console.log(`Processing digest for ${user.email} (${lenderId})...`);
 
     // 1. Get Deals & Data
     const deals = getInvestorDeals(lenderId);
     
     if (deals.length === 0) {
-      console.log("No deals found. Skipping digest.");
-      console.groupEnd();
-      return { success: true, message: "No deals found for this investor." };
+      console.log(`No deals found for ${user.email}. Skipping.`);
+      return { success: true, message: "No deals found." }; // Success because system worked, just nothing to send
     }
 
     // 2. Process each deal for updates
     const lastDigest = this.getLastDigestTime(lenderId);
-    const digestDeals = deals.map(dealSummary => this.processDealForDigest(dealSummary, lastDigest));
+    const digestDeals = deals.map(dealSummary => this.processDealForDigest(dealSummary, lastDigest, lenderId));
 
-    // 3. Filter out deals with absolutely no relevant info (optional, but good for noise reduction)
-    // We'll keep them if they have active deadlines or actions, even if no "new" updates
-    const activeDeals = digestDeals.filter(d => d.updates.length > 0 || d.actionRequired || d.hasDeadlines);
+    // 3. Filter out deals with absolutely no relevant info
+    const activeDeals = digestDeals.filter(d => 
+        d.updates.documents.length > 0 || 
+        d.updates.qa.length > 0 || 
+        d.updates.deadlines.length > 0 || 
+        d.actionRequired
+    );
 
     if (activeDeals.length === 0) {
-      console.log("No active updates or deadlines. Skipping digest.");
-      console.groupEnd();
-      return { success: true, message: "No new updates to report." };
+      console.log(`No updates for ${user.email}. Skipping.`);
+      return { success: true, message: "No new updates." };
     }
 
     // 4. Generate Email
-    const emailHtml = emailTemplates.dailyDigest(currentUser.name, activeDeals);
+    const emailHtml = emailTemplates.dailyDigest(user.name, activeDeals);
 
     // 5. Send Email
     const success = await emailService.send({
-      to: currentUser.email,
+      to: user.email,
       subject: `Daily Deal Update – ${format(new Date(), 'MMM d, yyyy')}`,
       html: emailHtml
     });
@@ -78,38 +108,68 @@ export const dailyDigestService = {
     if (success) {
       this.setLastDigestTime(lenderId);
     }
-
-    console.groupEnd();
-    return { success, message: "Digest sent successfully." };
+    
+    return { success, message: "Digest sent." };
   },
 
   // Helper to format deal data for the template
-  processDealForDigest(summary: InvestorDealSummary, lastDigest: Date) {
-    const { deal, stats } = summary;
-    const updates: string[] = [];
+  processDealForDigest(summary: InvestorDealSummary, lastDigest: Date, lenderId: string) {
+    const { deal, invitation, stats } = summary;
+    
+    // A) Documents
+    // Filter docs: updated > lastDigest AND visible to tier
+    // Mock visibility rule: "legal" tier sees everything, "full" sees everything except some restricted categories (not implemented in mock data yet, assuming full access for now)
+    // "early" tier might only see Teaser/NDA
+    const relevantDocs = mockDocuments.filter(d => {
+        if (d.dealId !== deal.id) return false;
+        
+        // Check date
+        const updated = parseISO(d.lastUpdatedAt);
+        if (!isAfter(updated, lastDigest)) return false;
 
-    // Check for updates
-    if (stats.newDocsCount > 0) {
-      updates.push(`📄 ${stats.newDocsCount} new documents uploaded`);
-    }
+        // Check tier visibility (mock logic)
+        if (invitation.accessTier === "early" && d.category !== "Other") return false; // Early only sees basic
+        // Assume full/legal see everything else for now in this mock
+        return true;
+    });
 
-    if (stats.openQACount > 0) {
-      updates.push(`💬 ${stats.openQACount} new Q&A responses`);
-    }
+    const docUpdates = relevantDocs.map(d => {
+        // Determine if New or Updated (mock: if created close to updated, it's new)
+        const isNew = true; // In real app, check createdAt vs updatedAt
+        return `${isNew ? "New" : "Updated"} ${d.category}: ${d.name}`;
+    });
 
-    // Deadlines
+    // B) Q&A
+    // Questions asked by THIS lender where answer updated > lastDigest
+    const relevantQA = mockQAs.filter((qa: QA) => 
+        qa.dealId === deal.id && 
+        qa.askedByLenderId === lenderId && 
+        qa.status === "Answered" &&
+        isAfter(parseISO(qa.answeredAt || ""), lastDigest)
+    );
+    
+    const qaUpdates = relevantQA.map(qa => `Answer received: "${qa.question.substring(0, 30)}..."`);
+
+    // C) Deadlines
+    const deadlines: string[] = [];
     if (stats.nextDeadlineLabel && stats.nextDeadlineDate) {
-      const deadlineDate = new Date(stats.nextDeadlineDate);
-      updates.push(`⏰ ${stats.nextDeadlineLabel}: ${format(deadlineDate, 'MMM d')}`);
+        const days = differenceInDays(parseISO(stats.nextDeadlineDate), new Date());
+        if (days >= 0 && days <= 14) { // Only show if coming up soon
+            deadlines.push(`${stats.nextDeadlineLabel} due in ${days} days (${format(parseISO(stats.nextDeadlineDate), 'MMM d')})`);
+        }
     }
 
     return {
       dealName: deal.dealName,
-      issuer: deal.sponsor, // Using sponsor as issuer proxy for now
-      updates,
+      issuer: deal.sponsor,
+      instrument: deal.instrument,
+      updates: {
+          documents: docUpdates,
+          qa: qaUpdates,
+          deadlines: deadlines
+      },
       actionRequired: stats.actionRequired,
-      hasDeadlines: !!stats.nextDeadlineDate,
-      link: `${window.location.origin}/investor/deal/${deal.id}` // Construct full link
+      link: `${window.location.origin}/investor/deal/${deal.id}`
     };
   }
 };

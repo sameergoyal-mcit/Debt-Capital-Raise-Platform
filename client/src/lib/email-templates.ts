@@ -79,22 +79,50 @@ export const emailTemplates = {
       
       ${deals.map(deal => `
         <div style="border: 1px solid #eee; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
-          <h3 style="margin-top: 0; color: #003366;">${deal.dealName} <span style="font-size: 14px; font-weight: normal; color: #666;">(${deal.issuer})</span></h3>
+          <h3 style="margin-top: 0; color: #003366;">${deal.dealName}</h3>
+          <p style="margin: -10px 0 15px 0; font-size: 13px; color: #666;">
+             ${deal.issuer} • ${deal.instrument}
+          </p>
           
-          ${deal.updates.length > 0 ? `
-            <ul style="padding-left: 20px; margin-bottom: 15px;">
-              ${deal.updates.map((update: string) => `<li style="margin-bottom: 5px;">${update}</li>`).join('')}
-            </ul>
-          ` : '<p style="color: #666; font-style: italic;">No major updates today.</p>'}
+          ${/* Documents Section */ ''}
+          ${deal.updates.documents.length > 0 ? `
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #444; font-size: 14px;">Documents:</strong>
+                <ul style="padding-left: 20px; margin: 5px 0;">
+                  ${deal.updates.documents.map((update: string) => `<li style="margin-bottom: 3px; font-size: 13px;">${update}</li>`).join('')}
+                </ul>
+            </div>
+          ` : ''}
 
+          ${/* Q&A Section */ ''}
+          ${deal.updates.qa.length > 0 ? `
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #444; font-size: 14px;">Q&A:</strong>
+                <ul style="padding-left: 20px; margin: 5px 0;">
+                  ${deal.updates.qa.map((update: string) => `<li style="margin-bottom: 3px; font-size: 13px;">${update}</li>`).join('')}
+                </ul>
+            </div>
+          ` : ''}
+
+          ${/* Deadlines Section */ ''}
+          ${deal.updates.deadlines.length > 0 ? `
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #d9534f; font-size: 14px;">Deadlines:</strong>
+                <ul style="padding-left: 20px; margin: 5px 0;">
+                  ${deal.updates.deadlines.map((update: string) => `<li style="margin-bottom: 3px; font-size: 13px;">${update}</li>`).join('')}
+                </ul>
+            </div>
+          ` : ''}
+
+          ${/* Action Required Banner */ ''}
           ${deal.actionRequired ? `
-            <div style="background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; font-size: 14px; margin-bottom: 15px;">
+            <div style="background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; font-size: 14px; margin-top: 15px; margin-bottom: 15px;">
               <strong>Action Required:</strong> ${deal.actionRequired}
             </div>
           ` : ''}
 
-          <div style="margin-top: 10px;">
-            <a href="${deal.link}" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 14px;">View Deal &rarr;</a>
+          <div style="margin-top: 15px;">
+            <a href="${deal.link}" style="background-color: #003366; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">View Deal Home</a>
           </div>
         </div>
       `).join('')}

@@ -1,4 +1,5 @@
 import { format, parseISO, addDays } from "date-fns";
+import { format as formatTZ, toZonedTime } from "date-fns-tz"; // Would need date-fns-tz for real TZ, using standard UTC ISO for now
 
 export interface ICSEvent {
   uid: string;
@@ -10,7 +11,8 @@ export interface ICSEvent {
 }
 
 /**
- * Formats a date string into ICS format (YYYYMMDD)
+ * Formats a date string into ICS format (YYYYMMDD) for all-day events
+ * Note: Input is assumed to be ISO string (YYYY-MM-DD...)
  */
 function formatDateToICS(dateStr: string): string {
   const date = parseISO(dateStr);
@@ -48,7 +50,7 @@ export function generateICS(events: ICSEvent[]): string {
       `SUMMARY:${escapeICS(event.summary)}`,
       `DESCRIPTION:${escapeICS(event.description)}`,
       "STATUS:CONFIRMED",
-      "TRANSP:TRANSPARENT", // Show as free (don't block calendar), or OPAQUE to block. Usually deadlines shouldn't block the whole day.
+      "TRANSP:TRANSPARENT",
       "END:VEVENT"
     );
   });

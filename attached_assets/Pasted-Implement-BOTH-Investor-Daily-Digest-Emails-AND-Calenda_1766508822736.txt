@@ -1,0 +1,116 @@
+Implement BOTH Investor Daily Digest Emails AND Calendar (.ics) Deadline Export end-to-end, wired into the existing auth/invitations/NDA/tier system. This must be investor-scoped (no cross-lender leakage) and work in mock mode without credentials, but be production-ready for SendGrid.
+
+====================================================
+A) INVESTOR DAILY DIGEST EMAILS
+====================================================
+
+1) Data model additions
+- Add a lightweight “Investor Profile” store keyed by lenderId with:
+  - email
+  - lastDigestAt (ISO string, nullable)
+  - timezone (default America/New_York or UTC)
+- Persist this store in localStorage (client) or a mock server store (preferred).
+
+2) Digest eligibility + scope
+- Only role=investor recipients get digests.
+- Each investor digest includes ONLY:
+  - deals in invitations where lenderId matches
+  - document changes visible to that lender based on accessTier (early/full/legal) and NDA signed status
+  - Q&A responses ONLY to that lender’s questions
+  - that lender’s own commitment status
+
+3) Digest content rules (per deal)
+For each invited deal:
+- Header: Borrower / Deal Name + Issuer name + instrument
+- “What changed since last digest” sections:
+  a) Documents:
+     - List docs where doc.updatedAt > lastDigestAt AND doc is visible to that lender (tier rules)
+     - Mark “New” if doc.uploadedAt > lastDigestAt, else “Updated”
+  b) Q&A:
+     - List Qs where question.lenderId == lenderId AND answer.updatedAt > lastDigestAt
+  c) Deadlines:
+     - NDA deadline (if ndaRequired && !ndaSignedAt)
+     - IOI deadline (if configured on deal)
+     - Commitment deadline (if configured on deal)
+     - Show “Due in X days”
+  d) Actions Required:
+     - “Sign NDA” if ndaRequired && !ndaSignedAt
+     - “Review updated documents” if any doc updated since lastViewedAt for that lender
+     - “Submit Commitment” if within commitment window AND no submission exists
+
+4) Email template
+- Create a clean HTML email template (no external images):
+  - Subject: “Daily Deal Update – [Borrower/Deal Name]”
+  - Group by deal with bullet points
+  - Include action links:
+    - View Deal Home: /investor/deal/:id
+    - Sign NDA (if needed): /deal/:id/documents (NDAGate handles)
+    - Submit Commitment: /deal/:id/commitment
+- Ensure links work in Replit environment (use relative links or base URL from env).
+
+5) Delivery service abstraction
+- Implement sendEmail({to, subject, html}) with provider selection:
+  - Default provider = “mock”
+  - If env SENDGRID_API_KEY exists, use SendGrid HTTP API
+- In mock mode:
+  - Log payload to console
+  - Store to a “Sent Emails” log viewable in-app (dev-only is fine)
+
+6) Triggering digests
+- Implement a manual function sendDailyDigests():
+  - Builds digests for all investors in the investor profile store
+  - Skips sending if digest would be empty
+  - Updates lastDigestAt when sent
+- Add a dev/admin-only button (Issuer or Bookrunner only) in /analytics or /settings:
+  - “Send Investor Daily Digests (Mock/Real)”
+- Do NOT add cron/scheduler.
+
+7) Safety
+- Never include internal metrics: coverage ratio, allocations, other lenders, banker notes, covenant headroom.
+- Enforce visibility by accessTier and NDA status.
+
+====================================================
+B) CALENDAR (.ics) DEADLINE EXPORT
+====================================================
+
+1) Deadlines to export
+For each deal the investor can access:
+- NDA deadline (if ndaRequired)
+- IOI deadline (if present)
+- Commitment deadline (if present)
+- Expected allocation date (optional)
+- Expected close date (optional)
+
+2) ICS generator utility
+- Create utility generateICS(events) that returns a valid VCALENDAR string:
+  - BEGIN:VCALENDAR, VERSION:2.0, PRODID
+  - Each event has UID, DTSTART, DTEND (1 hour duration ok), SUMMARY, DESCRIPTION
+  - Use UTC times (Z suffix) to avoid timezone issues
+  - UID should be stable and unique: `${dealId}-${eventType}-${lenderId}`
+
+3) Investor Deal Home UI
+- On /investor/deal/:id add button:
+  - “Add Deadlines to Calendar”
+- Clicking downloads: `capitalflow-[dealName]-deadlines.ics`
+- Contains all deadlines for that deal
+- Show toast “Calendar file downloaded”
+
+4) Investor Dashboard UI
+- On /investor add button:
+  - “Download Calendar (All Deals)”
+- Generates one ICS containing deadlines across all invited deals
+- File name: `capitalflow-all-deadlines.ics`
+
+5) Access control + scoping
+- Only role=investor can export ICS
+- Include ONLY deals in lender’s invitations (dealAccess)
+- Include deadlines even before NDA signed (deadlines are not confidential)
+
+====================================================
+C) QA / TESTING REQUIREMENTS
+====================================================
+- App must compile with TypeScript without errors.
+- Investor cannot see other lenders’ data in digest or calendar.
+- Digest must not send if no updates and no upcoming deadlines and no actions.
+- ICS must import correctly into Google Calendar and Outlook (valid VCALENDAR format).
+- Keep UI consistent with existing shadcn components and Layout.
