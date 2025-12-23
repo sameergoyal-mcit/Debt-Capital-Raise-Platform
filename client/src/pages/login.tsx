@@ -65,7 +65,7 @@ export default function Login() {
               <span className="font-serif text-2xl font-bold text-white">C</span>
            </div>
            <h1 className="text-3xl font-serif font-bold text-primary">CapitalFlow</h1>
-           <p className="text-muted-foreground">Private Credit Execution Platform</p>
+           <p className="text-muted-foreground">Debt Capital Platform</p>
         </div>
 
         <Card className="border-border/60 shadow-lg">
