@@ -38,12 +38,23 @@ import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
 import { differenceInDays, parseISO, format } from "date-fns";
 import { getDealInvitations, Invitation, updateAccessTier } from "@/data/invitations";
 import { mockLenders } from "@/data/lenders";
-import { getNDATemplate } from "@/data/nda-templates";
+import { getNDATemplate, mockNDATemplates } from "@/data/nda-templates";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -53,7 +64,10 @@ export default function DealOverview() {
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
   
   const [invitations, setInvitations] = useState(getDealInvitations(dealId));
-  const ndaTemplate = deal.ndaTemplateId ? getNDATemplate(deal.ndaTemplateId) : null;
+  const [activeNdaId, setActiveNdaId] = useState(deal.ndaTemplateId || "nda_std_v1");
+  const [isNdaDialogOpen, setIsNdaDialogOpen] = useState(false);
+  
+  const ndaTemplate = getNDATemplate(activeNdaId);
   const { toast } = useToast();
 
   const handleTierChange = (lenderId: string, newTier: "early" | "full" | "legal") => {
@@ -65,6 +79,17 @@ export default function DealOverview() {
         description: `Lender access upgraded to ${newTier.toUpperCase()}.`,
       });
     }
+  };
+
+  const handleNdaChange = (templateId: string) => {
+    setActiveNdaId(templateId);
+    // In a real app, we would update the deal object here
+    deal.ndaTemplateId = templateId; 
+    setIsNdaDialogOpen(false);
+    toast({
+      title: "NDA Template Updated",
+      description: `New investors will sign the ${getNDATemplate(templateId)?.name}.`,
+    });
   };
 
   const handleExportCovenants = () => {
@@ -181,9 +206,43 @@ export default function DealOverview() {
                     <Mail className="h-5 w-5 text-primary" /> Invitations & Access
                   </CardTitle>
                   <div className="flex gap-2">
-                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                        <FileText className="h-3 w-3" /> Edit NDA
-                     </Button>
+                     <Dialog open={isNdaDialogOpen} onOpenChange={setIsNdaDialogOpen}>
+                       <DialogTrigger asChild>
+                         <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                            <FileText className="h-3 w-3" /> Edit NDA
+                         </Button>
+                       </DialogTrigger>
+                       <DialogContent>
+                         <DialogHeader>
+                           <DialogTitle>Select NDA Template</DialogTitle>
+                           <DialogDescription>
+                             Choose the Confidentiality Agreement template for this deal.
+                           </DialogDescription>
+                         </DialogHeader>
+                         <div className="py-4">
+                            <RadioGroup value={activeNdaId} onValueChange={setActiveNdaId} className="gap-4">
+                              {mockNDATemplates.map(t => (
+                                <div key={t.id} className="flex items-start space-x-3 space-y-0 border p-3 rounded-md hover:bg-secondary/20 transition-colors">
+                                  <RadioGroupItem value={t.id} id={t.id} className="mt-1" />
+                                  <div className="grid gap-1.5 leading-none">
+                                    <Label htmlFor={t.id} className="font-semibold cursor-pointer">
+                                      {t.name} <span className="text-xs text-muted-foreground font-normal">(v{t.version})</span>
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      {t.id === "nda_std_v1" ? "Standard 2-year term, NY law, strict non-solicit." : "Sponsor-friendly form with 18-month term and lighter exclusions."}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </RadioGroup>
+                         </div>
+                         <DialogFooter>
+                           <Button variant="outline" onClick={() => setIsNdaDialogOpen(false)}>Cancel</Button>
+                           <Button onClick={() => handleNdaChange(activeNdaId)}>Save Changes</Button>
+                         </DialogFooter>
+                       </DialogContent>
+                     </Dialog>
+                     
                      <Button size="sm" className="h-7 text-xs gap-1">
                         <Users className="h-3 w-3" /> Invite Lender
                      </Button>
