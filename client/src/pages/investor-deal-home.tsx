@@ -52,46 +52,16 @@ export default function InvestorDealHome() {
     const events: ICSEvent[] = [];
     const baseDesc = `Deal: ${deal.dealName}\\nIssuer: ${deal.sponsor}\\nPlatform: CapitalFlow`;
 
-        // NDA Deadline (Approximated as Launch + 7 days if not set, or custom logic)
-    // Using the timeline logic from the UI:
-    if (!isNdaSigned) {
-       const ndaDeadline = parseISO(deal.launchDate) < new Date() ? "2024-03-15T00:00:00Z" : null;
-       if (ndaDeadline) { // Only add if it's a valid date we're tracking
+    const deadlines = dealDeadlines.getDeadlines(deal, invitation.ndaSignedAt);
+    
+    deadlines.forEach(d => {
          events.push({
-           uid: `${deal.id}-nda-deadline-${user.lenderId}@capitalflow.com`,
-           summary: `NDA Deadline - ${deal.dealName}`,
-           description: `Please sign the NDA to access the data room.\\n${baseDesc}`,
-           startDate: ndaDeadline
+           uid: `${deal.id}-${d.type.toLowerCase()}-deadline-${user.lenderId}@capitalflow.com`,
+           summary: `${d.label} - ${deal.dealName}`,
+           description: `${d.label}.\\n${baseDesc}`,
+           startDate: d.date
          });
-       }
-    }
-
-    if (deal.ioiDate) {
-      events.push({
-        uid: `${deal.id}-ioi-deadline-${user.lenderId}@capitalflow.com`,
-        summary: `IOI Deadline - ${deal.dealName}`,
-        description: `Submit Indication of Interest via the portal.\\n${baseDesc}`,
-        startDate: deal.ioiDate
-      });
-    }
-
-    if (deal.commitmentDate) {
-      events.push({
-        uid: `${deal.id}-commitment-deadline-${user.lenderId}@capitalflow.com`,
-        summary: `Commitment Deadline - ${deal.dealName}`,
-        description: `Final commitments due.\\n${baseDesc}`,
-        startDate: deal.commitmentDate
-      });
-    }
-
-    if (deal.closeDate) {
-      events.push({
-        uid: `${deal.id}-closing-${user.lenderId}@capitalflow.com`,
-        summary: `Expected Closing - ${deal.dealName}`,
-        description: `Expected closing date.\\n${baseDesc}`,
-        startDate: deal.closeDate
-      });
-    }
+    });
 
     if (events.length === 0) {
       toast({
