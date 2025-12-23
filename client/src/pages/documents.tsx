@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { NDAGate } from "@/components/nda-gate";
+import { getInvitation } from "@/data/invitations";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -37,10 +38,34 @@ export default function DocumentsPage() {
   const { toast } = useToast();
 
   const isInvestor = user?.role === "Investor";
+  const invitation = isInvestor && user?.lenderId ? getInvitation(dealId, user.lenderId) : null;
+  const accessTier = invitation?.accessTier || "early"; // Default if not found
+
+  // Define tier permissions
+  // early: CIM
+  // full: CIM, Financials, KYC
+  // legal: CIM, Financials, KYC, Legal (Credit Agreement, Security, Intercreditor)
+  
+  const getAllowedCategories = (tier: string) => {
+    switch(tier) {
+      case "legal":
+        return ["CIM", "Financials", "KYC", "Credit Agreement", "Security", "Intercreditor"];
+      case "full":
+        return ["CIM", "Financials", "KYC"];
+      case "early":
+      default:
+        return ["CIM"];
+    }
+  };
+
+  const allowedCategories = isInvestor ? getAllowedCategories(accessTier) : null;
 
   // Filter documents for investors (e.g. hide draft internal docs)
   const accessibleDocs = isInvestor 
-    ? mockDocuments.filter(d => ["CIM", "Financials", "Legal", "Credit Agreement", "Security", "Intercreditor", "KYC"].includes(d.category) && d.status !== "Draft")
+    ? mockDocuments.filter(d => 
+        allowedCategories?.includes(d.category) && 
+        d.status !== "Draft"
+      )
     : mockDocuments;
 
   const selectedDoc = accessibleDocs.find(d => d.id === selectedDocId) || accessibleDocs[0];
@@ -51,6 +76,9 @@ export default function DocumentsPage() {
     acc[doc.category].push(doc);
     return acc;
   }, {} as Record<DocumentCategory, Document[]>);
+
+  // Grouped Docs helper to safely get array
+  const getDocs = (cat: DocumentCategory) => groupedDocs[cat] || [];
 
   // Blocking items logic (Internal only)
   const blockingDocs = mockDocuments.filter(d => 
@@ -110,10 +138,27 @@ export default function DocumentsPage() {
                       {/* Fixed Folders for Investors */}
                       {isInvestor ? (
                         <>
-                          <FolderGroup title="Lender Presentation" docs={groupedDocs["CIM"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
-                          <FolderGroup title="Financials & Model" docs={groupedDocs["Financials"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
-                          <FolderGroup title="Legal Documentation" docs={[...(groupedDocs["Credit Agreement"]||[]), ...(groupedDocs["Security"]||[]), ...(groupedDocs["Intercreditor"]||[])]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
-                          <FolderGroup title="KYC" docs={groupedDocs["KYC"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          {(accessTier === "early" || accessTier === "full" || accessTier === "legal") && (
+                            <FolderGroup title="Lender Presentation" docs={getDocs("CIM")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          )}
+                          
+                          {(accessTier === "full" || accessTier === "legal") && (
+                            <>
+                              <FolderGroup title="Financials & Model" docs={getDocs("Financials")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                              <FolderGroup title="KYC" docs={getDocs("KYC")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                            </>
+                          )}
+
+                          {(accessTier === "legal") && (
+                            <FolderGroup title="Legal Documentation" docs={[...getDocs("Credit Agreement"), ...getDocs("Security"), ...getDocs("Intercreditor")]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          )}
+                          
+                          {/* Fallback msg if nothing visible */}
+                          {accessibleDocs.length === 0 && (
+                            <div className="text-sm text-muted-foreground p-4 text-center">
+                              No documents available for your access tier ({accessTier}).
+                            </div>
+                          )}
                         </>
                       ) : (
                         Object.entries(groupedDocs).map(([category, docs]) => (

@@ -11,6 +11,8 @@ export interface Invitation {
   ndaVersion?: string;
   signerEmail?: string;
   signerIp?: string;
+  accessTier: "early" | "full" | "legal";
+  tierHistory?: { tier: string; changedAt: string; changedBy: string }[];
 }
 
 // Initial seed data
@@ -25,7 +27,12 @@ const initialInvitations: Invitation[] = [
     accessGranted: true,
     ndaVersion: "1.0",
     signerEmail: "investor@blackrock.com",
-    signerIp: "192.168.1.101"
+    signerIp: "192.168.1.101",
+    accessTier: "full",
+    tierHistory: [
+      { tier: "early", changedAt: formatISO(subDays(new Date(), 5)), changedBy: "System" },
+      { tier: "full", changedAt: formatISO(subDays(new Date(), 2)), changedBy: "Sarah Jenkins" }
+    ]
   },
   {
     dealId: "101",
@@ -33,7 +40,11 @@ const initialInvitations: Invitation[] = [
     invitedBy: "Sarah Jenkins",
     invitedAt: formatISO(subDays(new Date(), 4)),
     ndaRequired: true,
-    accessGranted: false // Hasn't signed NDA yet
+    accessGranted: false, // Hasn't signed NDA yet
+    accessTier: "early",
+    tierHistory: [
+      { tier: "early", changedAt: formatISO(subDays(new Date(), 4)), changedBy: "System" }
+    ]
   },
   {
     dealId: "101",
@@ -45,7 +56,13 @@ const initialInvitations: Invitation[] = [
     accessGranted: true,
     ndaVersion: "1.0",
     signerEmail: "investor@oakhill.com",
-    signerIp: "192.168.1.103"
+    signerIp: "192.168.1.103",
+    accessTier: "legal",
+    tierHistory: [
+      { tier: "early", changedAt: formatISO(subDays(new Date(), 3)), changedBy: "System" },
+      { tier: "full", changedAt: formatISO(subDays(new Date(), 1)), changedBy: "Michael Ross" },
+      { tier: "legal", changedAt: formatISO(new Date()), changedBy: "Michael Ross" }
+    ]
   },
   {
     dealId: "102",
@@ -57,7 +74,8 @@ const initialInvitations: Invitation[] = [
     accessGranted: true,
     ndaVersion: "1.0",
     signerEmail: "investor@blackrock.com",
-    signerIp: "192.168.1.101"
+    signerIp: "192.168.1.101",
+    accessTier: "early"
   }
 ];
 
@@ -66,6 +84,21 @@ let invitations = [...initialInvitations];
 
 export function getInvitation(dealId: string, lenderId: string) {
   return invitations.find(i => i.dealId === dealId && i.lenderId === lenderId);
+}
+
+export function updateAccessTier(dealId: string, lenderId: string, tier: "early" | "full" | "legal") {
+  const invite = getInvitation(dealId, lenderId);
+  if (invite) {
+    invite.accessTier = tier;
+    if (!invite.tierHistory) invite.tierHistory = [];
+    invite.tierHistory.push({
+      tier,
+      changedAt: new Date().toISOString(),
+      changedBy: "CurrentUser" // Mock user
+    });
+    return true;
+  }
+  return false;
 }
 
 export function signNDA(dealId: string, lenderId: string, version: string = "1.0", email?: string, ip?: string) {

@@ -36,11 +36,14 @@ import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, Legend } from "recharts";
 import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
 import { differenceInDays, parseISO, format } from "date-fns";
-import { getDealInvitations, Invitation } from "@/data/invitations";
+import { getDealInvitations, Invitation, updateAccessTier } from "@/data/invitations";
 import { mockLenders } from "@/data/lenders";
 import { getNDATemplate } from "@/data/nda-templates";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -49,8 +52,20 @@ export default function DealOverview() {
   const risk = computeDealRisk(deal);
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
   
-  const invitations = getDealInvitations(dealId);
+  const [invitations, setInvitations] = useState(getDealInvitations(dealId));
   const ndaTemplate = deal.ndaTemplateId ? getNDATemplate(deal.ndaTemplateId) : null;
+  const { toast } = useToast();
+
+  const handleTierChange = (lenderId: string, newTier: "early" | "full" | "legal") => {
+    const success = updateAccessTier(dealId, lenderId, newTier);
+    if (success) {
+      setInvitations(getDealInvitations(dealId)); // refresh
+      toast({
+        title: "Access Tier Updated",
+        description: `Lender access upgraded to ${newTier.toUpperCase()}.`,
+      });
+    }
+  };
 
   const handleExportCovenants = () => {
     // Mock export
@@ -190,6 +205,7 @@ export default function DealOverview() {
                       <TableHead>Lender</TableHead>
                       <TableHead>Invited</TableHead>
                       <TableHead>NDA Status</TableHead>
+                      <TableHead>Access Tier</TableHead>
                       <TableHead>Access</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -232,6 +248,53 @@ export default function DealOverview() {
                             ) : (
                               <span className="text-muted-foreground text-xs">Not Required</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                defaultValue={invite.accessTier || "early"} 
+                                onValueChange={(v) => handleTierChange(invite.lenderId, v as any)}
+                              >
+                                <SelectTrigger className="h-7 w-[100px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="early">Early</SelectItem>
+                                  <SelectItem value="full">Full</SelectItem>
+                                  <SelectItem value="legal">Legal</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {invite.tierHistory && invite.tierHistory.length > 0 && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="cursor-help text-muted-foreground hover:text-primary">
+                                        <Activity className="h-3 w-3" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="w-64 p-0" align="start">
+                                      <div className="p-2 border-b bg-secondary/10">
+                                        <h4 className="font-semibold text-xs">Access History</h4>
+                                      </div>
+                                      <div className="p-2 space-y-2">
+                                        {invite.tierHistory.slice().reverse().map((h, i) => (
+                                          <div key={i} className="flex justify-between items-start text-xs">
+                                            <div>
+                                              <span className="font-medium uppercase text-[10px] bg-secondary px-1 py-0.5 rounded mr-2">{h.tier}</span>
+                                              <span className="text-muted-foreground">by {h.changedBy}</span>
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                              {format(parseISO(h.changedAt), "MMM d, h:mm a")}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             {invite.accessGranted ? (
