@@ -43,6 +43,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
+import { emailService } from "@/lib/email-service";
+import { emailTemplates } from "@/lib/email-templates";
+
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
   const dealId = params?.id || "101";
@@ -110,7 +113,7 @@ export default function DocumentsPage() {
   
   const isLegalDoc = selectedDoc && ["Credit Agreement", "Security", "Intercreditor"].includes(selectedDoc.category);
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDoc || !user) return;
 
@@ -138,7 +141,28 @@ export default function DocumentsPage() {
       title: "Markup Uploaded",
       description: "Legal team has been notified of your comments.",
     });
+
+    // Send Email Notification
+    await emailService.send({
+      to: "deal-team@capitalflow.com",
+      subject: `Legal Markup: ${filename}`,
+      html: emailTemplates.legalMarkup("Project Titan", selectedDoc.name, user.name || user.email)
+    });
   };
+
+  const handleNewVersionUpload = async () => {
+     // Mock logic for new version upload
+     toast({
+        title: "Version 2.0 Uploaded",
+        description: "Investors have been notified of the update."
+     });
+
+     await emailService.send({
+        to: "investors@capitalflow.com",
+        subject: "Document Updated: Project Titan",
+        html: emailTemplates.documentUpdated("Project Titan", "Credit Agreement", "2.0")
+     });
+  }
 
   const PageContent = () => (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col">
@@ -158,7 +182,7 @@ export default function DocumentsPage() {
               <Filter className="h-4 w-4" /> Filter
             </Button>
             {!isInvestor && (
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleNewVersionUpload}>
                 <Upload className="h-4 w-4" /> Upload New Version
               </Button>
             )}

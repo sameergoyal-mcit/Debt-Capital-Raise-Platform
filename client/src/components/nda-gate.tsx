@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { ShieldAlert, FileText, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { emailService } from "@/lib/email-service";
+import { emailTemplates } from "@/lib/email-templates";
 
 interface NDAGateProps {
   dealId: string;
@@ -72,7 +74,7 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
 
   // If NDA required and not signed
   if (invitation.ndaRequired && !invitation.ndaSignedAt) {
-    const handleSign = () => {
+    const handleSign = async () => {
       if (!agreed) return;
       
       const ip = "192.168.1." + Math.floor(Math.random() * 255); // Mock IP
@@ -85,6 +87,14 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
           title: "NDA Signed",
           description: `You agreed to v${version} of the NDA. Access granted.`,
         });
+
+        // Send Email Notification
+        await emailService.send({
+          to: "deal-team@capitalflow.com",
+          subject: `NDA Signed: ${deal?.dealName || dealId} - ${user.name || email}`,
+          html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
+        });
+
         setForceUpdate(prev => prev + 1);
       }
     };

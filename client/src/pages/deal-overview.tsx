@@ -56,6 +56,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+import { emailService } from "@/lib/email-service";
+import { emailTemplates } from "@/lib/email-templates";
+
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
   const dealId = params?.id || "101";
@@ -96,6 +99,19 @@ export default function DealOverview() {
     // Mock export
     alert("Downloading Covenant Compliance Certificate...");
   };
+  
+  const handleInviteLender = async () => {
+     toast({
+        title: "Invitation Sent",
+        description: "Lender invited: credit@pimco.com"
+     });
+     
+     await emailService.send({
+        to: "credit@pimco.com",
+        subject: `Investment Opportunity: ${deal.dealName}`,
+        html: emailTemplates.ndaInvitation(deal.dealName, `https://capitalflow.com/deal/${deal.id}/overview`)
+     });
+  };
 
   return (
     <Layout>
@@ -134,6 +150,16 @@ export default function DealOverview() {
             </Button>
             <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground">
               <FileText className="h-4 w-4" /> Export Deal Summary
+            </Button>
+            <Button variant="destructive" size="sm" className="gap-2" onClick={async () => {
+                toast({ title: "Reminders Sent", description: "Deadlines communicated to all active lenders." });
+                await emailService.send({
+                    to: "all-investors@deal.com",
+                    subject: `URGENT: Deadline - ${deal.dealName}`,
+                    html: emailTemplates.commitmentReminder(deal.dealName, "Tomorrow at 5:00 PM EST")
+                });
+            }}>
+                <AlertCircle className="h-4 w-4" /> Send Reminders
             </Button>
           </div>
         </div>
@@ -243,7 +269,7 @@ export default function DealOverview() {
                        </DialogContent>
                      </Dialog>
                      
-                     <Button size="sm" className="h-7 text-xs gap-1">
+                     <Button size="sm" className="h-7 text-xs gap-1" onClick={handleInviteLender}>
                         <Users className="h-3 w-3" /> Invite Lender
                      </Button>
                   </div>
