@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth, UserRole } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { mockLenders } from "@/data/lenders";
@@ -14,22 +13,49 @@ export default function Login() {
   const { login, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [role, setRole] = useState<UserRole>("Bookrunner");
-  const [selectedLender, setSelectedLender] = useState<string>("");
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Update default email when role changes
+  useEffect(() => {
+    if (role === "Bookrunner") setEmail("sarah.jenkins@capitalflow.com");
+    else if (role === "Issuer") setEmail("cfo@titan-software.com");
+    else setEmail("investor@fund.com");
+  }, [role]);
 
   // If already logged in, redirect
   if (isAuthenticated) {
-    // This effect might run before redirect in context finishes, but context handles specific redirects.
-    // For safety we can redirect to home or deals if they land here.
-    // setLocation("/deals"); 
-    // Commented out to prevent flicker/loops, user usually won't hit this if layout handles it well.
+    // handled by context
   }
 
   const handleLogin = () => {
     setIsLoading(true);
+    
+    // Attempt to guess lender from email
+    let lenderId: string | undefined;
+    
+    if (role === "Investor") {
+      // Simple heuristic: check if lender name part exists in email
+      const emailDomain = email.toLowerCase().split('@')[1] || email.toLowerCase();
+      const matchedLender = mockLenders.find(l => 
+        emailDomain.includes(l.name.toLowerCase().split(' ')[0]) || 
+        email.toLowerCase().includes(l.name.toLowerCase().replace(/\s/g, ""))
+      );
+      
+      lenderId = matchedLender?.id;
+      
+      if (!lenderId && role === "Investor") {
+        // Fallback for demo if no match found but "investor" is generic
+        // Maybe default to first one or just let context handle generic
+        if (email.includes("blackrock")) lenderId = "1";
+        else if (email.includes("apollo")) lenderId = "2";
+        else if (email.includes("oak")) lenderId = "3";
+      }
+    }
+
     // Simulate network delay
     setTimeout(() => {
-      login(role, role === "Investor" ? selectedLender : undefined);
+      login(role, lenderId);
       setIsLoading(false);
     }, 800);
   };
@@ -65,32 +91,16 @@ export default function Login() {
                      type="email" 
                      placeholder="name@company.com" 
                      className="bg-background"
-                     disabled 
-                     value={
-                       role === "Bookrunner" ? "sarah.jenkins@capitalflow.com" :
-                       role === "Issuer" ? "cfo@titan-software.com" :
-                       "investor@fund.com"
-                     }
+                     disabled={role !== "Investor"} // Only allow editing for Investor to test the "guessing" feature
+                     value={email}
+                     onChange={(e) => setEmail(e.target.value)}
                    />
+                   {role === "Investor" && (
+                     <p className="text-[10px] text-muted-foreground">
+                       Try: <em>investor@blackrock.com</em> or <em>investor@apollo.com</em>
+                     </p>
+                   )}
                  </div>
-
-                 {role === "Investor" && (
-                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                     <Label>Institution</Label>
-                     <Select value={selectedLender} onValueChange={setSelectedLender}>
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select your firm" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {mockLenders.map(lender => (
-                           <SelectItem key={lender.id} value={lender.id}>
-                             {lender.name}
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
-                   </div>
-                 )}
 
                  <div className="space-y-2">
                    <Label>Password</Label>
@@ -103,7 +113,7 @@ export default function Login() {
             <Button 
               className="w-full bg-primary text-primary-foreground font-semibold h-11" 
               onClick={handleLogin}
-              disabled={isLoading || (role === "Investor" && !selectedLender)}
+              disabled={isLoading}
             >
               {isLoading ? "Authenticating..." : `Sign in as ${role}`}
             </Button>
