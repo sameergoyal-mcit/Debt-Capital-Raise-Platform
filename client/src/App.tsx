@@ -23,6 +23,7 @@ import ViewerIndex from "@/pages/viewer/index";
 import IssuerViewer from "@/pages/viewer/issuer";
 import BookrunnerViewer from "@/pages/viewer/bookrunner";
 import InvestorViewer from "@/pages/viewer/investor";
+import Settings from "@/pages/settings";
 
 // Protected Route Wrapper
 function ProtectedRoute({ 
@@ -116,6 +117,11 @@ function Router() {
       <Route path="/deal/:id/viewer/issuer" component={IssuerViewer} />
       <Route path="/deal/:id/viewer/bookrunner" component={BookrunnerViewer} />
       <Route path="/deal/:id/viewer/investor" component={InvestorViewer} />
+
+      {/* Settings & Tools */}
+      <Route path="/settings">
+         <ProtectedRoute component={Settings} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
+      </Route>
 
       <Route component={NotFound} />
     </Switch>

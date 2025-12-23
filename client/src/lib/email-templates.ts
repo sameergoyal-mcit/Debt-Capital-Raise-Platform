@@ -69,5 +69,39 @@ export const emailTemplates = {
       <p>Final commitments for <strong>${dealName}</strong> are due on <strong>${deadline}</strong>.</p>
       <p>Ensure all credit approvals are final before submission.</p>
     </div>
+  `,
+
+  dailyDigest: (investorName: string, deals: any[]) => `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+      <h2 style="color: #003366;">Daily Deal Update</h2>
+      <p>Hello ${investorName},</p>
+      <p>Here is your daily summary of activity across your active deals.</p>
+      
+      ${deals.map(deal => `
+        <div style="border: 1px solid #eee; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
+          <h3 style="margin-top: 0; color: #003366;">${deal.dealName} <span style="font-size: 14px; font-weight: normal; color: #666;">(${deal.issuer})</span></h3>
+          
+          ${deal.updates.length > 0 ? `
+            <ul style="padding-left: 20px; margin-bottom: 15px;">
+              ${deal.updates.map((update: string) => `<li style="margin-bottom: 5px;">${update}</li>`).join('')}
+            </ul>
+          ` : '<p style="color: #666; font-style: italic;">No major updates today.</p>'}
+
+          ${deal.actionRequired ? `
+            <div style="background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; font-size: 14px; margin-bottom: 15px;">
+              <strong>Action Required:</strong> ${deal.actionRequired}
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 10px;">
+            <a href="${deal.link}" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 14px;">View Deal &rarr;</a>
+          </div>
+        </div>
+      `).join('')}
+
+      <p style="font-size: 12px; color: #999; margin-top: 30px; text-align: center;">
+        CapitalFlow Platform • <a href="#" style="color: #999;">Manage Notification Preferences</a>
+      </p>
+    </div>
   `
 };

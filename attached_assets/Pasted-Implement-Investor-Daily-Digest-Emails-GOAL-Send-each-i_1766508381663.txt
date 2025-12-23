@@ -1,0 +1,74 @@
+Implement Investor Daily Digest Emails.
+
+GOAL:
+Send each investor a single daily summary email covering updates across all deals they are invited to.
+
+----------------------------------------------------
+1) Digest Eligibility
+----------------------------------------------------
+Only role=investor users receive digests.
+
+Each digest should include ONLY:
+- Deals the investor has access to
+- Data scoped to their lenderId
+
+----------------------------------------------------
+2) Digest Content (Per Investor)
+----------------------------------------------------
+For each deal:
+- Deal name + issuer
+- New or updated documents since lastDigestAt
+- Q&A responses posted since lastDigestAt (only their questions)
+- Upcoming deadlines:
+  - NDA deadline (if not signed)
+  - IOI deadline
+  - Commitment deadline
+- Outstanding actions:
+  - Sign NDA
+  - Review updated docs
+  - Submit commitment
+
+----------------------------------------------------
+3) Data Tracking
+----------------------------------------------------
+Add to investor session or profile:
+- lastDigestAt timestamp
+
+Use this to compute “since last digest” deltas.
+
+----------------------------------------------------
+4) Digest Email Template
+----------------------------------------------------
+Create a clean HTML email:
+- Subject: “Daily Deal Update – [Borrower Name]”
+- Sectioned by deal
+- Bullet points for updates
+- Action links:
+  - View Deal
+  - Sign NDA
+  - Submit Commitment
+
+----------------------------------------------------
+5) Delivery Mode
+----------------------------------------------------
+- Default mode: mock delivery
+  - Log email payload to console
+  - Store digest in a “Sent Digests” log
+- If SENDGRID_API_KEY exists:
+  - Send real email via SendGrid
+
+----------------------------------------------------
+6) Trigger
+----------------------------------------------------
+- Implement a manual trigger function sendDailyDigests()
+- Do NOT auto-schedule cron
+- Allow manual invocation (button or dev-only call)
+
+----------------------------------------------------
+7) Safety
+----------------------------------------------------
+- Do not send empty digests
+- Do not include internal metrics
+- Ensure investor never sees other lenders’ data
+
+Ensure app builds and runs without errors.
