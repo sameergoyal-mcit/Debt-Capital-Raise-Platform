@@ -20,7 +20,11 @@ import {
   DollarSign,
   TrendingDown,
   TrendingUp,
-  Minus
+  Minus,
+  Mail,
+  Lock,
+  Unlock,
+  MoreHorizontal
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -31,7 +35,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, Legend } from "recharts";
 import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
-import { differenceInDays, parseISO } from "date-fns";
+import { differenceInDays, parseISO, format } from "date-fns";
+import { getDealInvitations, Invitation } from "@/data/invitations";
+import { mockLenders } from "@/data/lenders";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -39,6 +46,8 @@ export default function DealOverview() {
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const risk = computeDealRisk(deal);
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
+  
+  const invitations = getDealInvitations(dealId);
 
   const handleExportCovenants = () => {
     // Mock export
@@ -143,6 +152,85 @@ export default function DealOverview() {
                     <p className="text-[10px] text-muted-foreground mt-1">+25 bps = +$112k/yr Interest</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Invitations & Access Card */}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-primary" /> Invitations & Access
+                  </CardTitle>
+                  <Button size="sm" className="h-7 text-xs gap-1">
+                    <Users className="h-3 w-3" /> Invite Lender
+                  </Button>
+                </div>
+                <CardDescription>Manage investor access and NDA status.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs uppercase">
+                      <TableHead>Lender</TableHead>
+                      <TableHead>Invited</TableHead>
+                      <TableHead>NDA Status</TableHead>
+                      <TableHead>Access</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invitations.map(invite => {
+                      const lender = mockLenders.find(l => l.id === invite.lenderId);
+                      return (
+                        <TableRow key={invite.lenderId} className="text-sm">
+                          <TableCell className="font-medium">{lender?.name || "Unknown Lender"}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {format(parseISO(invite.invitedAt), "MMM d")}
+                          </TableCell>
+                          <TableCell>
+                            {invite.ndaRequired ? (
+                              invite.ndaSignedAt ? (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 font-normal">
+                                  <CheckCircle2 className="h-3 w-3" /> Signed
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 font-normal">
+                                  <Clock className="h-3 w-3" /> Pending
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Not Required</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {invite.accessGranted ? (
+                              <div className="flex items-center gap-1 text-green-600 text-xs">
+                                <Unlock className="h-3 w-3" /> Granted
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                                <Lock className="h-3 w-3" /> Locked
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <MoreHorizontalIcon className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {invitations.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                          No invitations sent yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
 
@@ -481,6 +569,25 @@ function DollarSignIcon({ className }: { className?: string }) {
         >
             <line x1="12" x2="12" y1="1" y2="23" />
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+    )
+}
+
+function MoreHorizontalIcon({ className }: { className?: string }) {
+    return (
+        <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className={className}
+        >
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="19" cy="12" r="1" />
+            <circle cx="5" cy="12" r="1" />
         </svg>
     )
 }

@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { NDAGate } from "@/components/nda-gate";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -64,9 +65,8 @@ export default function DocumentsPage() {
     });
   };
 
-  return (
-    <Layout>
-      <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col">
+  const PageContent = () => (
+    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col">
         <div className="flex justify-between items-center shrink-0">
           <div>
              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -352,7 +352,14 @@ export default function DocumentsPage() {
              </Card>
           </TabsContent>
         </Tabs>
-      </div>
+    </div>
+  );
+
+  return (
+    <Layout>
+      <NDAGate dealId={dealId} title="Virtual Data Room Access">
+        <PageContent />
+      </NDAGate>
     </Layout>
   );
 }

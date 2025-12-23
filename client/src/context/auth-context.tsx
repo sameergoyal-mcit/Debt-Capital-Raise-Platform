@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { mockLenders } from "@/data/lenders";
 
 export type UserRole = "Issuer" | "Bookrunner" | "Investor";
 
@@ -51,9 +52,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     } else {
       // Investor
+      const lender = lenderId ? mockLenders.find(l => l.id === lenderId) : null;
       newUser = {
-        email: "investor@fund.com", // In a real app this would be specific
-        name: lenderId ? "Investor Representative" : "Investor", 
+        email: lender ? `investor@${lender.name.toLowerCase().replace(/\s/g, "")}.com` : "investor@fund.com",
+        name: lender ? `${lender.name} Rep` : "Investor Representative", 
         role: "Investor",
         lenderId: lenderId,
         dealAccess: ["101"] // Assume access to Titan for demo
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Redirect logic
     if (role === "Investor") {
-       setLocation("/deal/101/documents");
+       setLocation("/deal/101/overview");
     } else {
        setLocation("/deals");
     }

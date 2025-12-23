@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle2, DollarSign, AlertCircle, ArrowLeft } from "lucide-react";
 import { mockDeals } from "@/data/deals";
 import { useAuth } from "@/context/auth-context";
+import { NDAGate } from "@/components/nda-gate";
 
 export default function SubmitCommitment() {
   const [, params] = useRoute("/deal/:id/commitment");
@@ -52,24 +53,22 @@ export default function SubmitCommitment() {
     });
   };
 
-  if (!user || user.role !== "Investor") {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-          <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-muted-foreground mt-2">Only accredited investors can submit commitments.</p>
-          <Button className="mt-6" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
-            Return to Overview
-          </Button>
-        </div>
-      </Layout>
-    );
-  }
+  const PageContent = () => {
+      if (!user || user.role !== "Investor") {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+              <h2 className="text-xl font-bold">Access Denied</h2>
+              <p className="text-muted-foreground mt-2">Only accredited investors can submit commitments.</p>
+              <Button className="mt-6" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
+                Return to Overview
+              </Button>
+            </div>
+        );
+      }
 
-  return (
-    <Layout>
-      <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
+      return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
         <div className="mb-6">
           <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
             <ArrowLeft className="h-4 w-4" /> Back to Deal
@@ -218,6 +217,14 @@ export default function SubmitCommitment() {
           </div>
         </div>
       </div>
+      );
+  }
+
+  return (
+    <Layout>
+        <NDAGate dealId={dealId} title="Commitment Portal Access">
+            <PageContent />
+        </NDAGate>
     </Layout>
   );
 }

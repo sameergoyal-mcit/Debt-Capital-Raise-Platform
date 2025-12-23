@@ -1,0 +1,142 @@
+Add NDA gating and deal access control for Investor users.
+
+GOAL:
+Investors should only see deals they are invited to, and must sign an NDA
+before accessing confidential documents, models, and legal files.
+
+----------------------------------------------------
+1) Extend Auth / Session Context
+----------------------------------------------------
+Update Auth session model to include:
+- role: "issuer" | "bookrunner" | "investor"
+- userEmail
+- lenderId (investor only)
+- dealAccess: string[]   // list of dealIds investor can access
+
+Persist session in localStorage.
+
+----------------------------------------------------
+2) Deal Invitation Model (Mock DB)
+----------------------------------------------------
+Create a mock invitations store keyed by dealId + lenderId:
+{
+  dealId,
+  lenderId,
+  invitedBy,
+  invitedAt,
+  ndaRequired: true,
+  ndaSignedAt?: ISO_DATE,
+  accessGranted: boolean
+}
+
+Seed example invitations for multiple lenders and deals.
+
+----------------------------------------------------
+3) Filter Deals for Investor
+----------------------------------------------------
+When role === investor:
+- /deals page should show ONLY deals in session.dealAccess
+- If investor has access to only ONE deal, redirect to that deal automatically
+
+Issuer/Bookrunner see all deals.
+
+----------------------------------------------------
+4) NDA Gate Component
+----------------------------------------------------
+Create <NDAGate> component.
+
+Behavior:
+- Inputs: dealId, lenderId
+- If NDA is required and not signed:
+    - Show NDA summary text
+    - Require checkbox: "I agree to the NDA"
+    - Button: "Sign NDA"
+- On sign:
+    - Save ndaSignedAt timestamp
+    - Set accessGranted = true
+    - Allow document access
+
+Issuer/Bookrunner:
+- Always bypass NDA gate
+- Can view NDA status per lender
+
+----------------------------------------------------
+5) Apply NDA Gating to Investor Pages
+----------------------------------------------------
+For investor role, wrap these routes with <NDAGate>:
+- /deal/:id/documents
+- /deal/:id/commitment
+- (optional) /deal/:id/qa
+
+Investor behavior:
+- Before NDA:
+    - Can see Timeline
+    - Can see NDA page
+    - Cannot see documents or submit commitment
+- After NDA:
+    - Full lender VDR access
+    - Can upload legal markups
+    - Can submit grid / commitment
+
+----------------------------------------------------
+6) Investor Documents Page (Post-NDA)
+----------------------------------------------------
+Once NDA signed, show investor VDR folders:
+- Lender Presentation (CIM)
+- Supplemental Information
+- KYC Documents
+- Lender Paydown Model
+- Legal (read-only)
+
+Legal folder:
+- Allow Upload Markup
+- Store uploads keyed by dealId + lenderId + documentId
+- Show upload history and status
+
+----------------------------------------------------
+7) Investor Due Diligence (Scoped)
+----------------------------------------------------
+For investor role:
+- Show only Q&A where question.lenderId === session.lenderId
+- Allow submit new question
+- Issuer/Bookrunner can see all Q&A and respond
+
+----------------------------------------------------
+8) Invitation Management (Issuer / Bookrunner)
+----------------------------------------------------
+Add ability (simple UI or stub) for issuer/bookrunner to:
+- Invite lender to deal
+- Toggle ndaRequired
+- View NDA signed status per lender
+- See invitation timestamp
+
+This can be a simple table on Deal Overview:
+Lender | Invited | NDA Required | NDA Signed | Access Granted
+
+----------------------------------------------------
+9) UX / Routing Rules
+----------------------------------------------------
+Investor role:
+- Sidebar shows ONLY:
+  - Deals
+  - Data Room & Docs
+  - Due Diligence
+  - Timeline
+  - Submit Commitment
+- Hide all internal pages (overview, book, analytics, closing, publish)
+
+Issuer / Bookrunner:
+- See full app
+- Can impersonate Investor via Role Viewer (optional, keep existing viewer)
+
+----------------------------------------------------
+10) Safety Checks
+----------------------------------------------------
+- Investor cannot access:
+  - other lenders
+  - coverage metrics
+  - allocations
+  - pricing pressure
+  - covenant headroom
+- All NDA + access checks enforced at route level
+- App compiles and runs without runtime errors
