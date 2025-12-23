@@ -23,7 +23,7 @@ export function getInvestorDeals(lenderId: string): InvestorDealSummary[] {
       const invite = getInvitation(deal.id, lenderId);
       return { deal, invite };
     })
-    .filter(item => item.invite !== null) as { deal: Deal, invite: Invitation }[];
+    .filter(item => !!item.invite) as { deal: Deal, invite: Invitation }[];
 
   // 2. Compute stats for each deal
   return dealsWithInvites.map(({ deal, invite }) => {
