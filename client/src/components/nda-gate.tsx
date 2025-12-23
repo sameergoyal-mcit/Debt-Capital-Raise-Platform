@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, FileText, Lock } from "lucide-react";
+import { ShieldAlert, FileText, Lock, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
+import { config } from "@/lib/config";
 
 interface NDAGateProps {
   dealId: string;
@@ -26,6 +27,7 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
   const [agreed, setAgreed] = useState(false);
   const [canAgree, setCanAgree] = useState(false); // Only enable checkbox after scrolling
   const [forceUpdate, setForceUpdate] = useState(0); // To trigger re-render after sign
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // If not an investor, pass through (internal users bypass NDA)
@@ -75,29 +77,119 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
   // If NDA required and not signed
   if (invitation.ndaRequired && !invitation.ndaSignedAt) {
     const handleSign = async () => {
-      if (!agreed) return;
-      
-      const ip = "192.168.1." + Math.floor(Math.random() * 255); // Mock IP
-      const email = user.email || "investor@fund.com";
-      const version = template?.version || "1.0";
+      // Logic for internal signing
+      if (!config.useDocuSign) {
+        if (!agreed) return;
+        
+        const ip = "192.168.1." + Math.floor(Math.random() * 255); // Mock IP
+        const email = user.email || "investor@fund.com";
+        const version = template?.version || "1.0";
 
-      const success = signNDA(dealId, user.lenderId!, version, email, ip);
-      if (success) {
+        const success = signNDA(dealId, user.lenderId!, version, email, ip);
+        if (success) {
+          toast({
+            title: "NDA Signed",
+            description: `You agreed to v${version} of the NDA. Access granted.`,
+          });
+
+          // Send Email Notification
+          await emailService.send({
+            to: "deal-team@capitalflow.com",
+            subject: `NDA Signed: ${deal?.dealName || dealId} - ${user.name || email}`,
+            html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
+          });
+
+          setForceUpdate(prev => prev + 1);
+        }
+      }
+    };
+
+    // Placeholder for DocuSign Redirect
+    const handleDocuSignRedirect = () => {
+      setIsRedirecting(true);
+      
+      // Simulate external redirect and callback
+      setTimeout(() => {
+        // In a real app, this would be a callback route (e.g., /auth/docusign/callback)
+        // Here we just mock the success immediately for demo purposes
+        const ip = "192.168.1." + Math.floor(Math.random() * 255); 
+        const email = user.email || "investor@fund.com";
+        const version = template?.version || "1.0";
+        
+        signNDA(dealId, user.lenderId!, version, email, ip);
+        
         toast({
-          title: "NDA Signed",
-          description: `You agreed to v${version} of the NDA. Access granted.`,
+          title: "DocuSign Envelope Completed",
+          description: "We received confirmation from DocuSign. Access granted.",
         });
 
         // Send Email Notification
-        await emailService.send({
+        emailService.send({
           to: "deal-team@capitalflow.com",
-          subject: `NDA Signed: ${deal?.dealName || dealId} - ${user.name || email}`,
+          subject: `NDA Signed (DocuSign): ${deal?.dealName || dealId} - ${user.name || email}`,
           html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
         });
 
+        setIsRedirecting(false);
         setForceUpdate(prev => prev + 1);
-      }
+      }, 3000);
     };
+
+    if (config.useDocuSign) {
+      if (isRedirecting) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-in fade-in duration-500">
+            <Card className="max-w-md w-full border-blue-200 shadow-lg bg-blue-50/10">
+              <CardHeader className="text-center pb-8">
+                <div className="mx-auto bg-blue-100 p-4 rounded-full w-fit mb-4 animate-pulse">
+                   <ExternalLink className="h-8 w-8 text-blue-600" />
+                </div>
+                <CardTitle className="text-xl font-serif">Connecting to DocuSign...</CardTitle>
+                <CardDescription>
+                  Please complete the electronic signature process in the new window.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center text-sm text-muted-foreground pb-8">
+                Waiting for confirmation...
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-in fade-in duration-500">
+          <Card className="max-w-lg w-full border-blue-200 shadow-lg">
+             <CardHeader className="text-center border-b border-border/50 pb-6">
+               <div className="mx-auto bg-blue-50 p-4 rounded-full w-fit mb-4 ring-1 ring-blue-100">
+                  <FileText className="h-8 w-8 text-blue-600" />
+               </div>
+               <CardTitle className="text-2xl font-serif">{title}</CardTitle>
+               <CardDescription className="text-base">
+                 This deal requires a secure signature via DocuSign.
+               </CardDescription>
+             </CardHeader>
+             <CardContent className="space-y-6 pt-6 text-center">
+               <p className="text-sm text-muted-foreground">
+                 Click the button below to be redirected to our secure DocuSign envelope. 
+                 Once you have signed the NDA, you will be automatically returned to the Virtual Data Room.
+               </p>
+               <div className="bg-secondary/20 p-4 rounded text-xs text-left border border-border">
+                 <p className="font-semibold mb-1">Document:</p>
+                 <p>{template?.name || "Standard Private Credit NDA"}</p>
+                 <p className="mt-2 font-semibold mb-1">Signer:</p>
+                 <p>{user.name || user.email} (on behalf of Lender)</p>
+               </div>
+             </CardContent>
+             <CardFooter className="bg-secondary/10 border-t pt-6">
+               <Button className="w-full h-11 text-base bg-[#005cb9] hover:bg-[#00448a]" onClick={handleDocuSignRedirect}>
+                 <ExternalLink className="mr-2 h-4 w-4" /> Continue to DocuSign
+               </Button>
+             </CardFooter>
+          </Card>
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 animate-in fade-in duration-500">
