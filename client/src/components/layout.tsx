@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { mockDeals } from "@/data/deals";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -45,6 +46,7 @@ export function Layout({ children }: LayoutProps) {
   const dealIdMatch = location.match(/^\/(?:deal|investor\/deal)\/([^/]+)/);
   const dealId = dealIdMatch?.[1];
   const isDealWorkspace = !!dealId;
+  const currentDeal = dealId ? mockDeals.find(d => d.id === dealId) : null;
 
   const isActive = (path: string) => location.startsWith(path);
 
@@ -84,7 +86,7 @@ export function Layout({ children }: LayoutProps) {
             <div className={`mt-${isInvestor ? '2' : '8'} pt-4 border-t border-sidebar-border`}>
               <div className="px-4 mb-4">
                  <h4 className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-1">
-                  Project Titan
+                  {currentDeal ? currentDeal.dealName : "Deal Workspace"}
                 </h4>
                 {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Investor Portal</Badge>}
               </div>

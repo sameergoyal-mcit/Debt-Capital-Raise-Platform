@@ -113,10 +113,18 @@ function Router() {
       </Route>
 
       {/* Viewer Pages - Keep accessible for demo purposes or restrict */}
-      <Route path="/deal/:id/viewer" component={ViewerIndex} />
-      <Route path="/deal/:id/viewer/issuer" component={IssuerViewer} />
-      <Route path="/deal/:id/viewer/bookrunner" component={BookrunnerViewer} />
-      <Route path="/deal/:id/viewer/investor" component={InvestorViewer} />
+      <Route path="/deal/:id/viewer">
+         <ProtectedRoute component={ViewerIndex} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+      <Route path="/deal/:id/viewer/issuer">
+         <ProtectedRoute component={IssuerViewer} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+      <Route path="/deal/:id/viewer/bookrunner">
+         <ProtectedRoute component={BookrunnerViewer} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+      <Route path="/deal/:id/viewer/investor">
+         <ProtectedRoute component={InvestorViewer} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
 
       {/* Settings & Tools */}
       <Route path="/settings">

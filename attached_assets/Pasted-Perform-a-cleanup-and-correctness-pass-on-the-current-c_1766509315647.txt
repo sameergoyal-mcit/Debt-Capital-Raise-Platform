@@ -1,0 +1,39 @@
+Perform a cleanup and correctness pass on the current codebase.
+
+1) Fix Investor login redirect and deal access:
+- In auth-context.tsx, after Investor login redirect to /investor (not /deal/:id/overview)
+- Derive investor dealAccess from invitations via getLenderInvitations(lenderId) instead of hardcoding ["101"]
+
+2) Fix Investor NDA CTA routing:
+- In investor-deal-home.tsx change "Sign NDA Now" link to /deal/:id/documents so NDAGate handles signing
+- Remove any links from investor views to /deal/:id/overview
+
+3) Standardize NDA deadline logic:
+- Add ndaDeadline?: string to Deal model OR implement a single helper getNdaDeadline(deal) using stageDueDates.NDA or launchDate+7 days
+- Replace hardcoded NDA date strings (e.g. 2024-03-15) in investor-dashboard.tsx, investor-deal-home.tsx, investor-utils.ts
+- Ensure ICS exports use the same deadline source
+
+4) Fix investor-utils stats accuracy:
+- newDocsCount must be based on docs visible to that lender (tier rules) AND updatedAt > lastViewedAt for that lender
+- openQACount should reflect unanswered questions (e.g., status Open/Pending), not Answered
+- add answeredSinceLastSeenCount if needed for notifications
+- actionRequired should prioritize:
+  Sign NDA > Submit Commitment (if inside window and not submitted) > Review Docs (new/updated) > Q&A response
+
+5) Protect viewer routes:
+- Wrap /deal/:id/viewer and /viewer/* routes in ProtectedRoute for issuer/bookrunner only OR remove them entirely
+- Ensure no sensitive pages are reachable without auth
+
+6) Layout polish:
+- Replace hardcoded "Project Titan" in Layout with actual deal name looked up by dealId from mockDeals
+- If unknown dealId, show "Deal Workspace"
+
+7) Remove unused imports and dead code:
+- Clean up login.tsx and any other pages with unused imports/variables
+- Keep TypeScript lint clean
+
+8) Centralize deadlines:
+- Create lib/deal-deadlines.ts that returns a normalized list of deal milestones (launch, NDA, IOI, commitment, close)
+- Reuse it in investor dashboard, investor deal home, ICS export, and digest generator
+
+Ensure the app builds and runs in Replit with no runtime errors.

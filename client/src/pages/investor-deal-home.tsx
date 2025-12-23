@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
+import { dealDeadlines } from "@/lib/deal-deadlines";
 import { useToast } from "@/hooks/use-toast";
 
 export default function InvestorDealHome() {
@@ -137,7 +138,8 @@ export default function InvestorDealHome() {
                          <Lock className="h-5 w-5" />
                          <div className="text-sm font-medium">NDA Required to access Data Room</div>
                      </div>
-                     <Link href={`/deal/${dealId}/overview`}>
+                     {/* FIX: Link to Documents/NDA Gate instead of Overview */}
+                     <Link href={`/deal/${dealId}/documents`}>
                          <Button className="bg-amber-600 hover:bg-amber-700 text-white">Sign NDA Now</Button>
                      </Link>
                  </div>

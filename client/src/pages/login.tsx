@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "wouter";
 import { useAuth, UserRole } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,11 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { mockLenders } from "@/data/lenders";
-import { ShieldCheck, Briefcase, Users } from "lucide-react";
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
   const [role, setRole] = useState<UserRole>("Bookrunner");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);

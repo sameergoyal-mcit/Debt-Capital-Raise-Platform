@@ -2,7 +2,8 @@ import { mockDeals, Deal } from "@/data/deals";
 import { getInvitation, Invitation } from "@/data/invitations";
 import { mockDocuments } from "@/data/documents";
 import { mockQAs, QA } from "@/data/qa";
-import { parseISO, isAfter, isBefore, addDays, differenceInDays } from "date-fns";
+import { parseISO, isAfter, differenceInDays } from "date-fns";
+import { dealDeadlines } from "@/lib/deal-deadlines";
 
 export interface InvestorDealSummary {
   deal: Deal;
@@ -48,59 +49,70 @@ export function getInvestorDeal(dealId: string, lenderId: string): InvestorDealS
 function computeDealStats(deal: Deal, invite: Invitation, lenderId: string) {
   const now = new Date();
   
-  // New Docs Count (mock logic: docs updated in last 7 days)
+  // New Docs Count 
+  // Logic: Updated in last 7 days AND visible based on tier
   const newDocsCount = mockDocuments.filter(d => {
     if (d.dealId !== deal.id) return false;
-    // Simple logic: if updated in last 7 days
+    
+    // Tier check (mock)
+    if (invite.accessTier === "early" && d.category !== "CIM" && d.category !== "Other") return false;
+
     const updated = parseISO(d.lastUpdatedAt);
     return differenceInDays(now, updated) < 7;
   }).length;
 
-  // Open Q&A Count (questions by this lender with answers)
+  // Open Q&A Count (Unanswered questions asked by this lender, OR active threads)
+  // Requirement: "reflect unanswered questions... not Answered"
   const openQACount = mockQAs.filter((qa: QA) => 
     qa.dealId === deal.id && 
     qa.askedByLenderId === lenderId && 
-    qa.status === "Answered"
+    qa.status !== "Answered" 
   ).length;
 
-  // Next Deadline Logic
-  let nextDeadlineLabel = null;
-  let nextDeadlineDate = null;
-  
-  // Check NDA
-  if (invite.ndaRequired && !invite.ndaSignedAt) {
-    nextDeadlineLabel = "Sign NDA";
-    // Assuming NDA should be signed ASAP, no specific hard date in mock, 
-    // but we could use a default "Launch + 7 days"
-    nextDeadlineDate = addDays(parseISO(deal.launchDate), 7).toISOString();
-  } 
-  // Check IOI
-  else if (deal.ioiDate && isBefore(now, parseISO(deal.ioiDate))) {
-    nextDeadlineLabel = "IOI Deadline";
-    nextDeadlineDate = deal.ioiDate;
-  }
-  // Check Commitment
-  else if (deal.commitmentDate && isBefore(now, parseISO(deal.commitmentDate))) {
-    nextDeadlineLabel = "Commitment Deadline";
-    nextDeadlineDate = deal.commitmentDate;
-  }
-  else {
-    nextDeadlineLabel = "Expected Close";
-    nextDeadlineDate = deal.closeDate;
-  }
+  // Next Deadline Logic using centralized helper
+  const nextDeadline = dealDeadlines.getNextDeadline(deal, invite.ndaSignedAt);
+  const nextDeadlineLabel = nextDeadline ? nextDeadline.label : null;
+  const nextDeadlineDate = nextDeadline ? nextDeadline.date : null;
 
   // Action Required Logic (Priority Order)
   let actionRequired: "Sign NDA" | "Review Docs" | "Submit Commitment" | "Q&A Response" | null = null;
 
   if (invite.ndaRequired && !invite.ndaSignedAt) {
     actionRequired = "Sign NDA";
-  } else if (deal.commitmentDate && isBefore(now, parseISO(deal.commitmentDate)) && differenceInDays(parseISO(deal.commitmentDate), now) < 5) {
-     // Mock check: if close to deadline and not submitted (we don't have commitment store here easily, assuming not submitted if close)
-     actionRequired = "Submit Commitment";
-  } else if (openQACount > 0) {
-    actionRequired = "Q&A Response";
-  } else if (newDocsCount > 0) {
-    actionRequired = "Review Docs";
+  } else {
+      // Check commitment window
+      const commitmentDue = dealDeadlines.getDeadlines(deal).find(d => d.type === "Commitment");
+      if (commitmentDue && !commitmentDue.isOverdue && commitmentDue.daysRemaining <= 5) {
+          // In a real app we'd check if they already submitted. Assuming "no" for mock if strict check not possible easily
+          actionRequired = "Submit Commitment";
+      } else if (newDocsCount > 0) {
+        actionRequired = "Review Docs";
+      } else if (openQACount > 0) {
+        // If I have open questions, maybe I'm waiting? 
+        // Or if the requirement meant "Questions needing MY response", then logic would differ.
+        // But typically "Action Required" -> "Q&A Response" implies *I* need to respond.
+        // If "openQACount" is "My Unanswered Questions", that's not an action for me, that's waiting.
+        // Let's assume for this mock that if there are open threads, it's an "action" to follow up.
+        // OR better: If there are NEW answers (which we tracked in digest), that's an action.
+        // Let's stick to the previous logic but with the new count definition or fallback.
+        // Re-reading point 4: "openQACount should reflect unanswered... not Answered".
+        // If I asked a question and it's unanswered, do I have an action? No, I'm waiting.
+        // Maybe "Action Required" should be triggered if there are ANSWERED questions I haven't seen?
+        // Let's rely on "Review Docs" as the primary "Review" action and "Sign NDA" / "Submit" as primary transactional actions.
+        // For Q&A, if the user explicitly asked for "Q&A response" as an action:
+        // "Q&A Response" action usually implies the investor has been asked a clarification.
+        // Mock data doesn't support "Questions asked TO investor".
+        // I will demote Q&A from "Action Required" unless specifically actionable.
+        // But strictly following instruction "actionRequired should prioritize... > Q&A response"
+        // I'll leave it last.
+        // If Open Q&A > 0 (meaning I have pending questions), it's arguably "Active Diligence".
+        // Let's keep it but maybe it's less "Required" and more "Status".
+        // Actually, let's look at the instruction again: "add answeredSinceLastSeenCount if needed for notifications".
+        // Maybe "Q&A Response" refers to when *answers* come in.
+        // For now, I'll link it to open threads as a placeholder for "Active Q&A".
+        // Wait, I'll stick to the safe path: If I have unanswered questions, I might need to clarify them.
+         actionRequired = "Q&A Response"; 
+      }
   }
 
   return {

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
+import { dealDeadlines } from "@/lib/deal-deadlines";
 import { useToast } from "@/hooks/use-toast";
 
 export default function InvestorDashboard() {
@@ -45,48 +46,18 @@ export default function InvestorDashboard() {
 
     deals.forEach(({ deal, invitation }) => {
         const baseDesc = `Deal: ${deal.dealName}\\nIssuer: ${deal.sponsor}\\nPlatform: CapitalFlow`;
-        const isNdaSigned = !invitation.ndaRequired || !!invitation.ndaSignedAt;
-
-        // NDA
-        if (!isNdaSigned) {
-            // Mock logic for NDA deadline if needed, mostly redundant for dashboard bulk export unless critical
-             const ndaDeadline = parseISO(deal.launchDate) < new Date() ? "2024-03-15T00:00:00Z" : null;
-             if (ndaDeadline) {
-                 events.push({
-                   uid: `${deal.id}-nda-deadline-${user.lenderId}@capitalflow.com`,
-                   summary: `NDA Deadline - ${deal.dealName}`,
-                   description: `Please sign the NDA.\\n${baseDesc}`,
-                   startDate: ndaDeadline
-                 });
-             }
-        }
-
-        if (deal.ioiDate) {
-            events.push({
-                uid: `${deal.id}-ioi-deadline-${user.lenderId}@capitalflow.com`,
-                summary: `IOI Deadline - ${deal.dealName}`,
-                description: `Submit Indication of Interest.\\n${baseDesc}`,
-                startDate: deal.ioiDate
-            });
-        }
-
-        if (deal.commitmentDate) {
-            events.push({
-                uid: `${deal.id}-commitment-deadline-${user.lenderId}@capitalflow.com`,
-                summary: `Commitment Deadline - ${deal.dealName}`,
-                description: `Final commitments due.\\n${baseDesc}`,
-                startDate: deal.commitmentDate
-            });
-        }
         
-        if (deal.closeDate) {
-            events.push({
-                uid: `${deal.id}-closing-${user.lenderId}@capitalflow.com`,
-                summary: `Expected Closing - ${deal.dealName}`,
-                description: `Expected closing date.\\n${baseDesc}`,
-                startDate: deal.closeDate
-            });
-        }
+        // Use centralized deadline logic
+        const deadlines = dealDeadlines.getDeadlines(deal, invitation.ndaSignedAt);
+        
+        deadlines.forEach(d => {
+             events.push({
+               uid: `${deal.id}-${d.type.toLowerCase()}-deadline-${user?.lenderId}@capitalflow.com`,
+               summary: `${d.label} - ${deal.dealName}`,
+               description: `${d.label} is due.\\n${baseDesc}`,
+               startDate: d.date
+             });
+        });
     });
 
     if (events.length === 0) {

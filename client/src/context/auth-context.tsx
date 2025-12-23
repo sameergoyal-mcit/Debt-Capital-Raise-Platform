@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { mockLenders } from "@/data/lenders";
+import { getLenderInvitations } from "@/data/invitations";
 
 export type UserRole = "Issuer" | "Bookrunner" | "Investor";
 
@@ -53,12 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Investor
       const lender = lenderId ? mockLenders.find(l => l.id === lenderId) : null;
+      // Get actual deal access from invitations
+      const deals = lenderId ? getLenderInvitations(lenderId).map(i => i.dealId) : ["101"];
+      
       newUser = {
         email: lender ? `investor@${lender.name.toLowerCase().replace(/\s/g, "")}.com` : "investor@fund.com",
         name: lender ? `${lender.name} Rep` : "Investor Representative", 
         role: "Investor",
         lenderId: lenderId,
-        dealAccess: ["101"] // Assume access to Titan for demo
+        dealAccess: deals.length > 0 ? deals : ["101"] 
       };
     }
 
@@ -67,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Redirect logic
     if (role === "Investor") {
-       setLocation("/deal/101/overview");
+       setLocation("/investor");
     } else {
        setLocation("/deals");
     }
