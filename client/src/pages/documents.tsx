@@ -45,12 +45,14 @@ import { Label } from "@/components/ui/label";
 
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
+import { storageService } from "@/lib/storage-service";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
   const dealId = params?.id || "101";
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -117,37 +119,55 @@ export default function DocumentsPage() {
     e.preventDefault();
     if (!selectedDoc || !user) return;
 
-    // Mock upload
     const fileInput = (e.target as any).file as HTMLInputElement;
     const file = fileInput.files?.[0];
-    const filename = file ? file.name : `${selectedDoc.name.replace(".docx", "").replace(".pdf", "")} - ${user.name || "Markup"}.docx`;
+    
+    if (!file) return;
 
-    const newMarkup: Markup = {
-      id: `m${Date.now()}`,
-      documentId: selectedDoc.id,
-      lenderId: user.lenderId || "unknown",
-      dealId: dealId,
-      uploadedAt: new Date().toISOString(),
-      filename: filename,
-      status: "Pending Review",
-      uploadedBy: user.name || user.email
-    };
+    setIsUploading(true);
 
-    uploadMarkup(newMarkup);
-    setMarkupsVersion(v => v + 1);
-    setIsUploadOpen(false);
+    try {
+      // Use Storage Service (Abstracted S3/Box/Mock)
+      const uploadResult = await storageService.uploadFile(file, `markups/${dealId}/${selectedDoc.id}`);
+      
+      const filename = file.name;
 
-    toast({
-      title: "Markup Uploaded",
-      description: "Legal team has been notified of your comments.",
-    });
+      const newMarkup: Markup = {
+        id: `m${Date.now()}`,
+        documentId: selectedDoc.id,
+        lenderId: user.lenderId || "unknown",
+        dealId: dealId,
+        uploadedAt: new Date().toISOString(),
+        filename: filename,
+        status: "Pending Review",
+        uploadedBy: user.name || user.email
+      };
 
-    // Send Email Notification
-    await emailService.send({
-      to: "deal-team@capitalflow.com",
-      subject: `Legal Markup: ${filename}`,
-      html: emailTemplates.legalMarkup("Project Titan", selectedDoc.name, user.name || user.email)
-    });
+      uploadMarkup(newMarkup);
+      setMarkupsVersion(v => v + 1);
+      setIsUploadOpen(false);
+
+      toast({
+        title: "Markup Uploaded",
+        description: "Legal team has been notified of your comments.",
+      });
+
+      // Send Email Notification
+      await emailService.send({
+        to: "deal-team@capitalflow.com",
+        subject: `Legal Markup: ${filename}`,
+        html: emailTemplates.legalMarkup("Project Titan", selectedDoc.name, user.name || user.email)
+      });
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast({
+        title: "Upload Failed",
+        description: "There was an error uploading your document.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleNewVersionUpload = async () => {
@@ -272,13 +292,15 @@ export default function DocumentsPage() {
                               <form onSubmit={handleUploadSubmit} className="space-y-4 py-4">
                                 <div className="grid w-full max-w-sm items-center gap-1.5">
                                   <Label htmlFor="markup-file">Select File</Label>
-                                  <Input id="markup-file" name="file" type="file" required />
+                                  <Input id="markup-file" name="file" type="file" required disabled={isUploading} />
                                 </div>
                                 <div className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded">
                                   Target: {selectedDoc.name} ({selectedDoc.version})
                                 </div>
                                 <DialogFooter>
-                                  <Button type="submit">Upload Markup</Button>
+                                  <Button type="submit" disabled={isUploading}>
+                                    {isUploading ? "Uploading..." : "Upload Markup"}
+                                  </Button>
                                 </DialogFooter>
                               </form>
                             </DialogContent>
