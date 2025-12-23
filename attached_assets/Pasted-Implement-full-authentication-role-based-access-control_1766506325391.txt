@@ -1,0 +1,251 @@
+Implement full authentication, role-based access control, NDA gating, investor portal, analytics, and publish workflows for a private credit deal execution platform.
+
+This is a debt-first system (NOT equity). All terminology, workflows, and permissions must reflect private credit / leveraged finance processes.
+
+====================================================
+A) AUTHENTICATION & SESSION
+====================================================
+1) Create Auth context (client/src/context/auth.tsx):
+- Persist session in localStorage
+- Session fields:
+  role: "issuer" | "bookrunner" | "investor"
+  userEmail
+  lenderId (only for investor)
+  dealAccess: string[] (dealIds investor can access)
+
+Expose:
+- login(payload)
+- logout()
+- isAuthenticated
+
+2) Add login routes:
+- /login (single screen with role selector)
+- Investor login requires lenderId selection (seed lenders)
+Redirect on login:
+- issuer/bookrunner -> /deals
+- investor -> /deals (filtered)
+
+3) Add route guards:
+- RequireAuth for all app routes except /login
+- RequireRole(["issuer","bookrunner"]) for internal pages
+- InvestorOnly for lender portal pages
+
+====================================================
+B) DEAL INVITATIONS & ACCESS CONTROL
+====================================================
+1) Create invitation store (mock DB):
+Fields:
+- dealId
+- lenderId
+- invitedBy
+- invitedAt
+- ndaRequired
+- ndaSignedAt?
+- accessTier: "early" | "full" | "legal"
+
+2) Seed invitations for multiple deals/lenders.
+
+3) Investor:
+- /deals shows ONLY invited deals
+- If only one deal → auto-redirect into deal
+
+Issuer/Bookrunner:
+- See all deals
+- Can view invitation + NDA status per lender
+
+====================================================
+C) NDA TEMPLATES & VERSIONED SIGNING
+====================================================
+1) Create NDA templates:
+- id, name, bodyText, version, createdAt
+Seed:
+- Standard Private Credit NDA
+- Sponsor-Friendly NDA
+
+2) Each deal selects an NDA template.
+
+3) NDA signing UX (Investor):
+- Scrollable NDA viewer
+- “I agree” disabled until scroll bottom
+- On sign:
+  store ndaSignedAt, ndaVersion, signerEmail, mock IP
+
+4) If NDA template version changes:
+- invalidate old signatures
+- require re-sign
+
+Issuer/Bookrunner:
+- See NDA status per lender (signed, timestamp, version)
+
+====================================================
+D) INVESTOR PORTAL (STRICT VIEW)
+====================================================
+Investor role MUST ONLY SEE:
+
+Routes:
+- /deal/:id/documents
+- /deal/:id/qa
+- /deal/:id/timeline
+- /deal/:id/commitment
+
+Sidebar:
+- Deals
+- Data Room & Docs
+- Due Diligence
+- Timeline
+- Submit Commitment
+
+====================================================
+E) VDR WITH PERMISSION TIERS
+====================================================
+VDR folders (fixed):
+1) Lender Presentation (CIM)
+2) Supplemental Information
+3) KYC & Compliance
+4) Lender Paydown Model
+5) Legal (read-only)
+
+Tier rules:
+- early: CIM + Supplemental
+- full: + KYC + Paydown Model
+- legal: + Legal docs
+
+Enforce tier visibility at folder + file level.
+Issuer/Bookrunner can upgrade tier per lender.
+Log tier changes with timestamp + approver.
+
+====================================================
+F) LEGAL MARKUP UPLOADS
+====================================================
+Investor:
+- Can upload markups ONLY to Legal docs
+- Store uploads keyed by:
+  dealId + lenderId + documentId
+- Visible only to:
+  that investor + issuer + bookrunner
+
+Show upload history + status.
+
+====================================================
+G) DOCUMENT ALERTS & ENGAGEMENT
+====================================================
+1) Track document metadata:
+- uploadedAt, updatedAt, version
+
+2) Track per-investor document views:
+- lastViewedAt
+
+3) Investor VDR:
+- Show “New” / “Updated” badges
+- Clear badge after view
+
+4) Issuer/Bookrunner:
+- See view counts per doc
+- See which lenders have NOT viewed latest version
+
+Add in-app notifications (no email).
+
+====================================================
+H) INVESTOR-SCOPED Q&A
+====================================================
+Investor:
+- Sees ONLY questions where lenderId matches session
+- Can submit new questions
+- Can see responses
+
+Issuer/Bookrunner:
+- See ALL Q&A
+- Can respond
+
+====================================================
+I) COMMITMENT / GRID SUBMISSION
+====================================================
+Create /deal/:id/commitment:
+
+Investor submits:
+- ticketMin
+- ticketMax
+- spread
+- OID
+- fees
+- conditions
+- indicative vs firm toggle
+- upload supporting docs
+
+Issuer/Bookrunner:
+- See aggregated submissions
+- See per-lender detail
+
+====================================================
+J) DEAL TIMELINE (ROLE AWARE)
+====================================================
+Investor sees ONLY:
+- Deal launch date
+- NDA deadline
+- IOI deadline
+- Commitment deadline
+- Expected allocation
+- Expected close
+
+Issuer/Bookrunner:
+- Full timeline
+- Internal blockers
+- Owners
+
+====================================================
+K) ANALYTICS PAGE
+====================================================
+Create /analytics with tabs:
+1) Deal Analytics
+- coverage ratio over time
+- lender type mix
+- pricing band distribution
+- NDA → IOI → Firm funnel
+
+2) Execution Benchmarking
+- time in stage
+- blockers by category
+
+3) Portfolio Dashboard
+- total debt raised YTD
+- weighted avg spread (WAS)
+- avg OID / fees
+- maturity wall (mock)
+
+Use recharts + mock data.
+
+====================================================
+L) PUBLISH PRICED DEAL MODULE
+====================================================
+Create /deal/:id/publish:
+
+Features:
+- Pricing announcement templates (short + long)
+- Editable fields: size, pricing, OID, fees, maturity, security, bookrunner
+- Destination checklist:
+  Debt Domain
+  PitchBook / LCD
+  9fin
+  Internal Email
+  PR Newswire
+- Approval toggles:
+  Issuer
+  Counsel
+  Bookrunner
+- Outputs:
+  copy to clipboard
+  mailto draft
+  printable PDF/HTML
+- Audit log of sent drafts
+
+No external posting.
+
+====================================================
+M) SAFETY & QA
+====================================================
+- Investor CANNOT access:
+  overview, investor book, analytics, allocations, covenants, other lenders
+- Enforce all checks at route + component level
+- Remove all equity language (Series A/B, VC, cap table)
+- Ensure TypeScript builds clean
+- App must run in Replit without runtime errors

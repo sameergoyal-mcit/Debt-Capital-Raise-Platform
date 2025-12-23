@@ -16,10 +16,12 @@ import {
   Filter,
   FolderOpen,
   Eye,
-  FileUp
+  FileUp,
+  History,
+  X
 } from "lucide-react";
 import { mockDocuments, Document, DocumentCategory } from "@/data/documents";
-import { parseISO, formatDistanceToNow } from "date-fns";
+import { parseISO, formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,11 +31,23 @@ import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { NDAGate } from "@/components/nda-gate";
 import { getInvitation } from "@/data/invitations";
+import { getMarkups, getLenderMarkups, uploadMarkup, Markup } from "@/data/markups";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
   const dealId = params?.id || "101";
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -86,7 +100,40 @@ export default function DocumentsPage() {
     d.status !== "Ready to Sign" && d.status !== "Lender Approved"
   );
 
-  const handleUploadMarkup = () => {
+  // Markups logic
+  const [markupsVersion, setMarkupsVersion] = useState(0); // Trigger re-render
+  const docMarkups = selectedDoc 
+    ? (isInvestor 
+        ? getLenderMarkups(dealId, selectedDoc.id, user?.lenderId || "") 
+        : getMarkups(dealId, selectedDoc.id))
+    : [];
+  
+  const isLegalDoc = selectedDoc && ["Credit Agreement", "Security", "Intercreditor"].includes(selectedDoc.category);
+
+  const handleUploadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDoc || !user) return;
+
+    // Mock upload
+    const fileInput = (e.target as any).file as HTMLInputElement;
+    const file = fileInput.files?.[0];
+    const filename = file ? file.name : `${selectedDoc.name.replace(".docx", "").replace(".pdf", "")} - ${user.name || "Markup"}.docx`;
+
+    const newMarkup: Markup = {
+      id: `m${Date.now()}`,
+      documentId: selectedDoc.id,
+      lenderId: user.lenderId || "unknown",
+      dealId: dealId,
+      uploadedAt: new Date().toISOString(),
+      filename: filename,
+      status: "Pending Review",
+      uploadedBy: user.name || user.email
+    };
+
+    uploadMarkup(newMarkup);
+    setMarkupsVersion(v => v + 1);
+    setIsUploadOpen(false);
+
     toast({
       title: "Markup Uploaded",
       description: "Legal team has been notified of your comments.",
@@ -183,10 +230,35 @@ export default function DocumentsPage() {
                     </div>
                     {selectedDoc && (
                       <div className="flex gap-2">
-                        {isInvestor && ["Credit Agreement", "Security", "Intercreditor"].includes(selectedDoc.category) && (
-                          <Button size="sm" variant="secondary" className="gap-2" onClick={handleUploadMarkup}>
-                            <FileUp className="h-4 w-4" /> Upload Markup
-                          </Button>
+                        {isInvestor && isLegalDoc && (
+                          <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="secondary" className="gap-2">
+                                <FileUp className="h-4 w-4" /> Upload Markup
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                              <DialogHeader>
+                                <DialogTitle>Upload Legal Markup</DialogTitle>
+                                <DialogDescription>
+                                  Submit your comments for legal counsel review. 
+                                  This will only be visible to you and the Deal Team.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <form onSubmit={handleUploadSubmit} className="space-y-4 py-4">
+                                <div className="grid w-full max-w-sm items-center gap-1.5">
+                                  <Label htmlFor="markup-file">Select File</Label>
+                                  <Input id="markup-file" name="file" type="file" required />
+                                </div>
+                                <div className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded">
+                                  Target: {selectedDoc.name} ({selectedDoc.version})
+                                </div>
+                                <DialogFooter>
+                                  <Button type="submit">Upload Markup</Button>
+                                </DialogFooter>
+                              </form>
+                            </DialogContent>
+                          </Dialog>
                         )}
                         <Button size="sm" variant="outline" className="gap-2">
                           <Download className="h-4 w-4" /> Download
@@ -198,7 +270,7 @@ export default function DocumentsPage() {
                 <CardContent className="flex-1 p-6 overflow-y-auto">
                    {selectedDoc ? (
                      <div className="space-y-8">
-                       {/* Status Timeline - Hide granular internal status for investors unless necessary, but 'Status' is fine */}
+                       {/* Status Timeline */}
                        <div>
                          <h3 className="text-sm font-semibold mb-4">Document Status</h3>
                          <div className="flex items-center gap-2 w-full">
@@ -225,43 +297,50 @@ export default function DocumentsPage() {
                          </div>
                        </div>
 
-                       {/* Comments Mock - Only show for internal or if shared */}
-                       {!isInvestor && (
-                         <div>
-                            <h3 className="text-sm font-semibold mb-4 flex items-center justify-between">
-                              <span>Open Issues ({selectedDoc.openCommentsCount})</span>
-                              <Button variant="ghost" size="sm" className="h-6 text-xs text-primary">View All History</Button>
+                        {/* Markups History Section */}
+                        {(isLegalDoc || !isInvestor) && (
+                          <div className="border-t pt-6">
+                            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                              <History className="h-4 w-4" /> 
+                              {isInvestor ? "My Markup History" : "Received Markups"}
                             </h3>
                             
-                            {selectedDoc.openCommentsCount > 0 ? (
+                            {docMarkups.length > 0 ? (
                               <div className="space-y-3">
-                                <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm">
-                                  <div className="flex justify-between mb-1">
-                                    <span className="font-semibold text-amber-900">Definition of "EBITDA"</span>
-                                    <span className="text-xs text-amber-700">Lender Counsel • 2h ago</span>
+                                {docMarkups.map(markup => (
+                                  <div key={markup.id} className="p-3 bg-secondary/10 border border-border/60 rounded-lg text-sm flex justify-between items-center group hover:bg-secondary/20 transition-colors">
+                                    <div className="flex items-start gap-3">
+                                      <FileText className="h-8 w-8 text-primary/40 mt-1" />
+                                      <div>
+                                        <div className="font-medium text-primary flex items-center gap-2">
+                                          {markup.filename}
+                                          {markup.status === "Reviewed" && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">Reviewed</Badge>}
+                                          {markup.status === "Pending Review" && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                          Uploaded by {markup.uploadedBy} • {formatDistanceToNow(parseISO(markup.uploadedAt))} ago
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {!isInvestor && (
+                                        <Button size="sm" variant="outline" className="h-7 text-xs">Review</Button>
+                                      )}
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Download className="h-4 w-4" /></Button>
+                                    </div>
                                   </div>
-                                  <p className="text-amber-800">Please revert add-back cap to 15% as discussed in committee.</p>
-                                  <div className="mt-2 flex gap-2">
-                                     <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Reply</Button>
-                                     <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Resolve</Button>
-                                  </div>
-                                </div>
-                                 <div className="p-3 bg-secondary/30 border border-border rounded-lg text-sm">
-                                  <div className="flex justify-between mb-1">
-                                    <span className="font-semibold">Negative Covenants</span>
-                                    <span className="text-xs text-muted-foreground">Issuer Counsel • 1d ago</span>
-                                  </div>
-                                  <p className="text-foreground/80">Confirming baskets for permitted acquisitions.</p>
-                                </div>
+                                ))}
                               </div>
                             ) : (
-                              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                                <CheckCircle2 className="h-8 w-8 mb-2 text-green-500" />
-                                <p>No open issues. Document is clean.</p>
+                              <div className="text-center py-6 border-2 border-dashed rounded-lg bg-secondary/5">
+                                <p className="text-sm text-muted-foreground">No markups uploaded yet.</p>
+                                {isInvestor && isLegalDoc && (
+                                  <Button variant="link" size="sm" onClick={() => setIsUploadOpen(true)}>Upload your first markup</Button>
+                                )}
                               </div>
                             )}
-                         </div>
-                       )}
+                          </div>
+                        )}
 
                        {/* Metadata */}
                        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
