@@ -76,6 +76,10 @@ export function Layout({ children }: LayoutProps) {
             </>
           )}
 
+          {isInvestor && !isDealWorkspace && (
+             <NavItem href="/investor" icon={<LayoutDashboard size={20} />} label="Investor Dashboard" active={location === "/investor"} />
+          )}
+
           {isDealWorkspace && dealId && (
             <div className={`mt-${isInvestor ? '2' : '8'} pt-4 border-t border-sidebar-border`}>
               <div className="px-4 mb-4">
@@ -84,6 +88,10 @@ export function Layout({ children }: LayoutProps) {
                 </h4>
                 {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Investor Portal</Badge>}
               </div>
+              
+              {isInvestor && (
+                 <NavItem href={`/investor/deal/${dealId}`} icon={<LayoutDashboard size={20} />} label="Deal Home" active={isActive(`/investor/deal/${dealId}`)} />
+              )}
 
               {isInternal && (
                 <>

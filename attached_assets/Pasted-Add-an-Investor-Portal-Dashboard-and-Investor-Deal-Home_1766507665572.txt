@@ -1,0 +1,51 @@
+Add an Investor Portal Dashboard and Investor Deal Home page that are lender-focused and work with existing auth/invitations/NDA/tier logic.
+
+1) Add new investor-only routes:
+- /investor              (Investor Dashboard)
+- /investor/deal/:id     (Investor Deal Home)
+These routes must require role=investor.
+
+2) Investor Dashboard (/investor):
+- Show ONLY deals the investor is invited to (use invitations/session.dealAccess).
+- Render a table or cards with:
+  Issuer/Sponsor, Borrower/Deal Name, Instrument, Launch Date,
+  Next Deadline (NDA/IOI/Commitment), NDA Status, Access Tier,
+  New Docs count, Open Q&A count, Action Required chips.
+- Action chips should be computed:
+  - “Sign NDA” if ndaRequired && !ndaSignedAt
+  - “Review Docs” if any docs updated since lastViewedAt
+  - “Submit Commitment” if within commitment window and no submission exists
+  - “Q&A Response” if any investor questions have responses since lastSeen
+- Clicking a deal navigates to /investor/deal/:id
+
+3) Investor Deal Home (/investor/deal/:id):
+- Show lender-safe deal summary (borrower, sector, instrument, size).
+- Show lender timeline module with key dates (launch, NDA deadline, IOI deadline, commitment deadline, expected close).
+- Show Notifications panel:
+  - New/updated docs since last login
+  - Q&A responses received
+  - Deadline reminders
+  - Requests (e.g., firm up) [stub ok]
+- Show Quick Actions buttons:
+  - Sign NDA (if needed)
+  - Go to Documents (/deal/:id/documents)
+  - Submit Commitment (/deal/:id/commitment)
+  - Go to Q&A (/deal/:id/qa)
+
+4) Navigation:
+- For Investor role, update sidebar:
+  - Replace “Dashboard” with “Investor Dashboard” linking to /investor
+  - In deal workspace, keep: Docs, Q&A, Timeline, Submit Commitment
+- Ensure investors cannot access issuer/bookrunner pages.
+
+5) Data requirements:
+- Use existing mock stores for invitations, doc metadata, doc views, Q&A, commitments.
+- Add minimal derived selectors to compute:
+  newDocsCount, openQACount, nextDeadlineLabel/date, actionRequired flags.
+
+6) NDA gating:
+- Investor Deal Home should show NDA status and allow signing.
+- Documents/Commitment remain gated behind NDA if ndaRequired.
+
+Keep styling consistent with current shadcn UI and Layout.
+Ensure TypeScript compiles and no runtime errors.

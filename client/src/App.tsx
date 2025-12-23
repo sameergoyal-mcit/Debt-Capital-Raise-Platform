@@ -17,6 +17,8 @@ import Closing from "@/pages/closing";
 import Analytics from "@/pages/analytics";
 import Publish from "@/pages/publish";
 import SubmitCommitment from "@/pages/commitment";
+import InvestorDashboard from "@/pages/investor-dashboard";
+import InvestorDealHome from "@/pages/investor-deal-home";
 import ViewerIndex from "@/pages/viewer/index";
 import IssuerViewer from "@/pages/viewer/issuer";
 import BookrunnerViewer from "@/pages/viewer/bookrunner";
@@ -39,9 +41,7 @@ function ProtectedRoute({
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     // Redirect investors to their safe landing page if they try to access restricted pages
     if (user.role === "Investor") {
-       // Ideally redirect to the first deal they have access to, or a generic "my deals" page
-       // For now, redirect to the first available deal's docs
-       return <Redirect to={`/deal/${user.dealAccess?.[0] || '101'}/documents`} />;
+       return <Redirect to="/investor" />;
     }
     return <Redirect to="/" />;
   }
@@ -57,6 +57,15 @@ function Router() {
       {/* Public / Landing */}
       <Route path="/">
          <ProtectedRoute component={Home} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* Investor Specific Routes */}
+      <Route path="/investor">
+         <ProtectedRoute component={InvestorDashboard} allowedRoles={["Investor"]} />
+      </Route>
+      
+      <Route path="/investor/deal/:id">
+         <ProtectedRoute component={InvestorDealHome} allowedRoles={["Investor"]} />
       </Route>
 
       {/* Main Deals List - Filtered inside the page for investors if needed, or restricted */}
