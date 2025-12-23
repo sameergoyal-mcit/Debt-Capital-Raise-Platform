@@ -42,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   
   // Safe extraction of deal ID
-  const dealIdMatch = location.match(/^\/deal\/([^/]+)/);
+  const dealIdMatch = location.match(/^\/(?:deal|investor\/deal)\/([^/]+)/);
   const dealId = dealIdMatch?.[1];
   const isDealWorkspace = !!dealId;
 

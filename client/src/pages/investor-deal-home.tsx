@@ -247,10 +247,6 @@ export default function InvestorDealHome() {
                                  Commitment Form
                              </Button>
                          </Link>
-                         <Button variant="ghost" className="w-full justify-start gap-3 h-10 border border-transparent hover:border-border hover:bg-secondary/50 text-muted-foreground" disabled>
-                             <Download className="h-4 w-4" />
-                             Download Archive (Zip)
-                         </Button>
                      </CardContent>
                  </Card>
              </div>
