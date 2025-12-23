@@ -20,12 +20,16 @@ import {
   Lock,
   PenTool,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  Calendar
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
+import { downloadICS, ICSEvent } from "@/lib/ics-generator";
+import { useToast } from "@/hooks/use-toast";
 
 export default function InvestorDealHome() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [, params] = useRoute("/investor/deal/:id");
   const dealId = params?.id || "";
   
@@ -42,6 +46,68 @@ export default function InvestorDealHome() {
 
   const { deal, invitation, stats } = data;
   const isNdaSigned = !invitation.ndaRequired || !!invitation.ndaSignedAt;
+
+  const handleDownloadCalendar = () => {
+    const events: ICSEvent[] = [];
+    const baseDesc = `Deal: ${deal.dealName}\\nIssuer: ${deal.sponsor}\\nPlatform: CapitalFlow`;
+
+    // NDA Deadline (Approximated as Launch + 7 days if not set, or custom logic)
+    // Using the timeline logic from the UI:
+    if (!isNdaSigned) {
+       const ndaDeadline = parseISO(deal.launchDate) < new Date() ? "2024-03-15T00:00:00Z" : null;
+       if (ndaDeadline) { // Only add if it's a valid date we're tracking
+         events.push({
+           uid: `${deal.id}-nda-deadline@capitalflow.com`,
+           summary: `NDA Deadline - ${deal.dealName}`,
+           description: `Please sign the NDA to access the data room.\\n${baseDesc}`,
+           startDate: ndaDeadline
+         });
+       }
+    }
+
+    if (deal.ioiDate) {
+      events.push({
+        uid: `${deal.id}-ioi-deadline@capitalflow.com`,
+        summary: `IOI Deadline - ${deal.dealName}`,
+        description: `Submit Indication of Interest via the portal.\\n${baseDesc}`,
+        startDate: deal.ioiDate
+      });
+    }
+
+    if (deal.commitmentDate) {
+      events.push({
+        uid: `${deal.id}-commitment-deadline@capitalflow.com`,
+        summary: `Commitment Deadline - ${deal.dealName}`,
+        description: `Final commitments due.\\n${baseDesc}`,
+        startDate: deal.commitmentDate
+      });
+    }
+
+    if (deal.closeDate) {
+      events.push({
+        uid: `${deal.id}-closing@capitalflow.com`,
+        summary: `Expected Closing - ${deal.dealName}`,
+        description: `Expected closing date.\\n${baseDesc}`,
+        startDate: deal.closeDate
+      });
+    }
+
+    if (events.length === 0) {
+      toast({
+        title: "No upcoming deadlines",
+        description: "There are no specific dates to add to your calendar.",
+      });
+      return;
+    }
+
+    const filename = `capitalflow-${deal.borrowerName.toLowerCase().replace(/\s+/g, '-')}-deadlines`;
+    downloadICS(filename, events);
+    
+    toast({
+      title: "Calendar Exported",
+      description: `${events.length} deadlines downloaded to .ics file.`,
+    });
+  };
 
   return (
     <Layout>
@@ -100,8 +166,13 @@ export default function InvestorDealHome() {
                  {/* Timeline Module */}
                  <Card>
                      <CardHeader>
-                         <CardTitle className="flex items-center gap-2">
-                             <Clock className="h-5 w-5 text-muted-foreground" /> Deal Timeline
+                         <CardTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-5 w-5 text-muted-foreground" /> Deal Timeline
+                            </div>
+                            <Button variant="outline" size="sm" className="h-8 gap-2 text-xs" onClick={handleDownloadCalendar}>
+                                <Calendar className="h-3 w-3" /> Add to Calendar
+                            </Button>
                          </CardTitle>
                      </CardHeader>
                      <CardContent>

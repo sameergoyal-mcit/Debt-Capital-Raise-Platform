@@ -24,9 +24,12 @@ import {
   Calendar
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
+import { downloadICS, ICSEvent } from "@/lib/ics-generator";
+import { useToast } from "@/hooks/use-toast";
 
 export default function InvestorDashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [deals, setDeals] = useState<InvestorDealSummary[]>([]);
 
   useEffect(() => {
@@ -34,6 +37,72 @@ export default function InvestorDashboard() {
       setDeals(getInvestorDeals(user.lenderId));
     }
   }, [user]);
+
+  const handleDownloadAllCalendar = () => {
+    if (deals.length === 0) return;
+
+    const events: ICSEvent[] = [];
+
+    deals.forEach(({ deal, invitation }) => {
+        const baseDesc = `Deal: ${deal.dealName}\\nIssuer: ${deal.sponsor}\\nPlatform: CapitalFlow`;
+        const isNdaSigned = !invitation.ndaRequired || !!invitation.ndaSignedAt;
+
+        // NDA
+        if (!isNdaSigned) {
+            // Mock logic for NDA deadline if needed, mostly redundant for dashboard bulk export unless critical
+             const ndaDeadline = parseISO(deal.launchDate) < new Date() ? "2024-03-15T00:00:00Z" : null;
+             if (ndaDeadline) {
+                 events.push({
+                   uid: `${deal.id}-nda-deadline@capitalflow.com`,
+                   summary: `NDA Deadline - ${deal.dealName}`,
+                   description: `Please sign the NDA.\\n${baseDesc}`,
+                   startDate: ndaDeadline
+                 });
+             }
+        }
+
+        if (deal.ioiDate) {
+            events.push({
+                uid: `${deal.id}-ioi-deadline@capitalflow.com`,
+                summary: `IOI Deadline - ${deal.dealName}`,
+                description: `Submit Indication of Interest.\\n${baseDesc}`,
+                startDate: deal.ioiDate
+            });
+        }
+
+        if (deal.commitmentDate) {
+            events.push({
+                uid: `${deal.id}-commitment-deadline@capitalflow.com`,
+                summary: `Commitment Deadline - ${deal.dealName}`,
+                description: `Final commitments due.\\n${baseDesc}`,
+                startDate: deal.commitmentDate
+            });
+        }
+        
+        if (deal.closeDate) {
+            events.push({
+                uid: `${deal.id}-closing@capitalflow.com`,
+                summary: `Expected Closing - ${deal.dealName}`,
+                description: `Expected closing date.\\n${baseDesc}`,
+                startDate: deal.closeDate
+            });
+        }
+    });
+
+    if (events.length === 0) {
+        toast({
+            title: "No deadlines found",
+            description: "No upcoming deadlines found across your active deals.",
+        });
+        return;
+    }
+
+    downloadICS("capitalflow-all-deadlines", events);
+    toast({
+        title: "Calendar Exported",
+        description: `Exported ${events.length} deadlines for ${deals.length} deals.`,
+    });
+  };
 
   if (!user || user.role !== "Investor") {
     return (
@@ -60,7 +129,7 @@ export default function InvestorDashboard() {
               Welcome back, {user.name}. You have {deals.length} active opportunities.
             </p>
           </div>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleDownloadAllCalendar}>
             <Calendar className="h-4 w-4" /> View Calendar
           </Button>
         </div>
