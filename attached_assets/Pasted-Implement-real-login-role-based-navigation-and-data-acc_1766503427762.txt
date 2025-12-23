@@ -1,0 +1,52 @@
+Implement real login + role-based navigation and data access for Issuer, Bookrunner, and Investor.
+
+1) Create Auth context (client/src/context/auth.tsx):
+- store session in localStorage: { role, userEmail, lenderId?, dealAccess? }
+- provide login() / logout() / isAuthenticated
+
+2) Add Login UI:
+- Create /login page with role selector (Issuer, Bookrunner, Investor)
+- For investor login require lenderId selection (dropdown seeded from mock lenders)
+- On login redirect:
+  - issuer/bookrunner -> /deals
+  - investor -> /deals filtered by dealAccess OR /deal/:id/documents if only one deal
+
+3) Add route guards:
+- RequireAuth for all app routes except /login
+- RequireRole for internal pages (issuer/bookrunner only):
+  - /analytics, /deal/:id/overview, /deal/:id/book, /deal/:id/closing, /deal/:id/publish
+- Investor can access only:
+  - /deal/:id/documents
+  - /deal/:id/qa
+  - /deal/:id/timeline
+  - /deal/:id/commitment (new page)
+
+4) Update Layout sidebar to render items based on role:
+- Issuer/Bookrunner: show full nav (Dashboard/Deals/Analytics/Messages + Deal workspace pages)
+- Investor: show only Investor workspace pages:
+  - Data Room & Docs
+  - Due Diligence
+  - Timeline
+  - Submit Commitment
+
+5) Investor-scoped VDR + markups:
+- On Documents page for investor role: show fixed folders:
+  Lender Presentation, Supplemental Info, KYC, Lender Paydown Model, Legal (read-only)
+- Add Upload Markup button for Legal docs only (investor role).
+- Store uploads in mock store keyed by (dealId, lenderId, documentId) and display upload history.
+
+6) Investor-scoped Q&A:
+- For investor role, show only questions where question.lenderId == session.lenderId
+- Issuer/bookrunner sees all questions and can respond.
+
+7) Timeline:
+- For investor role show only launch + deadlines (no internal blockers).
+- For issuer/bookrunner show full timeline with owners and blockers.
+
+8) Create new Submit Commitment page:
+- route /deal/:id/commitment
+- investor can submit structured grid response (ticketMin/max, pricing, OID, fees, conditions, indicative/firm) + upload supporting docs.
+- issuer/bookrunner can view all submissions aggregated (table).
+
+Keep styling consistent with shadcn components and current layout.
+Ensure TypeScript compiles and app runs.

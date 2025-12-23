@@ -8,7 +8,8 @@ import {
   Clock, 
   ChevronDown,
   User,
-  Send
+  Send,
+  Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
@@ -30,10 +31,64 @@ import {
 } from "@/components/ui/accordion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/auth-context";
+
+// Update mock items to have lenderId
+const mockQAItems = [
+  {
+    id: "q1",
+    status: "open",
+    question: "Can you provide a breakdown of the COGS in the base case model vs. the downside case for FY25?",
+    asker: "BlackRock Credit",
+    lenderId: "1",
+    date: "2 hours ago",
+    topic: "Financials"
+  },
+  {
+    id: "q2",
+    status: "draft",
+    question: "Please clarify the change of control provisions in the current credit agreement draft regarding the sponsor equity cure.",
+    asker: "Apollo Global",
+    lenderId: "2",
+    date: "5 hours ago",
+    topic: "Legal",
+    draftAnswer: "The sponsor equity cure is limited to 2 times over the life of the facility and cannot be used in consecutive quarters. We believe this is market standard for this credit profile."
+  },
+  {
+    id: "q3",
+    status: "closed",
+    question: "What is the churn rate for the Enterprise segment specifically over the last 12 months?",
+    asker: "Oak Hill Advisors",
+    lenderId: "3",
+    date: "Yesterday",
+    topic: "Commercial",
+    answer: "Enterprise churn for LTM was 4.2% on a logo basis and -110% on a net revenue retention basis. Please refer to tab 'KPIs' in the Financial Model v3."
+  },
+  {
+    id: "q4",
+    status: "closed",
+    question: "Are there any outstanding litigation matters related to the IP portfolio that could impact collateral value?",
+    asker: "Barings",
+    lenderId: "4",
+    date: "2 days ago",
+    topic: "Legal",
+    answer: "There are no material outstanding litigation matters. Please see the Legal Vendor Due Diligence report pages 45-48 for a full IP analysis."
+  }
+];
 
 export default function QACenter() {
   const [, params] = useRoute("/deal/:id/qa");
   const dealId = params?.id || "123";
+  const { user } = useAuth();
+
+  const isInvestor = user?.role === "Investor";
+
+  // Filter questions for investors
+  // If investor: only show questions from their lenderId
+  // If internal: show all
+  const filteredQA = isInvestor 
+    ? mockQAItems.filter(q => q.lenderId === user?.lenderId)
+    : mockQAItems;
 
   return (
     <Layout>
@@ -52,6 +107,11 @@ export default function QACenter() {
             <Button variant="outline" className="gap-2">
               <DownloadReport className="h-4 w-4" /> Export Q&A Log
             </Button>
+            {isInvestor && (
+              <Button className="gap-2">
+                <MessageCircle className="h-4 w-4" /> Ask Question
+              </Button>
+            )}
           </div>
         </div>
 
@@ -63,20 +123,19 @@ export default function QACenter() {
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Status</h3>
                   <div className="space-y-1">
-                    <FilterItem label="All Questions" count={42} active />
-                    <FilterItem label="Open" count={5} dot="bg-red-500" />
-                    <FilterItem label="Draft Answers" count={3} dot="bg-amber-500" />
-                    <FilterItem label="Closed/Answered" count={34} dot="bg-green-500" />
+                    <FilterItem label="All Questions" count={filteredQA.length} active />
+                    <FilterItem label="Open" count={filteredQA.filter(q => q.status === 'open').length} dot="bg-red-500" />
+                    {!isInvestor && <FilterItem label="Draft Answers" count={filteredQA.filter(q => q.status === 'draft').length} dot="bg-amber-500" />}
+                    <FilterItem label="Closed/Answered" count={filteredQA.filter(q => q.status === 'closed').length} dot="bg-green-500" />
                   </div>
                 </div>
                 
                 <div className="space-y-2 pt-4 border-t border-border">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Topics</h3>
                    <div className="space-y-1">
-                    <FilterItem label="Financials" count={18} />
-                    <FilterItem label="Legal" count={8} />
-                    <FilterItem label="Commercial" count={12} />
-                    <FilterItem label="Tech / Product" count={4} />
+                    <FilterItem label="Financials" count={filteredQA.filter(q => q.topic === 'Financials').length} />
+                    <FilterItem label="Legal" count={filteredQA.filter(q => q.topic === 'Legal').length} />
+                    <FilterItem label="Commercial" count={filteredQA.filter(q => q.topic === 'Commercial').length} />
                   </div>
                 </div>
               </CardContent>
@@ -98,43 +157,17 @@ export default function QACenter() {
               </Button>
             </div>
 
-            <Accordion type="single" collapsible className="space-y-3">
-              <QAItem 
-                id="q1"
-                status="open"
-                question="Can you provide a breakdown of the COGS in the base case model vs. the downside case for FY25?"
-                asker="BlackRock Credit"
-                date="2 hours ago"
-                topic="Financials"
-              />
-              <QAItem 
-                id="q2"
-                status="draft"
-                question="Please clarify the change of control provisions in the current credit agreement draft regarding the sponsor equity cure."
-                asker="Apollo Global"
-                date="5 hours ago"
-                topic="Legal"
-                draftAnswer="The sponsor equity cure is limited to 2 times over the life of the facility and cannot be used in consecutive quarters. We believe this is market standard for this credit profile."
-              />
-              <QAItem 
-                id="q3"
-                status="closed"
-                question="What is the churn rate for the Enterprise segment specifically over the last 12 months?"
-                asker="Oak Hill Advisors"
-                date="Yesterday"
-                topic="Commercial"
-                answer="Enterprise churn for LTM was 4.2% on a logo basis and -110% on a net revenue retention basis. Please refer to tab 'KPIs' in the Financial Model v3."
-              />
-              <QAItem 
-                id="q4"
-                status="closed"
-                question="Are there any outstanding litigation matters related to the IP portfolio that could impact collateral value?"
-                asker="Barings"
-                date="2 days ago"
-                topic="Legal"
-                answer="There are no material outstanding litigation matters. Please see the Legal Vendor Due Diligence report pages 45-48 for a full IP analysis."
-              />
-            </Accordion>
+            {filteredQA.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                <p>No questions found.</p>
+              </div>
+            ) : (
+              <Accordion type="single" collapsible className="space-y-3">
+                {filteredQA.map(item => (
+                  <QAItem key={item.id} {...item} />
+                ))}
+              </Accordion>
+            )}
           </div>
         </div>
       </div>
@@ -159,6 +192,8 @@ function FilterItem({ label, count, active, dot }: { label: string; count: numbe
 
 function QAItem({ id, status, question, asker, date, topic, answer, draftAnswer }: any) {
   const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth();
+  const isInternal = user?.role !== "Investor";
 
   return (
     <Card className="border-border/60 shadow-sm overflow-hidden">
@@ -191,7 +226,7 @@ function QAItem({ id, status, question, asker, date, topic, answer, draftAnswer 
                </div>
              )}
 
-             {status === 'draft' && (
+             {isInternal && status === 'draft' && (
                 <div className="space-y-3">
                   <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-md">
                     <div className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
@@ -211,7 +246,7 @@ function QAItem({ id, status, question, asker, date, topic, answer, draftAnswer 
                 </div>
              )}
 
-             {status === 'open' && (
+             {isInternal && status === 'open' && (
                <div className="space-y-3">
                  <Textarea placeholder="Type your answer here..." className="bg-white" />
                  <div className="flex justify-end gap-2">
@@ -220,6 +255,12 @@ function QAItem({ id, status, question, asker, date, topic, answer, draftAnswer 
                      <Send className="h-3 w-3" /> Submit Answer
                    </Button>
                  </div>
+               </div>
+             )}
+             
+             {!isInternal && status !== 'closed' && (
+               <div className="text-sm text-muted-foreground italic">
+                 Awaiting response from deal team.
                </div>
              )}
            </div>

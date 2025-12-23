@@ -5,51 +5,64 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { 
   FileText, 
   AlertCircle, 
   CheckCircle2, 
   Clock, 
   MessageSquare,
-  ChevronRight,
   Upload,
   Download,
   Filter,
   FolderOpen,
-  Folder,
-  MoreHorizontal,
-  History,
-  Eye
+  Eye,
+  FileUp
 } from "lucide-react";
 import { mockDocuments, Document, DocumentCategory } from "@/data/documents";
-import { format, parseISO, formatDistanceToNow } from "date-fns";
+import { parseISO, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
   const dealId = params?.id || "101";
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  const selectedDoc = mockDocuments.find(d => d.id === selectedDocId) || mockDocuments[0];
+  const isInvestor = user?.role === "Investor";
+
+  // Filter documents for investors (e.g. hide draft internal docs)
+  const accessibleDocs = isInvestor 
+    ? mockDocuments.filter(d => ["CIM", "Financials", "Legal", "Credit Agreement", "Security", "Intercreditor", "KYC"].includes(d.category) && d.status !== "Draft")
+    : mockDocuments;
+
+  const selectedDoc = accessibleDocs.find(d => d.id === selectedDocId) || accessibleDocs[0];
 
   // Group by category
-  const groupedDocs = mockDocuments.reduce((acc, doc) => {
+  const groupedDocs = accessibleDocs.reduce((acc, doc) => {
     if (!acc[doc.category]) acc[doc.category] = [];
     acc[doc.category].push(doc);
     return acc;
   }, {} as Record<DocumentCategory, Document[]>);
 
-  // Blocking items logic
+  // Blocking items logic (Internal only)
   const blockingDocs = mockDocuments.filter(d => 
     ["Credit Agreement", "Security", "Intercreditor"].includes(d.category) && 
     d.status !== "Ready to Sign" && d.status !== "Lender Approved"
   );
+
+  const handleUploadMarkup = () => {
+    toast({
+      title: "Markup Uploaded",
+      description: "Legal team has been notified of your comments.",
+    });
+  };
 
   return (
     <Layout>
@@ -61,22 +74,26 @@ export default function DocumentsPage() {
               <span>/</span>
               <span>Data Room & Docs</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Documents & Redlines</h1>
+            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">
+              {isInvestor ? "Virtual Data Room" : "Documents & Redlines"}
+            </h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2">
               <Filter className="h-4 w-4" /> Filter
             </Button>
-            <Button className="gap-2">
-              <Upload className="h-4 w-4" /> Upload New Version
-            </Button>
+            {!isInvestor && (
+              <Button className="gap-2">
+                <Upload className="h-4 w-4" /> Upload New Version
+              </Button>
+            )}
           </div>
         </div>
 
         <Tabs defaultValue="files" className="flex-1 min-h-0 flex flex-col">
           <TabsList className="w-fit mb-4">
-            <TabsTrigger value="files">Files & Redlines</TabsTrigger>
-            <TabsTrigger value="access">Investor Access Logs</TabsTrigger>
+            <TabsTrigger value="files">Files {isInvestor ? "" : "& Redlines"}</TabsTrigger>
+            {!isInvestor && <TabsTrigger value="access">Investor Access Logs</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="files" className="flex-1 min-h-0 mt-0">
@@ -85,177 +102,177 @@ export default function DocumentsPage() {
               {/* Left Panel: Document List */}
               <Card className="col-span-3 flex flex-col h-full border-border/60">
                 <CardHeader className="pb-3 shrink-0">
-                  <CardTitle className="text-lg">Files</CardTitle>
+                  <CardTitle className="text-lg">Folders</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 flex-1 min-h-0">
                   <ScrollArea className="h-full px-4 pb-4">
                     <div className="space-y-6">
-                      {Object.entries(groupedDocs).map(([category, docs]) => (
-                        <div key={category}>
-                          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 sticky top-0 bg-card py-1 z-10">
-                            {category}
-                          </h3>
-                          <div className="space-y-1">
-                            {docs.map(doc => (
-                              <div 
-                                key={doc.id}
-                                onClick={() => setSelectedDocId(doc.id)}
-                                className={cn(
-                                  "flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors text-sm group",
-                                  selectedDoc?.id === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50"
-                                )}
-                              >
-                                <FileText className={cn("h-4 w-4 mt-0.5 shrink-0", selectedDoc?.id === doc.id ? "text-primary" : "text-muted-foreground")} />
-                                <div className="flex-1 overflow-hidden">
-                                  <div className="truncate font-medium">{doc.name}</div>
-                                  <div className="flex items-center justify-between mt-1">
-                                    <span className="text-xs text-muted-foreground">{doc.version}</span>
-                                    {doc.openCommentsCount > 0 && (
-                                      <Badge variant="secondary" className="h-4 px-1 text-[10px] gap-1">
-                                        <MessageSquare className="h-2 w-2" /> {doc.openCommentsCount}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                      {/* Fixed Folders for Investors */}
+                      {isInvestor ? (
+                        <>
+                          <FolderGroup title="Lender Presentation" docs={groupedDocs["CIM"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          <FolderGroup title="Financials & Model" docs={groupedDocs["Financials"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          <FolderGroup title="Legal Documentation" docs={[...(groupedDocs["Credit Agreement"]||[]), ...(groupedDocs["Security"]||[]), ...(groupedDocs["Intercreditor"]||[])]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          <FolderGroup title="KYC" docs={groupedDocs["KYC"] || []} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                        </>
+                      ) : (
+                        Object.entries(groupedDocs).map(([category, docs]) => (
+                          <FolderGroup key={category} title={category} docs={docs} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                        ))
+                      )}
                     </div>
                   </ScrollArea>
                 </CardContent>
               </Card>
 
               {/* Middle Panel: Selected Doc Preview/Status */}
-              <Card className="col-span-6 flex flex-col h-full border-border/60">
+              <Card className={`${isInvestor ? 'col-span-9' : 'col-span-6'} flex flex-col h-full border-border/60`}>
                 <CardHeader className="pb-4 border-b">
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline">{selectedDoc.category}</Badge>
-                        <span className="text-xs text-muted-foreground">Last updated {formatDistanceToNow(parseISO(selectedDoc.lastUpdatedAt))} ago</span>
+                        <Badge variant="outline">{selectedDoc?.category || "Select a file"}</Badge>
+                        {selectedDoc && <span className="text-xs text-muted-foreground">Last updated {formatDistanceToNow(parseISO(selectedDoc.lastUpdatedAt))} ago</span>}
                       </div>
-                      <CardTitle className="text-xl font-serif">{selectedDoc.name}</CardTitle>
+                      <CardTitle className="text-xl font-serif">{selectedDoc?.name || "Select a document"}</CardTitle>
                     </div>
-                    <Button size="sm" variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" /> Download
-                    </Button>
+                    {selectedDoc && (
+                      <div className="flex gap-2">
+                        {isInvestor && ["Credit Agreement", "Security", "Intercreditor"].includes(selectedDoc.category) && (
+                          <Button size="sm" variant="secondary" className="gap-2" onClick={handleUploadMarkup}>
+                            <FileUp className="h-4 w-4" /> Upload Markup
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="gap-2">
+                          <Download className="h-4 w-4" /> Download
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-6 overflow-y-auto">
-                   <div className="space-y-8">
-                     {/* Status Timeline */}
-                     <div>
-                       <h3 className="text-sm font-semibold mb-4">Document Status</h3>
-                       <div className="flex items-center gap-2 w-full">
-                         {["Draft", "In Review", "Comments Outstanding", "Lender Approved", "Ready to Sign"].map((step, i) => {
-                            const isCurrent = selectedDoc.status === step;
-                            const isPast = ["Draft", "In Review", "Comments Outstanding", "Lender Approved", "Ready to Sign"].indexOf(selectedDoc.status) > i;
-                            
-                            return (
-                              <div key={step} className="flex-1 flex flex-col items-center relative">
-                                {i !== 0 && <div className={cn("absolute top-3 right-[50%] w-full h-0.5 -z-10", isPast ? "bg-primary" : "bg-border")} />}
-                                <div className={cn(
-                                  "h-6 w-6 rounded-full flex items-center justify-center border-2 text-[10px] font-bold z-10 transition-colors",
-                                  isCurrent ? "border-primary bg-primary text-primary-foreground" : 
-                                  isPast ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"
-                                )}>
-                                  {isPast || isCurrent ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
+                   {selectedDoc ? (
+                     <div className="space-y-8">
+                       {/* Status Timeline - Hide granular internal status for investors unless necessary, but 'Status' is fine */}
+                       <div>
+                         <h3 className="text-sm font-semibold mb-4">Document Status</h3>
+                         <div className="flex items-center gap-2 w-full">
+                           {["Draft", "In Review", "Comments Outstanding", "Lender Approved", "Ready to Sign"].map((step, i) => {
+                              const isCurrent = selectedDoc.status === step;
+                              const isPast = ["Draft", "In Review", "Comments Outstanding", "Lender Approved", "Ready to Sign"].indexOf(selectedDoc.status) > i;
+                              
+                              return (
+                                <div key={step} className="flex-1 flex flex-col items-center relative">
+                                  {i !== 0 && <div className={cn("absolute top-3 right-[50%] w-full h-0.5 -z-10", isPast ? "bg-primary" : "bg-border")} />}
+                                  <div className={cn(
+                                    "h-6 w-6 rounded-full flex items-center justify-center border-2 text-[10px] font-bold z-10 transition-colors",
+                                    isCurrent ? "border-primary bg-primary text-primary-foreground" : 
+                                    isPast ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"
+                                  )}>
+                                    {isPast || isCurrent ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
+                                  </div>
+                                  <span className={cn("text-[10px] mt-2 text-center", isCurrent ? "font-bold text-primary" : "text-muted-foreground")}>
+                                    {step}
+                                  </span>
                                 </div>
-                                <span className={cn("text-[10px] mt-2 text-center", isCurrent ? "font-bold text-primary" : "text-muted-foreground")}>
-                                  {step}
-                                </span>
+                              )
+                           })}
+                         </div>
+                       </div>
+
+                       {/* Comments Mock - Only show for internal or if shared */}
+                       {!isInvestor && (
+                         <div>
+                            <h3 className="text-sm font-semibold mb-4 flex items-center justify-between">
+                              <span>Open Issues ({selectedDoc.openCommentsCount})</span>
+                              <Button variant="ghost" size="sm" className="h-6 text-xs text-primary">View All History</Button>
+                            </h3>
+                            
+                            {selectedDoc.openCommentsCount > 0 ? (
+                              <div className="space-y-3">
+                                <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+                                  <div className="flex justify-between mb-1">
+                                    <span className="font-semibold text-amber-900">Definition of "EBITDA"</span>
+                                    <span className="text-xs text-amber-700">Lender Counsel • 2h ago</span>
+                                  </div>
+                                  <p className="text-amber-800">Please revert add-back cap to 15% as discussed in committee.</p>
+                                  <div className="mt-2 flex gap-2">
+                                     <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Reply</Button>
+                                     <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Resolve</Button>
+                                  </div>
+                                </div>
+                                 <div className="p-3 bg-secondary/30 border border-border rounded-lg text-sm">
+                                  <div className="flex justify-between mb-1">
+                                    <span className="font-semibold">Negative Covenants</span>
+                                    <span className="text-xs text-muted-foreground">Issuer Counsel • 1d ago</span>
+                                  </div>
+                                  <p className="text-foreground/80">Confirming baskets for permitted acquisitions.</p>
+                                </div>
                               </div>
-                            )
-                         })}
+                            ) : (
+                              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                                <CheckCircle2 className="h-8 w-8 mb-2 text-green-500" />
+                                <p>No open issues. Document is clean.</p>
+                              </div>
+                            )}
+                         </div>
+                       )}
+
+                       {/* Metadata */}
+                       <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                          <div>
+                            <span className="text-xs text-muted-foreground block">Owner</span>
+                            <span className="text-sm font-medium">{selectedDoc.owner}</span>
+                          </div>
+                           <div>
+                            <span className="text-xs text-muted-foreground block">File Size</span>
+                            <span className="text-sm font-medium">2.4 MB</span>
+                          </div>
                        </div>
                      </div>
-
-                     {/* Comments Mock */}
-                     <div>
-                        <h3 className="text-sm font-semibold mb-4 flex items-center justify-between">
-                          <span>Open Issues ({selectedDoc.openCommentsCount})</span>
-                          <Button variant="ghost" size="sm" className="h-6 text-xs text-primary">View All History</Button>
-                        </h3>
-                        
-                        {selectedDoc.openCommentsCount > 0 ? (
-                          <div className="space-y-3">
-                            <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm">
-                              <div className="flex justify-between mb-1">
-                                <span className="font-semibold text-amber-900">Definition of "EBITDA"</span>
-                                <span className="text-xs text-amber-700">Lender Counsel • 2h ago</span>
-                              </div>
-                              <p className="text-amber-800">Please revert add-back cap to 15% as discussed in committee.</p>
-                              <div className="mt-2 flex gap-2">
-                                 <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Reply</Button>
-                                 <Button size="sm" variant="outline" className="h-6 text-xs bg-white border-amber-200">Resolve</Button>
-                              </div>
-                            </div>
-                             <div className="p-3 bg-secondary/30 border border-border rounded-lg text-sm">
-                              <div className="flex justify-between mb-1">
-                                <span className="font-semibold">Negative Covenants</span>
-                                <span className="text-xs text-muted-foreground">Issuer Counsel • 1d ago</span>
-                              </div>
-                              <p className="text-foreground/80">Confirming baskets for permitted acquisitions.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                            <CheckCircle2 className="h-8 w-8 mb-2 text-green-500" />
-                            <p>No open issues. Document is clean.</p>
-                          </div>
-                        )}
+                   ) : (
+                     <div className="flex items-center justify-center h-full text-muted-foreground">
+                       Select a file to view details
                      </div>
-
-                     {/* Metadata */}
-                     <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                        <div>
-                          <span className="text-xs text-muted-foreground block">Owner</span>
-                          <span className="text-sm font-medium">{selectedDoc.owner}</span>
-                        </div>
-                         <div>
-                          <span className="text-xs text-muted-foreground block">File Size</span>
-                          <span className="text-sm font-medium">2.4 MB</span>
-                        </div>
-                     </div>
-                   </div>
+                   )}
                 </CardContent>
               </Card>
 
-              {/* Right Panel: Blockers */}
-              <Card className="col-span-3 h-full border-l-4 border-l-red-500 border-y border-r border-border/60 shadow-sm bg-red-50/10">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2 text-red-700">
-                    <AlertCircle className="h-5 w-5" /> Blocking Items
-                  </CardTitle>
-                  <CardDescription>
-                    Documents preventing signing.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {blockingDocs.length === 0 ? (
-                      <div className="text-sm text-green-600 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" /> All clear for signing!
-                      </div>
-                    ) : (
-                      blockingDocs.map(doc => (
-                        <div key={doc.id} className="p-3 bg-white border border-red-100 rounded-md shadow-sm">
-                           <div className="flex items-start gap-2">
-                             <FileText className="h-4 w-4 text-red-400 mt-0.5" />
-                             <div className="flex-1 min-w-0">
-                               <p className="text-sm font-semibold truncate" title={doc.name}>{doc.name}</p>
-                               <p className="text-xs text-red-600 font-medium mt-0.5">{doc.status}</p>
-                               <p className="text-xs text-muted-foreground mt-1">{doc.openCommentsCount} open issues</p>
+              {/* Right Panel: Blockers - Only for Internal */}
+              {!isInvestor && (
+                <Card className="col-span-3 h-full border-l-4 border-l-red-500 border-y border-r border-border/60 shadow-sm bg-red-50/10">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+                      <AlertCircle className="h-5 w-5" /> Blocking Items
+                    </CardTitle>
+                    <CardDescription>
+                      Documents preventing signing.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {blockingDocs.length === 0 ? (
+                        <div className="text-sm text-green-600 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" /> All clear for signing!
+                        </div>
+                      ) : (
+                        blockingDocs.map(doc => (
+                          <div key={doc.id} className="p-3 bg-white border border-red-100 rounded-md shadow-sm">
+                             <div className="flex items-start gap-2">
+                               <FileText className="h-4 w-4 text-red-400 mt-0.5" />
+                               <div className="flex-1 min-w-0">
+                                 <p className="text-sm font-semibold truncate" title={doc.name}>{doc.name}</p>
+                                 <p className="text-xs text-red-600 font-medium mt-0.5">{doc.status}</p>
+                                 <p className="text-xs text-muted-foreground mt-1">{doc.openCommentsCount} open issues</p>
+                               </div>
                              </div>
-                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
             </div>
           </TabsContent>
@@ -337,6 +354,43 @@ export default function DocumentsPage() {
         </Tabs>
       </div>
     </Layout>
+  );
+}
+
+function FolderGroup({ title, docs, selectedId, onSelect }: { title: string, docs: Document[], selectedId?: string, onSelect: (id: string) => void }) {
+  if (docs.length === 0) return null;
+  
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 sticky top-0 bg-card py-1 z-10">
+        {title}
+      </h3>
+      <div className="space-y-1">
+        {docs.map(doc => (
+          <div 
+            key={doc.id}
+            onClick={() => onSelect(doc.id)}
+            className={cn(
+              "flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors text-sm group",
+              selectedId === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50"
+            )}
+          >
+            <FileText className={cn("h-4 w-4 mt-0.5 shrink-0", selectedId === doc.id ? "text-primary" : "text-muted-foreground")} />
+            <div className="flex-1 overflow-hidden">
+              <div className="truncate font-medium">{doc.name}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-muted-foreground">{doc.version}</span>
+                {doc.openCommentsCount > 0 && (
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px] gap-1">
+                    <MessageSquare className="h-2 w-2" /> {doc.openCommentsCount}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

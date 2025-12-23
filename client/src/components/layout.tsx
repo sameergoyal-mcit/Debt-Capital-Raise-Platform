@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/context/auth-context";
 import {
   LayoutDashboard, 
   Briefcase, 
@@ -14,7 +15,9 @@ import {
   CheckSquare,
   Clock,
   HelpCircle,
-  Megaphone
+  Megaphone,
+  LogOut,
+  PenTool
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { RoleSwitcher } from "@/components/role-switcher";
+import { Badge } from "@/components/ui/badge";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -36,13 +39,18 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const isDealWorkspace = location.startsWith("/deal/");
+  const { user, logout } = useAuth();
   
-  // Extract deal ID from URL path: /deal/123/overview -> 123
+  // Safe extraction of deal ID
   const dealIdMatch = location.match(/^\/deal\/([^/]+)/);
   const dealId = dealIdMatch?.[1];
+  const isDealWorkspace = !!dealId;
 
   const isActive = (path: string) => location.startsWith(path);
+
+  // Determine Nav Items based on Role
+  const isInvestor = user?.role === "Investor";
+  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
 
   return (
     <div className="min-h-screen bg-background flex font-sans text-foreground">
@@ -58,24 +66,46 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         <nav className="flex-1 px-4 space-y-2 py-4">
-          <NavItem href="/" icon={<LayoutDashboard size={20} />} label="Dashboard" active={location === "/"} />
-          <NavItem href="/deals" icon={<Briefcase size={20} />} label="Deals" active={location === "/deals"} />
-          <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} />
-          <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
-          
+          {/* Main Navigation - Hidden for Investors in specific Deal view context usually, but we keep "Deals" for them if they have multiple */}
+          {!isInvestor && (
+            <>
+              <NavItem href="/" icon={<LayoutDashboard size={20} />} label="Dashboard" active={location === "/"} />
+              <NavItem href="/deals" icon={<Briefcase size={20} />} label="Deals" active={location === "/deals"} />
+              <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} />
+              <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
+            </>
+          )}
+
           {isDealWorkspace && dealId && (
-            <div className="mt-8 pt-4 border-t border-sidebar-border">
-              <h4 className="px-4 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-2">
-                Current Deal
-              </h4>
-              <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} />
-              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={isActive(`/deal/${dealId}/book`)} />
+            <div className={`mt-${isInvestor ? '2' : '8'} pt-4 border-t border-sidebar-border`}>
+              <div className="px-4 mb-4">
+                 <h4 className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-1">
+                  Project Titan
+                </h4>
+                {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Investor Portal</Badge>}
+              </div>
+
+              {isInternal && (
+                <>
+                  <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} />
+                  <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={isActive(`/deal/${dealId}/book`)} />
+                </>
+              )}
+
               <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} />
               <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} />
               <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} />
-              <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} />
-              <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} />
-              <NavItem href={`/deal/${dealId}/viewer`} icon={<Briefcase size={20} />} label="Role Viewer" active={location.includes(`/deal/${dealId}/viewer`)} />
+              
+              {isInvestor && (
+                 <NavItem href={`/deal/${dealId}/commitment`} icon={<PenTool size={20} />} label="Submit Commitment" active={isActive(`/deal/${dealId}/commitment`)} />
+              )}
+
+              {isInternal && (
+                <>
+                  <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} />
+                  <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} />
+                </>
+              )}
             </div>
           )}
         </nav>
@@ -96,39 +126,35 @@ export function Layout({ children }: LayoutProps) {
             <div className="relative w-64 hidden sm:block">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search deals, investors..." 
+                placeholder="Search..." 
                 className="pl-9 bg-secondary/50 border-transparent focus:bg-background focus:border-input transition-all"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {isDealWorkspace && (
-              <div className="hidden md:block">
-                <RoleSwitcher />
-              </div>
-            )}
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-primary">
               <Bell size={20} />
-              <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full" />
+              {isInternal && <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full" />}
             </Button>
             <div className="h-6 w-px bg-border mx-1" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8 border border-border">
-                    <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                    <AvatarFallback>AD</AvatarFallback>
+                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || 'AD'}`} alt={user?.name} />
+                    <AvatarFallback>{user?.name?.substring(0,2).toUpperCase() || "AD"}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Alex Davis</p>
+                    <p className="text-sm font-medium leading-none">{user?.name || "Guest User"}</p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      alex.davis@capitalflow.com
+                      {user?.email || "guest@capitalflow.com"}
                     </p>
+                    <Badge variant="outline" className="mt-2 w-fit text-[10px]">{user?.role || "Visitor"}</Badge>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -136,7 +162,9 @@ export function Layout({ children }: LayoutProps) {
                 <DropdownMenuItem>Billing</DropdownMenuItem>
                 <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">Log out</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={logout}>
+                   <LogOut className="mr-2 h-4 w-4" /> Log out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

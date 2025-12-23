@@ -16,15 +16,19 @@ import {
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
 import { RoleSwitcher } from "@/components/role-switcher";
+import { useAuth } from "@/context/auth-context";
 
 export default function Timeline() {
   const [, params] = useRoute("/deal/:id/timeline");
   const dealId = params?.id;
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const { user } = useAuth();
+  const isInvestor = user?.role === "Investor";
 
-  const milestones = [
+  const allMilestones = [
     {
       phase: "Preparation",
+      internalOnly: true,
       items: [
         { title: "Kick-off Meeting", date: "May 15, 2025", status: "completed" },
         { title: "Financial Model Freeze", date: "May 20, 2025", status: "completed" },
@@ -58,6 +62,10 @@ export default function Timeline() {
     }
   ];
 
+  const milestones = isInvestor 
+    ? allMilestones.filter(m => !m.internalOnly) 
+    : allMilestones;
+
   return (
     <Layout>
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -72,7 +80,6 @@ export default function Timeline() {
             <p className="text-muted-foreground">Key milestones and critical path for {deal.dealName}.</p>
           </div>
           <div className="flex items-center gap-3">
-             <RoleSwitcher />
              <Button>
                <Calendar className="mr-2 h-4 w-4" /> Sync Calendar
              </Button>
@@ -136,23 +143,25 @@ export default function Timeline() {
 
           {/* Sidebar (1/3) */}
           <div className="space-y-6">
-            <Card className="border-l-4 border-l-amber-500 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-amber-700 text-base">
-                  <AlertTriangle className="h-5 w-5" /> Potential Blockers
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="p-3 bg-amber-50 rounded-md border border-amber-100">
-                  <p className="text-sm font-medium text-amber-900">Quality of Earnings Report</p>
-                  <p className="text-xs text-amber-700 mt-1">Delayed by 3 days. May impact diligence access date.</p>
-                </div>
-                <div className="p-3 bg-secondary rounded-md border border-border">
-                  <p className="text-sm font-medium">Customer Calls</p>
-                  <p className="text-xs text-muted-foreground mt-1">Pending scheduling with top 3 accounts.</p>
-                </div>
-              </CardContent>
-            </Card>
+            {!isInvestor && (
+              <Card className="border-l-4 border-l-amber-500 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-amber-700 text-base">
+                    <AlertTriangle className="h-5 w-5" /> Potential Blockers
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="p-3 bg-amber-50 rounded-md border border-amber-100">
+                    <p className="text-sm font-medium text-amber-900">Quality of Earnings Report</p>
+                    <p className="text-xs text-amber-700 mt-1">Delayed by 3 days. May impact diligence access date.</p>
+                  </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border">
+                    <p className="text-sm font-medium">Customer Calls</p>
+                    <p className="text-xs text-muted-foreground mt-1">Pending scheduling with top 3 accounts.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="shadow-sm border-border/60">
               <CardHeader>
