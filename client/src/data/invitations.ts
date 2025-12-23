@@ -8,6 +8,9 @@ export interface Invitation {
   ndaRequired: boolean;
   ndaSignedAt?: string; // ISO date
   accessGranted: boolean;
+  ndaVersion?: string;
+  signerEmail?: string;
+  signerIp?: string;
 }
 
 // Initial seed data
@@ -19,7 +22,10 @@ const initialInvitations: Invitation[] = [
     invitedAt: formatISO(subDays(new Date(), 5)),
     ndaRequired: true,
     ndaSignedAt: formatISO(subDays(new Date(), 2)),
-    accessGranted: true
+    accessGranted: true,
+    ndaVersion: "1.0",
+    signerEmail: "investor@blackrock.com",
+    signerIp: "192.168.1.101"
   },
   {
     dealId: "101",
@@ -36,7 +42,10 @@ const initialInvitations: Invitation[] = [
     invitedAt: formatISO(subDays(new Date(), 3)),
     ndaRequired: true,
     ndaSignedAt: formatISO(subDays(new Date(), 1)),
-    accessGranted: true
+    accessGranted: true,
+    ndaVersion: "1.0",
+    signerEmail: "investor@oakhill.com",
+    signerIp: "192.168.1.103"
   },
   {
     dealId: "102",
@@ -45,7 +54,10 @@ const initialInvitations: Invitation[] = [
     invitedAt: formatISO(subDays(new Date(), 10)),
     ndaRequired: true,
     ndaSignedAt: formatISO(subDays(new Date(), 9)),
-    accessGranted: true
+    accessGranted: true,
+    ndaVersion: "1.0",
+    signerEmail: "investor@blackrock.com",
+    signerIp: "192.168.1.101"
   }
 ];
 
@@ -56,11 +68,14 @@ export function getInvitation(dealId: string, lenderId: string) {
   return invitations.find(i => i.dealId === dealId && i.lenderId === lenderId);
 }
 
-export function signNDA(dealId: string, lenderId: string) {
+export function signNDA(dealId: string, lenderId: string, version: string = "1.0", email?: string, ip?: string) {
   const invite = getInvitation(dealId, lenderId);
   if (invite) {
     invite.ndaSignedAt = new Date().toISOString();
     invite.accessGranted = true;
+    invite.ndaVersion = version;
+    invite.signerEmail = email;
+    invite.signerIp = ip || "127.0.0.1";
     return true;
   }
   return false;

@@ -1,12 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { getInvitation, signNDA } from "@/data/invitations";
+import { mockDeals } from "@/data/deals";
+import { getNDATemplate } from "@/data/nda-templates";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ShieldAlert, FileText, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 interface NDAGateProps {
   dealId: string;
@@ -19,7 +22,9 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
   const { user } = useAuth();
   const { toast } = useToast();
   const [agreed, setAgreed] = useState(false);
+  const [canAgree, setCanAgree] = useState(false); // Only enable checkbox after scrolling
   const [forceUpdate, setForceUpdate] = useState(0); // To trigger re-render after sign
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // If not an investor, pass through (internal users bypass NDA)
   if (!user || user.role !== "Investor" || !user.lenderId) {
@@ -27,6 +32,19 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
   }
 
   const invitation = getInvitation(dealId, user.lenderId);
+  const deal = mockDeals.find(d => d.id === dealId);
+  const template = deal?.ndaTemplateId ? getNDATemplate(deal.ndaTemplateId) : getNDATemplate("nda_std_v1");
+
+  // Handle scroll detection
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      // Allow 10px buffer
+      if (scrollTop + clientHeight >= scrollHeight - 10) {
+        setCanAgree(true);
+      }
+    }
+  };
 
   // If no invitation found, deny access completely
   if (!invitation) {
@@ -48,16 +66,24 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
     );
   }
 
+  // Version check logic could go here:
+  // if (invitation.ndaSignedAt && invitation.ndaVersion !== template?.version) { ... require re-sign ... }
+  // For now, simple check if signedAt exists.
+
   // If NDA required and not signed
   if (invitation.ndaRequired && !invitation.ndaSignedAt) {
     const handleSign = () => {
       if (!agreed) return;
       
-      const success = signNDA(dealId, user.lenderId!);
+      const ip = "192.168.1." + Math.floor(Math.random() * 255); // Mock IP
+      const email = user.email || "investor@fund.com";
+      const version = template?.version || "1.0";
+
+      const success = signNDA(dealId, user.lenderId!, version, email, ip);
       if (success) {
         toast({
           title: "NDA Signed",
-          description: "You now have access to the data room.",
+          description: `You agreed to v${version} of the NDA. Access granted.`,
         });
         setForceUpdate(prev => prev + 1);
       }
@@ -74,34 +100,55 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
              <CardDescription className="text-base">
                {description} - Non-Disclosure Agreement Required
              </CardDescription>
+             {template && (
+               <div className="mt-2 text-xs text-muted-foreground bg-secondary/50 py-1 px-2 rounded-full inline-block">
+                 Using template: <span className="font-medium text-foreground">{template.name} (v{template.version})</span>
+               </div>
+             )}
            </CardHeader>
            <CardContent className="space-y-6 pt-6">
-             <div className="bg-secondary/30 p-4 rounded-md border border-border text-sm leading-relaxed h-48 overflow-y-auto font-mono text-muted-foreground">
-               <p className="mb-2"><strong>CONFIDENTIALITY AGREEMENT</strong></p>
-               <p className="mb-2">By accessing these materials, you agree to keep all information confidential and use it solely for the purpose of evaluating the potential transaction.</p>
-               <p className="mb-2">1. <strong>Confidential Information.</strong> "Confidential Information" means all non-public information concerning the Company...</p>
-               <p className="mb-2">2. <strong>Use of Information.</strong> Recipient agrees to use Confidential Information solely for the Purpose...</p>
-               <p className="mb-2">3. <strong>Term.</strong> This agreement shall remain in effect for a period of two (2) years...</p>
-               <p>...</p>
+             <div 
+               className="bg-secondary/30 p-4 rounded-md border border-border text-sm leading-relaxed h-64 overflow-y-auto font-mono text-muted-foreground relative"
+               onScroll={handleScroll}
+               ref={scrollRef}
+             >
+               <div className="whitespace-pre-wrap">
+                 {template?.bodyText || "NDA content not available."}
+               </div>
+               {/* Spacer to ensure scroll triggers */}
+               <div className="h-4"></div>
              </div>
 
              <div className="flex items-start space-x-3 pt-2">
-               <Checkbox id="nda-agree" checked={agreed} onCheckedChange={(c) => setAgreed(!!c)} />
+               <Checkbox 
+                  id="nda-agree" 
+                  checked={agreed} 
+                  onCheckedChange={(c) => setAgreed(!!c)} 
+                  disabled={!canAgree}
+               />
                <div className="grid gap-1.5 leading-none">
                  <Label
                    htmlFor="nda-agree"
-                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                   className={`text-sm font-medium leading-none ${!canAgree ? 'text-muted-foreground' : ''}`}
                  >
                    I agree to the terms of the Non-Disclosure Agreement
                  </Label>
-                 <p className="text-xs text-muted-foreground">
-                   By checking this box, you execute this agreement electronically.
-                 </p>
+                 {!canAgree ? (
+                   <p className="text-xs text-amber-600">
+                     Please scroll to the bottom of the document to agree.
+                   </p>
+                 ) : (
+                   <p className="text-xs text-muted-foreground">
+                     By checking this box, you execute this agreement electronically.
+                     <br/>
+                     <span className="text-[10px] opacity-70">Logged as: {user.email || "investor@fund.com"} • IP: Recorded</span>
+                   </p>
+                 )}
                </div>
              </div>
            </CardContent>
            <CardFooter className="bg-secondary/10 border-t pt-6">
-             <Button className="w-full h-11 text-base" onClick={handleSign} disabled={!agreed}>
+             <Button className="w-full h-11 text-base" onClick={handleSign} disabled={!agreed || !canAgree}>
                <FileText className="mr-2 h-4 w-4" /> Sign NDA & Enter Data Room
              </Button>
            </CardFooter>

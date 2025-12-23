@@ -50,6 +50,7 @@ export interface Deal {
   reopenedCount?: number;
   lastStageBeforeHold?: DealStage;
   outcome?: DealOutcome;
+  ndaTemplateId?: string;
 }
 
 export const mockDeals: Deal[] = [
@@ -80,6 +81,7 @@ export const mockDeals: Deal[] = [
     hardCloseDate: "2025-07-15",
     blockersCount: 1,
     updatedAt: "2025-06-12",
+    ndaTemplateId: "nda_std_v1"
   },
   {
     id: "102",

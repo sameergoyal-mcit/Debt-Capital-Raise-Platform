@@ -38,7 +38,9 @@ import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
 import { differenceInDays, parseISO, format } from "date-fns";
 import { getDealInvitations, Invitation } from "@/data/invitations";
 import { mockLenders } from "@/data/lenders";
+import { getNDATemplate } from "@/data/nda-templates";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -48,6 +50,7 @@ export default function DealOverview() {
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
   
   const invitations = getDealInvitations(dealId);
+  const ndaTemplate = deal.ndaTemplateId ? getNDATemplate(deal.ndaTemplateId) : null;
 
   const handleExportCovenants = () => {
     // Mock export
@@ -162,11 +165,23 @@ export default function DealOverview() {
                   <CardTitle className="flex items-center gap-2">
                     <Mail className="h-5 w-5 text-primary" /> Invitations & Access
                   </CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1">
-                    <Users className="h-3 w-3" /> Invite Lender
-                  </Button>
+                  <div className="flex gap-2">
+                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                        <FileText className="h-3 w-3" /> Edit NDA
+                     </Button>
+                     <Button size="sm" className="h-7 text-xs gap-1">
+                        <Users className="h-3 w-3" /> Invite Lender
+                     </Button>
+                  </div>
                 </div>
-                <CardDescription>Manage investor access and NDA status.</CardDescription>
+                <CardDescription className="flex items-center justify-between">
+                  <span>Manage investor access and NDA status.</span>
+                  {ndaTemplate && (
+                    <span className="text-xs bg-secondary px-2 py-0.5 rounded border">
+                      Active Template: <strong>{ndaTemplate.name} (v{ndaTemplate.version})</strong>
+                    </span>
+                  )}
+                </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <Table>
@@ -191,9 +206,24 @@ export default function DealOverview() {
                           <TableCell>
                             {invite.ndaRequired ? (
                               invite.ndaSignedAt ? (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 font-normal">
-                                  <CheckCircle2 className="h-3 w-3" /> Signed
-                                </Badge>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex flex-col items-start cursor-help">
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1 font-normal mb-0.5">
+                                          <CheckCircle2 className="h-3 w-3" /> Signed v{invite.ndaVersion}
+                                        </Badge>
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {format(parseISO(invite.ndaSignedAt), "MMM d, h:mm a")}
+                                        </span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-xs">
+                                      <p>Signed by: {invite.signerEmail || "N/A"}</p>
+                                      <p>IP: {invite.signerIp || "N/A"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               ) : (
                                 <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 font-normal">
                                   <Clock className="h-3 w-3" /> Pending
