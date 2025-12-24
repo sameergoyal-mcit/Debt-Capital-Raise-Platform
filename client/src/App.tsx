@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,6 +25,12 @@ import BookrunnerViewer from "@/pages/viewer/bookrunner";
 import InvestorViewer from "@/pages/viewer/investor";
 import Settings from "@/pages/settings";
 
+// Helper for unauthorized redirects
+function getUnauthorizedRedirect(role: UserRole) {
+  if (role === "Investor") return "/investor";
+  return "/deals";
+}
+
 // Protected Route Wrapper
 function ProtectedRoute({ 
   component: Component, 
@@ -34,17 +40,38 @@ function ProtectedRoute({
   allowedRoles?: UserRole[] 
 }) {
   const { user, isAuthenticated } = useAuth();
+  const [location] = useLocation();
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
   }
 
+  // 1. Extract Deal ID from URL if present
+  // Matches /deal/:id/... or /investor/deal/:id
+  const dealMatch = location.match(/\/deal\/([^\/]+)/) || location.match(/\/investor\/deal\/([^\/]+)/);
+  const dealId = dealMatch ? dealMatch[1] : null;
+
+  // 2. Check Deal Access for Investors
+  if (user?.role === "Investor" && dealId) {
+    // If user has no deal access list or deal is not in list
+    if (!user.dealAccess || !user.dealAccess.includes(dealId)) {
+      return <Redirect to="/investor" />;
+    }
+  }
+
+  // 3. Check Role Access
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    // Redirect investors to their safe landing page if they try to access restricted pages
+    // Redirect logic for unauthorized role access
     if (user.role === "Investor") {
+       // If they tried to access a deal page they have access to (checked above), 
+       // but the specific PAGE is restricted (e.g. /deal/123/book),
+       // redirect them to the investor-safe deal home.
+       if (dealId) {
+         return <Redirect to={`/investor/deal/${dealId}`} />;
+       }
        return <Redirect to="/investor" />;
     }
-    return <Redirect to="/" />;
+    return <Redirect to="/deals" />;
   }
 
   return <Component />;
@@ -69,7 +96,7 @@ function Router() {
          <ProtectedRoute component={InvestorDealHome} allowedRoles={["Investor"]} />
       </Route>
 
-      {/* Main Deals List - Filtered inside the page for investors if needed, or restricted */}
+      {/* Main Deals List */}
       <Route path="/deals">
         <ProtectedRoute component={Deals} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
@@ -112,7 +139,7 @@ function Router() {
         <ProtectedRoute component={Publish} allowedRoles={["Bookrunner"]} />
       </Route>
 
-      {/* Viewer Pages - Keep accessible for demo purposes or restrict */}
+      {/* Viewer Pages */}
       <Route path="/deal/:id/viewer">
          <ProtectedRoute component={ViewerIndex} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
@@ -131,7 +158,11 @@ function Router() {
          <ProtectedRoute component={Settings} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
       </Route>
 
-      <Route component={NotFound} />
+      {/* Catch-all for truly 404 routes or fallthrough */}
+      <Route>
+        {/* Only show NotFound if we really fell through everything else */}
+        <NotFound />
+      </Route>
     </Switch>
   );
 }
