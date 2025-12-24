@@ -1,6 +1,6 @@
 import { differenceInDays, parseISO } from "date-fns";
 
-export type DealStage = "Structuring" | "NDA" | "CIM" | "Marketing" | "IOI" | "Bookbuilding" | "Allocation" | "Docs" | "Signing" | "Funding" | "Closed" | "Paused";
+export type DealStage = "Structuring" | "NDA" | "Lender Presentation" | "Marketing" | "IOI" | "Bookbuilding" | "Allocation" | "Docs" | "Signing" | "Funding" | "Closed" | "Paused";
 export type DealStatus = "Active" | "Diligence" | "Closing" | "Closed" | "Paused" | "At Risk";
 export type DealOutcome = "Funded" | "Pulled" | "Refinanced" | "Replaced" | "Other";
 

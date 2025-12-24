@@ -1,4 +1,4 @@
-export type DocumentCategory = "CIM" | "Credit Agreement" | "Security" | "Intercreditor" | "Financials" | "KYC" | "Other";
+export type DocumentCategory = "Lender Presentation" | "Credit Agreement" | "Security" | "Intercreditor" | "Financials" | "KYC" | "Other";
 export type DocumentStatus = "Draft" | "In Review" | "Comments Outstanding" | "Issuer Approved" | "Lender Approved" | "Ready to Sign";
 
 export interface Document {
@@ -71,8 +71,8 @@ export const mockDocuments: Document[] = [
   },
   {
     id: "d6",
-    name: "Confidential Information Memorandum.pdf",
-    category: "CIM",
+    name: "Lender Presentation.pdf",
+    category: "Lender Presentation",
     status: "Ready to Sign", // Conceptually "Done"
     version: "vFinal",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 30).toISOString(),

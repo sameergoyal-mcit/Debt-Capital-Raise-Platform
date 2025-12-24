@@ -32,24 +32,23 @@ export default function Timeline() {
       items: [
         { title: "Kick-off Meeting", date: "May 15, 2025", status: "completed" },
         { title: "Financial Model Freeze", date: "May 20, 2025", status: "completed" },
-        { title: "CIM Drafting", date: "May 25, 2025", status: "completed" },
+        { title: "Lender Presentation Drafting", date: "May 25, 2025", status: "completed" },
         { title: "Lender List Approval", date: "May 28, 2025", status: "completed" },
       ]
     },
     {
       phase: "Marketing",
       items: [
-        { title: "Teaser Distribution", date: "Jun 01, 2025", status: "completed" },
-        { title: "NDA Execution", date: "Jun 05, 2025", status: "completed" },
-        { title: "CIM Release", date: "Jun 06, 2025", status: "completed" },
-        { title: "Management Presentation", date: "Jun 15, 2025", status: "active" },
+        { title: "NDA Execution", date: "Jun 01, 2025", status: "completed" },
+        { title: "Lender Presentation Materials", date: "Jun 06, 2025", status: "completed" },
+        { title: "Live Lender Presentation with Q&A", date: "Jun 15, 2025", status: "active" },
       ]
     },
     {
-      phase: "Execution",
+      phase: "Due Diligence",
       items: [
+        { title: "Due Diligence Stage", date: "Jun 20, 2025", status: "pending" },
         { title: "Initial Indication (IOI)", date: "Jun 25, 2025", status: "pending" },
-        { title: "Diligence Access", date: "Jun 26, 2025", status: "pending" },
         { title: "Commitment Deadline", date: "Jul 10, 2025", status: "pending" },
       ]
     },
@@ -170,7 +169,7 @@ export default function Timeline() {
               <CardContent>
                 <div className="text-center py-4">
                   <p className="text-4xl font-serif font-bold text-primary">Jun 15</p>
-                  <p className="text-sm text-muted-foreground font-medium mt-1">Management Presentation</p>
+                  <p className="text-sm text-muted-foreground font-medium mt-1">Live Lender Presentation</p>
                   <div className="mt-4 flex justify-center">
                     <Badge variant="outline" className="bg-primary/5 text-primary">
                       3 Days Remaining

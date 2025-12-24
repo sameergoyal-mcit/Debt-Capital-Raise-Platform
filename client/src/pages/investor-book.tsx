@@ -173,7 +173,7 @@ export default function InvestorBook() {
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="Firm">Firm</SelectItem>
                       <SelectItem value="IOI">IOI</SelectItem>
-                      <SelectItem value="CIM Viewed">CIM Viewed</SelectItem>
+                      <SelectItem value="LP Viewed">LP Viewed</SelectItem>
                       <SelectItem value="NDA Signed">NDA Signed</SelectItem>
                       <SelectItem value="Not Contacted">Not Contacted</SelectItem>
                     </SelectContent>
@@ -842,7 +842,7 @@ function LenderDetailDrawer({ lender, onUpdateLender }: { lender: Lender, onUpda
 function BookStats({ lenders }: { lenders: Lender[] }) {
   const totalCommitted = lenders.reduce((acc, l) => acc + (l.status === "Firm" ? (l.ticketMin || 0) : 0), 0);
   const softCircle = lenders.reduce((acc, l) => acc + (l.status === "IOI" ? (l.ticketMin || 0) : 0), 0);
-  const activeCount = lenders.filter(l => ["NDA Signed", "IOI", "CIM Viewed"].includes(l.status)).length;
+  const activeCount = lenders.filter(l => ["NDA Signed", "IOI", "LP Viewed"].includes(l.status)).length;
   const declinedCount = lenders.filter(l => l.status === "Declined").length;
 
   return (
@@ -900,7 +900,7 @@ function StatusBadge({ status }: { status: LenderStatus }) {
       className = "bg-blue-100 text-blue-700 border-blue-200";
       icon = <TrendingUp className="h-3 w-3 mr-1" />;
       break;
-    case "CIM Viewed":
+    case "LP Viewed":
       className = "bg-amber-100 text-amber-700 border-amber-200";
       icon = <Clock className="h-3 w-3 mr-1" />;
       break;

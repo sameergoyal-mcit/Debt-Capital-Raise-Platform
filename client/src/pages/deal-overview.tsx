@@ -171,7 +171,7 @@ export default function DealOverview() {
             <div className="grid grid-cols-8 gap-2 relative z-10">
               <TimelineStep step="Structuring" status="completed" />
               <TimelineStep step="NDA" status="completed" />
-              <TimelineStep step="CIM" status="completed" />
+              <TimelineStep step="Lender Presentation" status="completed" />
               <TimelineStep step="Marketing" status="completed" />
               <TimelineStep step="IOI" status="completed" />
               <TimelineStep step="Bookbuilding" status="active" />

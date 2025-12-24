@@ -2,7 +2,7 @@ import { differenceInDays, parseISO } from "date-fns";
 
 export type LenderType = "Direct Lender" | "CLO" | "Insurance" | "Bank" | "BDC" | "Credit Fund";
 
-export type LenderStatus = "Not Contacted" | "NDA Sent" | "NDA Signed" | "CIM Viewed" | "IOI" | "Firm" | "Declined";
+export type LenderStatus = "Not Contacted" | "NDA Sent" | "NDA Signed" | "LP Viewed" | "IOI" | "Firm" | "Declined";
 
 export interface Interaction {
   id: string;
@@ -34,7 +34,7 @@ export interface Lender {
   lastContactAt: string; // ISO date
   owner: string;
   nextAction?: {
-    type: "Follow-up" | "Send CIM" | "Schedule Call" | "Closing Docs";
+    type: "Follow-up" | "Send LP" | "Schedule Call" | "Closing Docs";
     dueDate: string; // ISO date
   };
   notes: string;
@@ -54,7 +54,7 @@ export function computeSeriousnessScore(lender: Lender): number {
     case "IOI":
       score += 20;
       break;
-    case "CIM Viewed":
+    case "LP Viewed":
       score += 15;
       break;
     case "NDA Signed":
@@ -143,14 +143,14 @@ export const mockLenders: Lender[] = [
     id: "3",
     name: "Oak Hill Advisors",
     type: "Credit Fund" as LenderType,
-    status: "CIM Viewed" as LenderStatus,
+    status: "LP Viewed" as LenderStatus,
     ticketMin: 5000000,
     ticketMax: 15000000,
     lastContactAt: new Date(Date.now() - 86400000 * 5).toISOString(),
     owner: "Michael Ross",
-    notes: "Downloaded CIM yesterday. Follow up tomorrow.",
+    notes: "Downloaded LP yesterday. Follow up tomorrow.",
     interactions: [
-      { id: "i4", date: new Date(Date.now() - 86400000 * 5).toISOString(), type: "VDR Access", note: "User accessed CIM.", user: "System" }
+      { id: "i4", date: new Date(Date.now() - 86400000 * 5).toISOString(), type: "VDR Access", note: "User accessed Lender Presentation.", user: "System" }
     ],
     seriousnessScore: 0,
   },
@@ -214,7 +214,7 @@ export const mockLenders: Lender[] = [
     id: "8",
     name: "HPS Investment Partners",
     type: "Credit Fund" as LenderType,
-    status: "CIM Viewed" as LenderStatus,
+    status: "LP Viewed" as LenderStatus,
     ticketMin: 10000000,
     ticketMax: 20000000,
     lastContactAt: new Date(Date.now() - 86400000 * 1).toISOString(),

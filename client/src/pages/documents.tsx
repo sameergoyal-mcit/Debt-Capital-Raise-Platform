@@ -61,19 +61,19 @@ export default function DocumentsPage() {
   const accessTier = invitation?.accessTier || "early"; // Default if not found
 
   // Define tier permissions
-  // early: CIM
-  // full: CIM, Financials, KYC
-  // legal: CIM, Financials, KYC, Legal (Credit Agreement, Security, Intercreditor)
+  // early: Lender Presentation
+  // full: Lender Presentation, Financials, KYC
+  // legal: Lender Presentation, Financials, KYC, Legal (Credit Agreement, Security, Intercreditor)
   
   const getAllowedCategories = (tier: string) => {
     switch(tier) {
       case "legal":
-        return ["CIM", "Financials", "KYC", "Credit Agreement", "Security", "Intercreditor"];
+        return ["Lender Presentation", "Financials", "KYC", "Credit Agreement", "Security", "Intercreditor"];
       case "full":
-        return ["CIM", "Financials", "KYC"];
+        return ["Lender Presentation", "Financials", "KYC"];
       case "early":
       default:
-        return ["CIM"];
+        return ["Lender Presentation"];
     }
   };
 
@@ -230,7 +230,7 @@ export default function DocumentsPage() {
                       {isInvestor ? (
                         <>
                           {(accessTier === "early" || accessTier === "full" || accessTier === "legal") && (
-                            <FolderGroup title="Lender Presentation" docs={getDocs("CIM")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                            <FolderGroup title="Lender Presentation" docs={getDocs("Lender Presentation")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
                           )}
                           
                           {(accessTier === "full" || accessTier === "legal") && (
