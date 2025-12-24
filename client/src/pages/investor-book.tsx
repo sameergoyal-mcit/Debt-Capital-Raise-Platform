@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, useRoute } from "wouter";
 import { 
   Search, 
@@ -67,21 +67,29 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 import { useRole } from "@/context/role";
 import { mockLenders, Lender, LenderStatus, LenderType, computeSeriousnessScore } from "@/data/lenders";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
+import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { emailService } from "@/lib/email-service";
+
 export default function InvestorBook() {
   const [, params] = useRoute("/deal/:id/book");
   const dealId = params?.id || "123";
   const { role } = useRole();
+  const { toast } = useToast();
   const [lenders, setLenders] = useState<Lender[]>(mockLenders);
   const [selectedLenderId, setSelectedLenderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
 
   const selectedLender = useMemo(() => 
     lenders.find(l => l.id === selectedLenderId), 
@@ -130,6 +138,11 @@ export default function InvestorBook() {
             {role === "bookrunner" && (
               <Button className="gap-2 bg-primary text-primary-foreground">
                 <Plus className="h-4 w-4" /> Add Investor
+              </Button>
+            )}
+            {(role === "issuer" || role === "bookrunner") && (
+              <Button variant="secondary" className="gap-2" onClick={() => setIsReminderModalOpen(true)}>
+                <Send className="h-4 w-4" /> Send Reminders
               </Button>
             )}
           </div>
@@ -205,15 +218,196 @@ export default function InvestorBook() {
           </SheetContent>
         </Sheet>
 
+        <SendReminderModal 
+          isOpen={isReminderModalOpen} 
+          onClose={() => setIsReminderModalOpen(false)} 
+          lenders={lenders}
+          dealName="Project Titan" // In real app, get from deal context
+        />
+
       </div>
     </Layout>
   );
 }
 
-// --- Views & Components ---
+// --- Send Reminder Modal ---
 
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+function SendReminderModal({ 
+  isOpen, 
+  onClose, 
+  lenders,
+  dealName
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  lenders: Lender[]; 
+  dealName: string; 
+}) {
+  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  
+  // Auto-detect reminder context and select recipients
+  useEffect(() => {
+    if (isOpen) {
+      // Logic to pre-select relevant lenders
+      // For this mock, let's select those who haven't signed NDA or are just generally active but not "Declined"
+      const relevant = lenders.filter(l => l.status !== "Declined" && l.status !== "Not Contacted");
+      setSelectedIds(new Set(relevant.map(l => l.id)));
+      
+      // Default Draft
+      setSubject(`Reminder: Process Update – ${dealName}`);
+      setBody(`Hi {{LENDER_NAME}},
+
+We are following up regarding the ${dealName} financing process.
+
+Please note the upcoming deadline:
+{{DEADLINE}}
+
+You can access the deal materials and take action here:
+{{LINK}}
+
+Best regards,
+CapitalFlow Team`);
+    }
+  }, [isOpen, lenders, dealName]);
+
+  const toggleLender = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleSend = async () => {
+    if (selectedIds.size === 0) return;
+    setIsSending(true);
+
+    try {
+      const selectedLenders = lenders.filter(l => selectedIds.has(l.id));
+      let sentCount = 0;
+
+      for (const lender of selectedLenders) {
+        // Replace variables
+        const personalBody = body
+          .replace(/{{LENDER_NAME}}/g, lender.owner.split(' ')[0]) // Use first name of owner as proxy
+          .replace(/{{DEAL_NAME}}/g, dealName)
+          .replace(/{{DEADLINE}}/g, "Friday, Nov 15th") // Mock deadline
+          .replace(/{{LINK}}/g, `${window.location.origin}/investor/deal/123`);
+
+        const personalSubject = subject.replace(/{{DEAL_NAME}}/g, dealName);
+
+        // Send (Mock)
+        // In real app we'd map lender to their email properly
+        // Here we mock email generation
+        const email = `investor.${lender.id}@fund.com`; 
+        
+        await emailService.send({
+          to: email,
+          subject: personalSubject,
+          html: personalBody.replace(/\n/g, "<br/>") // Simple text to HTML
+        });
+        sentCount++;
+      }
+
+      toast({
+        title: "Reminders Sent",
+        description: `Successfully sent ${sentCount} reminder emails.`,
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to send reminders", error);
+      toast({
+        title: "Error",
+        description: "Failed to send some reminders. Check console.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const selectedLendersList = lenders.filter(l => selectedIds.has(l.id));
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 py-4 border-b">
+          <DialogTitle>Send Reminders</DialogTitle>
+          <DialogDescription>
+            Send email updates or reminders to selected investors.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Recipients Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Recipients ({selectedIds.size})</Label>
+              <div className="flex gap-2">
+                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedIds(new Set(lenders.map(l => l.id)))}>Select All</Button>
+                 <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedIds(new Set())}>Select None</Button>
+              </div>
+            </div>
+            <div className="border rounded-md max-h-[200px] overflow-y-auto bg-secondary/10">
+              <Table>
+                <TableBody>
+                  {lenders.map(lender => (
+                    <TableRow key={lender.id} className="hover:bg-background/50">
+                      <TableCell className="w-[40px] p-2 pl-4">
+                        <Checkbox 
+                          checked={selectedIds.has(lender.id)} 
+                          onCheckedChange={() => toggleLender(lender.id)} 
+                        />
+                      </TableCell>
+                      <TableCell className="p-2 font-medium text-sm">{lender.name}</TableCell>
+                      <TableCell className="p-2 text-sm text-muted-foreground">{lender.type}</TableCell>
+                      <TableCell className="p-2">
+                         <StatusBadge status={lender.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Email Draft Section */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email subject..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Message Body</Label>
+              <Textarea 
+                value={body} 
+                onChange={e => setBody(e.target.value)} 
+                className="min-h-[200px] font-mono text-sm" 
+                placeholder="Type your message here..." 
+              />
+              <p className="text-xs text-muted-foreground">
+                Available variables: <code className="bg-secondary px-1 rounded">{"{{LENDER_NAME}}"}</code>, <code className="bg-secondary px-1 rounded">{"{{DEAL_NAME}}"}</code>, <code className="bg-secondary px-1 rounded">{"{{DEADLINE}}"}</code>, <code className="bg-secondary px-1 rounded">{"{{LINK}}"}</code>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="px-6 py-4 border-t bg-secondary/5">
+           <Button variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
+           <Button onClick={handleSend} disabled={isSending || selectedIds.size === 0} className="gap-2">
+             <Send className="h-4 w-4" /> 
+             {isSending ? "Sending..." : "Send Reminders"}
+           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Views & Components ---
 
 function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdateLender: (l: Lender) => void }) {
   // Mocking the "current user" as BlackRock (ID 1)
@@ -499,7 +693,16 @@ function IssuerTable({ lenders }: { lenders: Lender[] }) {
   )
 }
 
-function LenderDetailDrawer({ lender }: { lender: Lender }) {
+function LenderDetailDrawer({ lender, onUpdateLender }: { lender: Lender, onUpdateLender: (l: Lender) => void }) {
+  const [noteText, setNoteText] = useState("");
+
+  const handleSaveNote = () => {
+    if (!noteText.trim()) return;
+    const updated = { ...lender, notes: noteText }; // Simple overwrite for mock
+    onUpdateLender(updated);
+    setNoteText("");
+  };
+
   return (
     <div className="h-full flex flex-col">
       <SheetHeader className="mb-6">
@@ -606,8 +809,10 @@ function LenderDetailDrawer({ lender }: { lender: Lender }) {
                <Textarea 
                  placeholder="Add a note..." 
                  className="min-h-[100px] resize-none" 
+                 value={noteText}
+                 onChange={(e) => setNoteText(e.target.value)}
                />
-               <Button size="sm" className="w-full">Save Note</Button>
+               <Button size="sm" className="w-full" onClick={handleSaveNote}>Save Note</Button>
                <Separator />
                <div className="space-y-4">
                  <div className="p-3 bg-secondary/20 rounded text-sm">

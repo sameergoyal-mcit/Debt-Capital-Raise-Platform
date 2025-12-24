@@ -1,0 +1,100 @@
+Implement “Send Reminders” functionality with editable email draft modal for Issuer/Bookrunner.
+
+====================================================
+1) Button Placement & Access
+====================================================
+- Add a “Send Reminders” button on Deal Admin page (Deal Overview or Invitations section).
+- Visible only to roles: issuer, bookrunner.
+- Clicking opens a modal dialog (shadcn Dialog).
+
+====================================================
+2) Modal UI Layout
+====================================================
+Modal contains:
+
+A) Recipients Section
+- List of lenders invited to this deal.
+- Each row shows:
+  - Lender name
+  - Email
+  - Status badges:
+    - NDA Not Signed
+    - Commitment Missing
+    - Docs Not Reviewed
+- Checkbox per lender (default checked if reminder applicable).
+- Allow manual deselection.
+
+B) Email Draft Section
+- Input: Subject (pre-filled, editable)
+- Textarea: Email body (pre-filled, editable)
+- Use professional lender-grade language.
+- Support simple variables:
+  {{LENDER_NAME}}, {{DEAL_NAME}}, {{DEADLINE}}, {{LINK}}
+
+C) Footer Actions
+- “Send Reminder” (primary)
+- “Preview Email” (opens read-only preview)
+- “Cancel”
+
+====================================================
+3) Default Email Draft Generation
+====================================================
+On modal open:
+- Auto-detect reminder context:
+  - NDA Reminder if any selected lenders have ndaRequired && !ndaSignedAt
+  - Commitment Reminder if within commitment window and no submission
+  - Otherwise General Update
+- Pre-fill Subject examples:
+  - “Reminder: NDA Required – {{DEAL_NAME}}”
+  - “Reminder: Commitment Due – {{DEAL_NAME}}”
+- Pre-fill Body example:
+
+  Hi {{LENDER_NAME}},
+
+  We are following up regarding the {{DEAL_NAME}} financing process.
+
+  Please note the upcoming deadline:
+  {{DEADLINE}}
+
+  You can access the deal materials and take action here:
+  {{LINK}}
+
+  Best regards,
+  CapitalFlow Team
+
+Issuer/Bookrunner can edit freely.
+
+====================================================
+4) Send Behavior
+====================================================
+On “Send Reminder”:
+- For each selected lender:
+  - Render subject/body with variables replaced
+  - Call sendEmail({ to, subject, html })
+- Use existing email service abstraction:
+  - Mock mode: log + store in Sent Emails log
+  - SendGrid mode: send real email
+- After send:
+  - Show success toast: “Reminders sent”
+  - Close modal
+  - Append entries to reminder audit log:
+    lenderId, dealId, sentAt, sentBy, reminderType
+
+====================================================
+5) Audit & Safety
+====================================================
+- Store reminder audit log per deal.
+- Prevent sending if:
+  - No recipients selected
+  - Subject or body empty
+- Investor role must NOT see this button or modal.
+- Do not include internal metrics or other lenders’ data in email body.
+
+====================================================
+6) UX Polish
+====================================================
+- Disable Send button while sending.
+- Show count of recipients selected.
+- Keep styling consistent with shadcn UI.
+
+Ensure TypeScript compiles and app runs in Replit.

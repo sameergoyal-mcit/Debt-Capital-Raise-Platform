@@ -1,0 +1,71 @@
+Fix unauthorized route handling to be role-aware and redirect instead of showing NotFound.
+
+====================================================
+1) Define Unauthorized Redirect Logic
+====================================================
+Create a helper function (or inline logic):
+
+- If role === "investor":
+    redirect to "/investor"
+- If role === "issuer" or "bookrunner":
+    redirect to "/deals"
+
+This redirect should be used whenever access is denied due to role or deal access,
+NOT for truly unknown routes.
+
+====================================================
+2) Update ProtectedRoute / RequireRole Components
+====================================================
+Wherever a route guard currently does one of the following:
+- returns <NotFound />
+- falls through to NotFound when role is not allowed
+
+Change behavior to:
+- use <Redirect to={getUnauthorizedRedirect(role)} />
+
+Do NOT treat authorization failure as a 404.
+
+====================================================
+3) Deal Access Enforcement
+====================================================
+When accessing /deal/:id/*:
+
+- If role is issuer or bookrunner:
+    allow access if deal exists
+- If role is investor:
+    - If dealId is NOT in investor.dealAccess:
+        redirect to "/investor"
+    - If dealId is allowed BUT page is not investor-safe:
+        redirect to "/investor/deal/:id"
+
+====================================================
+4) Investor-Safe Landing
+====================================================
+Ensure investor-safe deal landing exists:
+- /investor/deal/:id
+
+Use this as the redirect target for:
+- investors trying to access /deal/:id/overview
+- investors trying to access /deal/:id/book
+- investors trying to access /deal/:id/analytics
+- investors trying to access /deal/:id/viewer
+
+====================================================
+5) Preserve True 404 Behavior
+====================================================
+Only show <NotFound /> when:
+- Route does not exist at all
+- AND user is authenticated
+- AND route is not an internal restricted page
+
+====================================================
+6) UX Verification
+====================================================
+After changes:
+- Typing internal URLs as investor never shows "Page not available"
+- Investor always lands on either:
+    /investor
+    or /investor/deal/:id
+- Issuer/bookrunner behavior unchanged
+
+Ensure app compiles and routing works correctly in Replit.
