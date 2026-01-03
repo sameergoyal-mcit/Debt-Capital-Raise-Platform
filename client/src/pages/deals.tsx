@@ -59,6 +59,7 @@ import { mockDeals, Deal, DealStatus, computeDealRisk } from "@/data/deals";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useAuth } from "@/context/auth-context";
+import { AccessNotice } from "@/components/access-notice";
 
 export default function Deals() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -124,6 +125,7 @@ export default function Deals() {
 
   return (
     <Layout>
+      <AccessNotice />
       <div className="space-y-6 animate-in fade-in duration-500">
         {/* Header Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

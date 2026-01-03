@@ -1,0 +1,86 @@
+Implement role-aware unauthorized routing behavior AND add a friendly investor-safe fallback screen/message.
+
+====================================================
+PART 1 — ROLE-AWARE REDIRECTS (NO MORE “PAGE NOT AVAILABLE” FOR INVESTORS)
+====================================================
+
+GOAL:
+If a user types a URL directly:
+- Issuer/Bookrunner: allow if authorized, else redirect to /deals
+- Investor: never show NotFound for restricted/internal pages; redirect to /investor or /investor/deal/:id
+
+1) Create a shared helper:
+- file: client/src/lib/auth-redirects.ts (or similar)
+Export:
+- getUnauthorizedRedirect(role): 
+    investor -> "/investor"
+    issuer/bookrunner -> "/deals"
+- getInvestorDealRedirect(dealId): `/investor/deal/${dealId}`
+
+2) Update all route guard components (ProtectedRoute / RequireAuth / RequireRole / InvestorOnly):
+- Replace any “return <NotFound />” or “fall through to NotFound when unauthorized” with:
+  - redirect to getUnauthorizedRedirect(role)
+- If the URL is a /deal/:id/* path and the user is investor:
+  - if dealId not in session.dealAccess -> redirect "/investor"
+  - if dealId is allowed but route is non-investor-safe (overview/book/closing/analytics/publish/viewer) -> redirect `/investor/deal/${dealId}`
+
+3) Preserve true 404 behavior:
+- Only show NotFound when:
+  - route does not exist AND user is authenticated
+  - AND the URL is not a known restricted/internal route pattern
+(So authorization failure is never treated as NotFound.)
+
+4) Ensure investor-safe deal landing exists:
+- /investor/deal/:id route must exist and work
+- This becomes the redirect target when investor tries to access restricted deal pages
+
+5) Add optional query param to pass a reason:
+- Redirects for unauthorized access should include:
+  ?reason=unauthorized
+  and when redirecting from /deal/:id/* to investor deal home:
+  ?reason=restricted&from=/deal/:id/overview
+
+====================================================
+PART 2 — FRIENDLY “NO ACCESS” MESSAGE (INVESTOR-SAFE FALLBACK UX)
+====================================================
+
+GOAL:
+Instead of a silent redirect, show a friendly banner/toast explaining why the user was redirected.
+
+1) Create a lightweight “Access Notice” component:
+- file: client/src/components/access-notice.tsx
+Behavior:
+- Reads query params: reason and from
+- If reason exists, display a shadcn Alert at top of page:
+  - If reason=unauthorized: “You don’t have access to that page. Redirected to your dashboard.”
+  - If reason=restricted: “That page is restricted. Redirected to your lender portal for this deal.”
+  - Show optional “from” link text (not clickable is fine)
+
+2) Display Access Notice on:
+- /investor (Investor Dashboard)
+- /investor/deal/:id (Investor Deal Home)
+- /deals (Issuer/Bookrunner landing) optional
+
+3) Ensure notice auto-dismisses:
+- Either:
+  - show for 6 seconds then hide
+  - or allow manual close (X button)
+
+4) (Optional) Also trigger a toast:
+- If you already use toaster, trigger toast on redirect for immediate feedback.
+
+====================================================
+VALIDATION / EXPECTED RESULTS
+====================================================
+
+- Logged in as Investor:
+  - visiting /deal/123/overview redirects to /investor/deal/123?reason=restricted&from=...
+  - visiting /analytics redirects to /investor?reason=unauthorized&from=...
+  - investor never sees “Page not available” for restricted internal pages
+  - investor DOES see NotFound for truly invalid URLs like /asdfasdf
+
+- Logged in as Issuer/Bookrunner:
+  - normal access unchanged
+  - unauthorized redirects go to /deals with a friendly message
+
+Ensure TypeScript compiles and routing works in Replit.

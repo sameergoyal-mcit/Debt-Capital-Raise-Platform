@@ -24,12 +24,7 @@ import IssuerViewer from "@/pages/viewer/issuer";
 import BookrunnerViewer from "@/pages/viewer/bookrunner";
 import InvestorViewer from "@/pages/viewer/investor";
 import Settings from "@/pages/settings";
-
-// Helper for unauthorized redirects
-function getUnauthorizedRedirect(role: UserRole) {
-  if (role === "Investor") return "/investor";
-  return "/deals";
-}
+import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Protected Route Wrapper
 function ProtectedRoute({ 
@@ -55,7 +50,8 @@ function ProtectedRoute({
   if (user?.role === "Investor" && dealId) {
     // If user has no deal access list or deal is not in list
     if (!user.dealAccess || !user.dealAccess.includes(dealId)) {
-      return <Redirect to="/investor" />;
+      // Redirect to dashboard with "unauthorized" reason
+      return <Redirect to={getRedirectWithReason("/investor", "unauthorized", location)} />;
     }
   }
 
@@ -67,11 +63,11 @@ function ProtectedRoute({
        // but the specific PAGE is restricted (e.g. /deal/123/book),
        // redirect them to the investor-safe deal home.
        if (dealId) {
-         return <Redirect to={`/investor/deal/${dealId}`} />;
+         return <Redirect to={getRedirectWithReason(getInvestorDealRedirect(dealId), "restricted", location)} />;
        }
-       return <Redirect to="/investor" />;
+       return <Redirect to={getRedirectWithReason("/investor", "unauthorized", location)} />;
     }
-    return <Redirect to="/deals" />;
+    return <Redirect to={getRedirectWithReason("/deals", "unauthorized", location)} />;
   }
 
   return <Component />;

@@ -27,6 +27,7 @@ import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
 import { dealDeadlines } from "@/lib/deal-deadlines";
 import { useToast } from "@/hooks/use-toast";
+import { AccessNotice } from "@/components/access-notice";
 
 export default function InvestorDealHome() {
   const { user } = useAuth();
@@ -82,6 +83,7 @@ export default function InvestorDealHome() {
 
   return (
     <Layout>
+      <AccessNotice />
       <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
          {/* Breadcrumb-ish */}
          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
