@@ -1,0 +1,74 @@
+Fix the /messages 404 by wiring the route, then implement the Bookrunner Messages grouped inbox page with role-based visibility.
+
+====================================================
+PART 1 — FIX ROUTING (REMOVE 404)
+====================================================
+
+1) In client/src/App.tsx:
+- Add an import for the Messages page:
+  import Messages from "@/pages/messages";
+- Add a route:
+  <Route path="/messages" component={Messages} />
+
+2) Verify that the sidebar NavItem in Layout points to "/messages".
+- If it points elsewhere, correct it to "/messages".
+
+3) Create the file if missing:
+- client/src/pages/messages.tsx
+- Ensure it exports a default React component.
+
+At this point /messages must render a non-empty page (no 404).
+
+====================================================
+PART 2 — IMPLEMENT MESSAGES PAGE (GROUPED INBOX)
+====================================================
+
+4) Data model (mock store is fine):
+- Create a threads/messages mock store (in lib or mock-db):
+Thread:
+  id, dealId?, group: "issuer" | "investor" | "counsel",
+  lenderId? (for investor threads), title, lastMessageAt, participants
+Message:
+  id, threadId, senderRole, senderName, body, createdAt, attachments?
+
+Seed:
+- One issuer thread
+- Multiple investor threads (one per lender)
+- A few messages in each
+
+5) UI layout for /messages:
+- Left column: grouped thread list with headings:
+  - Issuer
+  - Investors
+  - Counsel (optional)
+- Main column: conversation panel for selected thread
+- Bottom: message composer with Send button (mock send appends to thread)
+
+6) Role-based visibility:
+- Bookrunner: see all threads
+- Issuer: see issuer thread + all investor threads for deals they own (MVP: allow all deal threads)
+- Investor: see ONLY investor threads where lenderId === session.lenderId AND dealId in session.dealAccess
+
+7) Optional (nice): Add a filter toggle
+- “Current deal only” if the user is inside /deal/:id/* route context.
+
+====================================================
+PART 3 — UX & SAFETY
+====================================================
+
+8) If user has no threads:
+- show empty state “No conversations yet”
+
+9) Ensure Investors cannot see other investors’ threads/messages.
+
+10) Ensure page uses existing Layout and styling (shadcn components).
+
+====================================================
+VALIDATION
+====================================================
+
+- /messages no longer shows 404
+- Bookrunner sees grouped inbox and can open threads
+- Investor sees only their own threads
+- Sending a message updates the thread view
+- TypeScript compiles and app runs in Replit

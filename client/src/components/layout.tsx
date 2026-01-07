@@ -79,7 +79,10 @@ export function Layout({ children }: LayoutProps) {
           )}
 
           {isInvestor && !isDealWorkspace && (
-             <NavItem href="/investor" icon={<LayoutDashboard size={20} />} label="Investor Dashboard" active={location === "/investor"} />
+             <>
+               <NavItem href="/investor" icon={<LayoutDashboard size={20} />} label="Investor Dashboard" active={location === "/investor"} />
+               <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
+             </>
           )}
 
           {isDealWorkspace && dealId && (

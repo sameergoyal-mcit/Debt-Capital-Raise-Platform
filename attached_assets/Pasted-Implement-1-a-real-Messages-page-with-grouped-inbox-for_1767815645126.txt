@@ -1,0 +1,105 @@
+Implement (1) a real Messages page with grouped inbox for Bookrunner and (2) commitment submission acknowledgement + build order status surfaced for Issuer/Bookrunner.
+
+====================================================
+PART 1 — MESSAGES PAGE (BOOKRUNNER-READY)
+====================================================
+
+1) Create a real route for /messages and connect it from sidebar.
+- Ensure Messages nav item routes to /messages and renders a page.
+
+2) Create message data model (mock store is fine):
+MessageThread:
+- id
+- dealId (optional; allow both global and per-deal threads)
+- threadType: "issuer" | "investor" | "counsel"
+- lenderId? (required for investor thread)
+- participants: [{ role, name, email, lenderId? }]
+- lastMessageAt
+- subject/title
+
+Message:
+- id
+- threadId
+- sender: { role, name, email, lenderId? }
+- body
+- createdAt
+- attachments?: [{ name, url }] (mock ok)
+
+3) UI Layout for /messages:
+- Left: thread list grouped with headings:
+  - Issuer
+  - Investors (one thread per lender)
+  - (Optional) Counsel
+- Middle/right: selected thread conversation (chat style)
+- Bottom: composer with send button, optional attachment button (mock)
+
+4) Role-based visibility:
+- Bookrunner: can see all threads across deals
+- Issuer: can see issuer thread + all investor threads for deals they own (MVP: allow all)
+- Investor: can see ONLY their own investor thread(s) for deals in their access list
+
+5) Deal context:
+- If user is inside a deal workspace, optionally filter threads to that deal (add a “Current Deal only” toggle).
+
+6) Ensure clicking Messages works (no dead routes) and is not 404.
+
+====================================================
+PART 2 — COMMITMENT SUBMISSION ACK + BUILD ORDER STATUS
+====================================================
+
+1) Investor commitment submission visual acknowledgement
+- On /deal/:id/commitment (investor role):
+  - If commitment already exists for (dealId + lenderId):
+    - Replace form with a success state:
+      “Commitment submitted” + submitted timestamp
+      Show summary: ticketMin/max, spread, OID, fees, conditions
+      Provide actions:
+        - “Update submission” (re-opens form prefilled)
+        - “Withdraw submission” (optional; mark as withdrawn not deleted)
+  - Also show a status badge on /investor/deal/:id and /investor dashboard:
+    “Commitment submitted” (and timestamp)
+
+2) Surface commitment status to issuer/bookrunner
+- Add a “Build Order / Execution Status” panel on deal home/overview (issuer/bookrunner view):
+  - Counts:
+    - Invited lenders: X
+    - NDA signed: Y
+    - Commitments received: Z
+    - Firm commitments: W (if you support firm toggle)
+  - A simple table list:
+    Lender | NDA | Commitment | Legal Markup | Last activity
+  - Commitment column shows:
+    - Not submitted
+    - Submitted (timestamp)
+    - Firm (timestamp) if isFirm true
+    - Withdrawn if withdrawn
+
+3) Update Investor Book table (issuer/bookrunner):
+- Add Commitment status column:
+  - Pending / Submitted / Firm / Withdrawn
+  - show submittedAt
+- Add quick filters:
+  - “Submitted only”
+  - “Not submitted”
+
+4) Data correctness:
+- Commitment records must be keyed by (dealId + lenderId)
+- Ensure investor never sees other lenders’ commitments
+- Issuer/bookrunner can see all commitments for the deal
+
+5) Notifications (optional but recommended):
+- When investor submits commitment:
+  - Create a notification for issuer/bookrunner:
+    “Commitment received from [Lender Name]”
+  - Trigger mock email event (if email system exists)
+
+====================================================
+VALIDATION
+====================================================
+
+- Bookrunner clicks Messages and sees grouped inbox with Issuer thread and investor threads.
+- Investor sees only their own threads.
+- Investor submits commitment and the page shows success acknowledgement state.
+- Issuer/bookrunner sees commitment status aggregated on deal home/overview and in investor book table.
+- No role-based access leaks.
+- App compiles and runs in Replit without errors.

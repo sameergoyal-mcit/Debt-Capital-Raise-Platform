@@ -24,6 +24,7 @@ import IssuerViewer from "@/pages/viewer/issuer";
 import BookrunnerViewer from "@/pages/viewer/bookrunner";
 import InvestorViewer from "@/pages/viewer/investor";
 import Settings from "@/pages/settings";
+import MessagesPage from "@/pages/messages";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Protected Route Wrapper
@@ -100,6 +101,10 @@ function Router() {
       {/* Analytics - Internal Only */}
       <Route path="/analytics">
         <ProtectedRoute component={Analytics} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      <Route path="/messages">
+        <ProtectedRoute component={MessagesPage} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
       </Route>
 
       {/* Deal Workspace Pages */}
