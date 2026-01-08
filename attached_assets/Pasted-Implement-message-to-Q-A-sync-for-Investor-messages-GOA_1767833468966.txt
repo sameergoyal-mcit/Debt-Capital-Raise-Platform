@@ -1,0 +1,106 @@
+Implement message-to-Q&A sync for Investor messages.
+
+GOAL:
+In Investor Messages, investor can tag a message as “Due Diligence” or “Deal Process Related”.
+If tagged Due Diligence, the message should automatically create/populate a Q&A item in the Due Diligence (Q&A) tab,
+and issuer/bookrunner replies should sync back as the answer.
+
+====================================================
+1) Data Model Updates
+====================================================
+
+A) Update Message model to include:
+- category: "due_diligence" | "deal_process"
+- dealId (required for investor threads)
+- qaId?: string  // link to Q&A item if category == due_diligence
+
+B) Update Q&A model to include:
+- id
+- dealId
+- lenderId
+- question
+- questionCreatedAt
+- answer?: string
+- answerUpdatedAt?: string
+- status: "open" | "answered"
+- source: "messages" | "qa"
+- threadId?: string   // link back to messages thread
+- messageIds?: string[] // optional linkage
+
+====================================================
+2) Investor Messages UI Changes
+====================================================
+
+On /messages for investor role (and investor deal threads):
+- In the message composer add a required selector:
+  Label: “Type”
+  Options:
+    - Due Diligence
+    - Deal Process Related
+Default: Deal Process Related
+
+When investor sends:
+- Create Message with category based on selection.
+- If category == due_diligence:
+  - Create a new Q&A item for that dealId + lenderId:
+    question = message body
+    source = "messages"
+    status = "open"
+    threadId = current threadId
+  - Store the qaId on the Message record.
+
+Show a small badge on DD messages in thread: “Due Diligence → Q&A”.
+
+====================================================
+3) Sync Bookrunner/Issuer Replies Back to Q&A
+====================================================
+
+When issuer/bookrunner sends a reply in a thread:
+- If replying in a thread that contains a due_diligence message linked to qaId:
+  - Treat issuer/bookrunner reply as the answer update for that qaId:
+    qna.answer = reply body
+    qna.answerUpdatedAt = now
+    qna.status = "answered"
+  - Also store linkage (optional) in qna.messageIds
+
+Important: Only sync replies when the thread is an investor thread and the latest DD question is still “open”.
+If multiple DD questions exist, sync the reply to the most recent open Q&A item in that thread.
+
+====================================================
+4) Due Diligence Tab Behavior (Q&A Page)
+====================================================
+
+For investor role on /deal/:id/qa:
+- Only show Q&A items where lenderId == session.lenderId
+- Display:
+  - question, askedAt
+  - answer (if present), answeredAt
+  - status (Open/Answered)
+  - source badge: “From Messages” if source == "messages"
+- Clicking a Q&A item should optionally link back to the message thread (Open in Messages)
+
+For issuer/bookrunner:
+- Show all Q&A items (all lenders)
+- Allow responding in Q&A UI as well:
+  - If issuer answers in Q&A page, also post the answer into the linked message thread (if threadId exists)
+  - Keep sync bidirectional for DD items that are linked.
+
+====================================================
+5) Prevent Cross-Lender Leakage
+====================================================
+
+- Investors must never see other lenders’ threads or Q&A items.
+- Sync only occurs within the correct dealId + lenderId context.
+
+====================================================
+6) Validation
+====================================================
+
+- Investor sends a “Due Diligence” message:
+  -> It appears in Messages AND as a new Q&A item (Open).
+- Issuer/bookrunner replies in Messages:
+  -> Q&A item becomes Answered and shows the response.
+- Investor sends a “Deal Process Related” message:
+  -> It stays in Messages only; no Q&A item created.
+- Investor Q&A page only shows their Q&A.
+- TypeScript compiles and app runs in Replit.

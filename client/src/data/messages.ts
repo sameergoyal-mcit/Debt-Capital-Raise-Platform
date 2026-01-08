@@ -25,6 +25,11 @@ export interface Message {
   createdAt: string; // ISO
   attachments?: Attachment[];
   readBy: string[]; // User IDs
+  
+  // New fields for Q&A Sync
+  category?: "due_diligence" | "deal_process"; 
+  dealId?: string;
+  qaId?: string; // Link to Q&A item if category == due_diligence
 }
 
 export interface MessageThread {
@@ -130,7 +135,10 @@ export const mockMessages: Record<string, Message[]> = {
       senderId: "u3",
       body: "Sarah - thanks for the invite. Can you clarify the definition of EBITDA used in the marketing deck? Is it Pro Forma for the acquisition synergies?",
       createdAt: subHours(new Date(), 2).toISOString(),
-      readBy: ["u1"]
+      readBy: ["u1"],
+      category: "due_diligence",
+      dealId: "101",
+      qaId: "qa1"
     },
     {
       id: "m2-2",
@@ -139,7 +147,10 @@ export const mockMessages: Record<string, Message[]> = {
       body: "Hi David, yes, it includes $5M of run-rate cost synergies validated by the QofE. I've attached the bridge.",
       createdAt: subHours(new Date(), 1).toISOString(),
       readBy: ["u3"],
-      attachments: [{ id: "a1", name: "EBITDA_Bridge.pdf", url: "#", type: "pdf", size: "1.2 MB" }]
+      attachments: [{ id: "a1", name: "EBITDA_Bridge.pdf", url: "#", type: "pdf", size: "1.2 MB" }],
+      category: "due_diligence",
+      dealId: "101",
+      qaId: "qa1"
     }
   ],
   "t3": [

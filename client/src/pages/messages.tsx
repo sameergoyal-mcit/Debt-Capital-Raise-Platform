@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/context/auth-context";
 import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages } from "@/data/messages";
+import { createQA, updateQA, findOpenQAForThread } from "@/data/qa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,16 +17,29 @@ import {
   Phone, 
   Video, 
   Search as SearchIcon,
-  ChevronLeft
+  ChevronLeft,
+  MessageCircle,
+  HelpCircle,
+  ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MessagesPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
+  const [messageType, setMessageType] = useState<"deal_process" | "due_diligence">("deal_process");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
 
   const threads = useMemo(() => {
@@ -51,6 +65,7 @@ export default function MessagesPage() {
   const handleThreadClick = (threadId: string) => {
     setActiveThreadId(threadId);
     setMobileView("chat");
+    setMessageType("deal_process"); // Reset on thread change
   };
 
   const handleBackToList = () => {
@@ -60,19 +75,64 @@ export default function MessagesPage() {
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeThreadId || !user) return;
     
-    // Mock send
+    const isInvestor = user.role === "Investor";
+    let newQaId: string | undefined;
+
+    // 1. Investor sending Due Diligence Question
+    if (isInvestor && messageType === "due_diligence") {
+        const qaItem = createQA({
+            id: `qa-${Date.now()}`,
+            dealId: activeThread?.dealId || "101",
+            lenderId: user.lenderId || "unknown",
+            question: newMessage,
+            questionCreatedAt: new Date().toISOString(),
+            status: "open",
+            source: "messages",
+            threadId: activeThreadId,
+            topic: "General", // Could be enhanced with topic selector
+            asker: user.name
+        });
+        newQaId = qaItem.id;
+        
+        toast({
+            title: "Q&A Item Created",
+            description: "Your question has been added to the Due Diligence log."
+        });
+    }
+
+    // 2. Issuer/Bookrunner Replying -> Sync to Q&A if applicable
+    if (!isInvestor) {
+        // Find if there is an open question in this thread
+        const openQA = findOpenQAForThread(activeThreadId);
+        if (openQA) {
+            updateQA(openQA.id, {
+                answer: newMessage,
+                answerUpdatedAt: new Date().toISOString(),
+                status: "answered"
+            });
+            toast({
+                title: "Answer Synced",
+                description: "This reply has been synced to the Q&A log."
+            });
+        }
+    }
+
+    // Mock send message
     const newMsg: Message = {
         id: `m-new-${Date.now()}`,
         threadId: activeThreadId,
-        senderId: "u1", // Mock current user ID
+        senderId: user.role === "Bookrunner" ? "u1" : "u3", // Mock ID mapping
         body: newMessage,
         createdAt: new Date().toISOString(),
-        readBy: []
+        readBy: [],
+        category: messageType,
+        dealId: activeThread?.dealId,
+        qaId: newQaId
     };
     
-    // In a real app we'd push to store, here we just force update local state (but since getMessages is static, we cheat a bit for UI demo)
     mockMessages[activeThreadId].push(newMsg);
     setNewMessage("");
+    setMessageType("deal_process"); // Reset to default
   };
 
   // Auto-select first thread on desktop
@@ -83,6 +143,8 @@ export default function MessagesPage() {
   }, [threads, activeThreadId]);
 
   if (!user) return null;
+
+  const isInvestor = user.role === "Investor";
 
   return (
     <Layout>
@@ -196,7 +258,8 @@ export default function MessagesPage() {
                     </div>
 
                   {messages.map((msg) => {
-                    const isMe = msg.senderId === "u1"; // Mock current user check
+                    const isMe = (user.role === "Bookrunner" && msg.senderId === "u1") || (user.role === "Investor" && msg.senderId === "u3"); // Mock logic
+                    
                     return (
                       <div key={msg.id} className={cn("flex gap-3", isMe ? "flex-row-reverse" : "flex-row")}>
                         <Avatar className="h-8 w-8 mt-1 border">
@@ -204,11 +267,13 @@ export default function MessagesPage() {
                         </Avatar>
                         <div className={cn("flex flex-col gap-1 max-w-[75%]", isMe ? "items-end" : "items-start")}>
                            <div className={cn(
-                             "p-3 rounded-2xl text-sm shadow-sm",
+                             "p-3 rounded-2xl text-sm shadow-sm relative",
                              isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-secondary text-secondary-foreground rounded-tl-none"
                            )}>
                              {msg.body}
                            </div>
+                           
+                           {/* Attachments */}
                            {msg.attachments && msg.attachments.length > 0 && (
                              <div className="flex gap-2 mt-1">
                                {msg.attachments.map(att => (
@@ -219,6 +284,17 @@ export default function MessagesPage() {
                                ))}
                              </div>
                            )}
+
+                           {/* Due Diligence Badge */}
+                           {msg.category === "due_diligence" && (
+                               <Badge variant="outline" className={cn(
+                                   "mt-1 text-[10px] gap-1 px-1.5 h-5 font-normal",
+                                   isMe ? "bg-primary-foreground/10 text-muted-foreground border-primary/20" : "bg-background/50 border-border/50"
+                               )}>
+                                   <HelpCircle className="h-3 w-3" /> Due Diligence → Q&A
+                               </Badge>
+                           )}
+
                            <span className="text-[10px] text-muted-foreground px-1">
                              {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                            </span>
@@ -230,14 +306,44 @@ export default function MessagesPage() {
               </ScrollArea>
 
               {/* Chat Input */}
-              <div className="p-4 bg-background border-t border-border">
+              <div className="p-4 bg-background border-t border-border space-y-3">
+                
+                {/* Type Selector for Investors */}
+                {isInvestor && activeThread.category === "Investor" && (
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="text-xs font-medium text-muted-foreground">Message Type:</span>
+                    <Select value={messageType} onValueChange={(v: any) => setMessageType(v)}>
+                        <SelectTrigger className="h-7 text-xs w-[180px] bg-secondary/30 border-transparent hover:bg-secondary/50 focus:ring-0">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="deal_process">
+                                <div className="flex items-center gap-2">
+                                    <MessageCircle className="h-3 w-3" /> Deal Process Related
+                                </div>
+                            </SelectItem>
+                            <SelectItem value="due_diligence">
+                                <div className="flex items-center gap-2">
+                                    <HelpCircle className="h-3 w-3" /> Due Diligence Question
+                                </div>
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {messageType === "due_diligence" && (
+                        <span className="text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full animate-in fade-in slide-in-from-left-2">
+                            Will create a Q&A item
+                        </span>
+                    )}
+                  </div>
+                )}
+
                 <div className="max-w-3xl mx-auto flex items-end gap-2 bg-secondary/20 p-2 rounded-lg border border-border/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground shrink-0 rounded-full hover:bg-secondary/40">
                     <Paperclip className="h-4 w-4" />
                   </Button>
                   <Input 
                     className="border-0 bg-transparent focus-visible:ring-0 px-2 h-auto min-h-[36px] py-2 max-h-32 resize-none" 
-                    placeholder="Type a message..." 
+                    placeholder={isInvestor && messageType === "due_diligence" ? "Type your due diligence question..." : "Type a message..."}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
