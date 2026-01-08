@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useRoute } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,16 +13,53 @@ import {
   Scale, 
   AlertCircle,
   FileCheck,
-  Download
+  Download,
+  Plus,
+  FileText
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
-import { mockClosingItems, ClosingItem } from "@/data/documents";
-import { RoleSwitcher } from "@/components/role-switcher";
+import { mockClosingItems, ClosingItem, mockDocuments } from "@/data/documents";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { downloadCSV, downloadPlaceholderDoc } from "@/lib/download";
+import { AddChecklistItemModal, ChecklistItem } from "@/components/add-checklist-item-modal";
 
 export default function Closing() {
   const [, params] = useRoute("/deal/:id/closing");
-  const dealId = params?.id;
+  const dealId = params?.id || "101";
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [customItems, setCustomItems] = useState<ChecklistItem[]>([]);
+  
+  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
+  const dealDocs = mockDocuments.filter(d => d.dealId === dealId);
+
+  const handleExportCPs = () => {
+    const allItems = [...mockClosingItems, ...customItems.map(c => ({
+      id: c.id,
+      item: c.name,
+      category: c.section.includes("Legal") ? "Legal" as const : c.section.includes("Financial") ? "Financial" as const : "Operational" as const,
+      owner: c.ownerRole || "TBD",
+      status: c.status === "COMPLETE" ? "Completed" as const : c.status === "IN_PROGRESS" ? "In Progress" as const : "Pending" as const,
+      dueDate: "",
+    }))];
+    
+    const headers = ["Item", "Category", "Owner", "Status", "Due Date"];
+    const rows = allItems.map(item => [item.item, item.category, item.owner, item.status, item.dueDate || ""]);
+    downloadCSV(`${deal.dealName}_closing_checklist.csv`, headers, rows);
+    toast({ title: "Export Complete", description: `Exported ${allItems.length} checklist items.` });
+  };
+
+  const handleAddItem = (item: Omit<ChecklistItem, "id" | "createdAt">) => {
+    const newItem: ChecklistItem = {
+      ...item,
+      id: `custom-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    setCustomItems(prev => [...prev, newItem]);
+  };
 
   const legalItems = mockClosingItems.filter(i => i.category === "Legal");
   const financialItems = mockClosingItems.filter(i => i.category === "Financial");
@@ -46,8 +83,12 @@ export default function Closing() {
             <p className="text-muted-foreground">Manage conditions precedent (CPs) and funding requirements.</p>
           </div>
           <div className="flex items-center gap-3">
-             <RoleSwitcher />
-             <Button variant="outline" className="gap-2">
+             {isInternal && (
+               <Button variant="outline" className="gap-2" onClick={() => setIsAddItemOpen(true)} data-testid="button-add-checklist-item">
+                 <Plus className="h-4 w-4" /> Add Item
+               </Button>
+             )}
+             <Button variant="outline" className="gap-2" onClick={handleExportCPs} data-testid="button-export-cp">
                <Download className="h-4 w-4" /> Export CP List
              </Button>
           </div>
@@ -150,6 +191,14 @@ export default function Closing() {
           </div>
         </div>
       </div>
+      {/* Add Checklist Item Modal */}
+      <AddChecklistItemModal
+        isOpen={isAddItemOpen}
+        onClose={() => setIsAddItemOpen(false)}
+        onAdd={handleAddItem}
+        dealId={dealId}
+        existingDocuments={dealDocs}
+      />
     </Layout>
   );
 }

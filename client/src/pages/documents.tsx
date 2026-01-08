@@ -46,6 +46,9 @@ import { Label } from "@/components/ui/label";
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { storageService } from "@/lib/storage-service";
+import { downloadCSV, downloadPlaceholderDoc } from "@/lib/download";
+import { UploadDocumentModal, UploadedDocument } from "@/components/upload-document-modal";
+import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/components/document-filter-panel";
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -53,8 +56,34 @@ export default function DocumentsPage() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<DocumentFilters>(defaultDocumentFilters);
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const handleDownloadDoc = (doc: Document) => {
+    downloadPlaceholderDoc(doc.name, doc.version);
+    toast({ title: "Download Started", description: `Downloading ${doc.name}...` });
+  };
+
+  const handleExportDocs = () => {
+    const headers = ["Folder", "DocumentName", "Version", "UpdatedAt", "Visibility", "ChangeSummary"];
+    const rows = accessibleDocs.map(d => [
+      d.category,
+      d.name,
+      d.version,
+      d.lastUpdatedAt,
+      d.accessTier || "all",
+      d.changeSummary || ""
+    ]);
+    downloadCSV(`documents_export.csv`, headers, rows);
+    toast({ title: "Export Complete", description: `Exported ${accessibleDocs.length} documents.` });
+  };
+
+  const handleNewDocUpload = (doc: UploadedDocument) => {
+    setUploadedDocs(prev => [...prev, doc]);
+  };
 
   const isInvestor = user?.role === "Investor";
   const invitation = isInvestor && user?.lenderId ? getInvitation(dealId, user.lenderId) : null;
@@ -198,14 +227,15 @@ export default function DocumentsPage() {
             </h1>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setIsFilterOpen(true)} data-testid="button-filter">
               <Filter className="h-4 w-4" /> Filter
             </Button>
-            {!isInvestor && (
-              <Button className="gap-2" onClick={handleNewVersionUpload}>
-                <Upload className="h-4 w-4" /> Upload New Version
-              </Button>
-            )}
+            <Button variant="outline" className="gap-2" onClick={handleExportDocs} data-testid="button-export-docs">
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="gap-2" onClick={() => setIsUploadOpen(true)} data-testid="button-upload">
+              <Upload className="h-4 w-4" /> Upload
+            </Button>
           </div>
         </div>
 
@@ -530,6 +560,24 @@ export default function DocumentsPage() {
       <NDAGate dealId={dealId} title="Virtual Data Room Access">
         <PageContent />
       </NDAGate>
+      
+      {/* Upload Document Modal */}
+      <UploadDocumentModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={handleNewDocUpload}
+        dealId={dealId}
+        role={user?.role || "Investor"}
+      />
+      
+      {/* Filter Panel */}
+      <DocumentFilterPanel
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        filters={filters}
+        onFiltersChange={setFilters}
+        role={user?.role || "Investor"}
+      />
     </Layout>
   );
 }

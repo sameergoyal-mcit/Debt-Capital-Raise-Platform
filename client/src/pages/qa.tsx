@@ -44,8 +44,9 @@ import { useAuth } from "@/context/auth-context";
 import { getQAs, updateQA, QAItem } from "@/data/qa";
 import { mockMessages, Message } from "@/data/messages";
 import { mockDeals } from "@/data/deals";
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow, parseISO, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { downloadCSV } from "@/lib/download";
 
 export default function QACenter() {
   const [, params] = useRoute("/deal/:id/qa");
@@ -102,7 +103,27 @@ export default function QACenter() {
                 </SelectContent>
               </Select>
             )}
-            <Button variant="outline" className="gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => {
+                const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "Source"];
+                const rows = qaItems.map(q => [
+                  currentDeal?.dealName || dealId,
+                  q.lenderName || "N/A",
+                  q.topic || "General",
+                  q.status,
+                  q.question,
+                  q.questionCreatedAt ? format(parseISO(q.questionCreatedAt), "yyyy-MM-dd HH:mm") : "",
+                  q.answer || "",
+                  q.answerUpdatedAt ? format(parseISO(q.answerUpdatedAt), "yyyy-MM-dd HH:mm") : "",
+                  q.source || "direct"
+                ]);
+                downloadCSV(`${currentDeal?.dealName || "deal"}_qa_export.csv`, headers, rows);
+                toast({ title: "Export Complete", description: `Exported ${qaItems.length} Q&A items to CSV.` });
+              }}
+              data-testid="button-export-qa"
+            >
               <Download className="h-4 w-4" /> Export Q&A Log
             </Button>
             {isInvestor && (

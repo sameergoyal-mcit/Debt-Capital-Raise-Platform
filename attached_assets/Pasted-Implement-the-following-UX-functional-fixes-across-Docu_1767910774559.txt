@@ -1,0 +1,165 @@
+Implement the following UX + functional fixes across Documents, Q&A, Closing Checklist, and Timeline/Calendar. Ensure all buttons actually perform expected actions (download/upload/filter) and respect role permissions.
+
+====================================================
+1) EXPORT BUTTONS MUST DOWNLOAD REAL FILES
+====================================================
+
+A) Q&A: “Export Q&A” button
+- On /deal/:id/qa (and any investor-scoped Q&A), implement Export Q&A to download a file.
+- Export formats:
+  1) CSV (default)
+  2) Optional: XLSX (if easy)
+- CSV columns:
+  Deal, Lender, Category, Status, Question, AskedAt, Answer, AnsweredAt, Source
+- For investor role export ONLY their own Q&A (lenderId scoped).
+- For issuer/bookrunner export all Q&A.
+
+Implementation notes:
+- Create util client/src/lib/download.ts:
+  - downloadTextFile(filename, mimeType, content)
+  - downloadBlob(filename, blob)
+- Use Blob + URL.createObjectURL and programmatic <a download> click.
+
+B) Documents: “Export as CSV” button (if present in docs table)
+- Export current visible docs list (respect filters and role/tier visibility).
+- CSV columns:
+  Folder, DocumentName, Version, UpdatedAt, Visibility, ChangeSummary
+- Download should work immediately.
+
+C) Any “Download” buttons
+- If a document has a stored file URL or uploaded blob metadata, download it.
+- If mock/no real file exists, still download a placeholder text file:
+  “This is a demo placeholder for <document name> (vX).”
+(Do not leave buttons non-functional.)
+
+====================================================
+2) UPLOAD BUTTON SHOULD OPEN A MODAL + ACTUALLY UPLOAD
+====================================================
+
+A) Replace current Upload button behavior:
+- Clicking Upload opens a modal dialog (shadcn Dialog) with:
+  - File picker (accept: pdf, xls, xlsx, csv, doc, docx)
+  - Document category dropdown (Lender Presentation, Supplemental, KYC & Compliance, Lender Paydown Model, Legal, Closing)
+  - Document type dropdown (e.g., Financial, Legal, Model, Other)
+  - Optional “Visible to tier” dropdown (early/full/legal) for issuer/bookrunner
+  - Optional notes/changelog field
+  - Upload + Cancel buttons
+
+B) Upload logic:
+- Store uploaded file metadata in document store:
+  id, dealId, name, category, type, version, uploadedAt, updatedAt, uploadedBy, visibilityTier, fileRef
+- For MVP store as:
+  - in-memory blob + object URL OR base64 OR mock file reference
+- After upload:
+  - show success toast
+  - document appears immediately in the list
+  - mark as NEW/UPDATED for investors (doc alerts system)
+
+Role rules:
+- issuer/bookrunner can upload into any folder
+- investor can upload ONLY to Legal folder as markups (existing behavior), and only their own markups.
+
+====================================================
+3) FILTER BUTTON MUST OPEN FILTER PANEL (DOC CATEGORY/TYPE/ETC)
+====================================================
+
+A) Add a Filter button behavior:
+- Clicking Filter opens a popover or right-side sheet with:
+  - Document Category (multi-select)
+  - Document Type (multi-select)
+  - Visibility/Tier (single or multi depending on role)
+  - Updated date range (Last 7 days / 30 days / custom)
+  - “Show New/Updated only” toggle
+  - “Show Viewed/Unviewed” toggle (issuer/bookrunner only; investor sees their own unviewed)
+  - Sort options:
+     UpdatedAt desc, Name asc, Category, Version
+
+B) Apply filters to the documents table:
+- Filters must affect both UI list and export outputs.
+- Persist filters in URL query params so refresh keeps state.
+
+====================================================
+4) CLOSING CHECKLIST: REMOVE TOP “VIEW” TAB
+====================================================
+
+A) On Closing Checklist page:
+- Remove the top “View” tab entirely (since role profiles are separated now).
+- Keep a simple header and the checklist content.
+
+B) Closing checklist page layout:
+- Left: checklist items grouped by section
+- Right: status/ownership panel (optional)
+
+====================================================
+5) “VIEW FULL CALENDAR” SHOULD OPEN A REAL CALENDAR VIEW
+====================================================
+
+A) Implement a Calendar view component for deal timeline:
+- On /deal/:id/timeline (and investor deal home), “View Full Calendar” opens:
+  - a modal OR navigates to /deal/:id/calendar
+- Calendar shows month view + agenda list.
+- Highlight key events with color-coded chips:
+  - Launch date
+  - NDA deadline
+  - IOI deadline
+  - Commitment deadline
+  - Allocation date
+  - Expected close date
+- Clicking an event opens a details panel.
+
+B) Ensure role scoping:
+- Investor sees lender-safe events only
+- Issuer/bookrunner sees full internal events (if you track internal events; else same list)
+
+C) Add “Download .ics” button on calendar view (reuse existing ICS generator if present).
+
+====================================================
+6) ISSUER CAN ADD DOCUMENTS TO CLOSING CHECKLIST (BASED ON AGREEMENT)
+====================================================
+
+A) Closing Checklist data model:
+ChecklistItem:
+- id, dealId
+- section (e.g., “Credit Agreement Deliverables”, “KYC”, “Corporate”, “Funds Flow”)
+- name
+- description
+- required: boolean
+- status: NOT_STARTED | IN_PROGRESS | COMPLETE
+- ownerRole: issuer | bookrunner | counsel | investor (optional)
+- relatedDocumentId? (links to uploaded doc)
+- createdBy, createdAt
+
+B) Default checklist seeded from agreement type:
+- If the deal has an “Agreement Type” setting:
+  - Unitranche / TLA / TLB / Revolver
+Seed a base set of required deliverables.
+
+C) Add “Add Checklist Item” button (issuer/bookrunner only):
+- Opens a modal:
+  - Section dropdown
+  - Item name
+  - Required toggle
+  - Link to existing document (optional) OR upload now (opens upload flow)
+- On save:
+  - item appears immediately in checklist
+  - issuer/bookrunner can reorder (optional)
+  - can mark status and add notes
+
+D) Link docs to checklist:
+- Each checklist item row should allow:
+  - Attach document (select from docs)
+  - If attached, show “Download” button
+- Investors should only see checklist items that are relevant to them (optional). For MVP, keep checklist internal (issuer/bookrunner only).
+
+====================================================
+VALIDATION REQUIREMENTS
+====================================================
+
+- Export buttons download real files (CSV at minimum).
+- Download buttons download files or placeholders (no dead buttons).
+- Upload button opens modal and uploads persistently (mock store ok).
+- Filter button opens filter UI and filters list + exports.
+- Closing Checklist has no “View” tab.
+- View Full Calendar opens a calendar with highlighted key events.
+- Issuer/bookrunner can add new checklist items and link/upload documents.
+- App compiles and runs in Replit with no runtime errors.
