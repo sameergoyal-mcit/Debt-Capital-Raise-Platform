@@ -24,7 +24,8 @@ import {
   Mail,
   Lock,
   Unlock,
-  MoreHorizontal
+  MoreHorizontal,
+  Calculator
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
+import { PaydownModel } from "@/components/paydown-model";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -541,6 +543,22 @@ export default function DealOverview() {
                     )}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Interactive Paydown Model */}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="flex items-center gap-2">
+                  <Calculator className="h-5 w-5 text-primary" /> Financial Model
+                </CardTitle>
+                <CardDescription>Interactive debt paydown projections and scenario analysis.</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <PaydownModel 
+                  dealAmount={deal.facilitySize} 
+                  dealName={deal.dealName} 
+                />
               </CardContent>
             </Card>
 
