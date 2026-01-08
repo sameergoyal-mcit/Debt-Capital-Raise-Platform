@@ -1,0 +1,147 @@
+Implement the extra “bulletproof before publish” improvements: DB seed demo data, disable dead buttons with tooltips, global error handling + toasts, and role-aware redirects that prevent investors from seeing 404s on restricted internal routes.
+
+====================================================
+EXTRA 1) SEED REALISTIC DEMO DATA (ONLY IF DB EMPTY)
+====================================================
+
+GOAL:
+On first run (or whenever tables are empty), seed realistic deals, lenders, invitations, documents, Q&A, and one commitment so the demo never looks blank.
+
+1) Create server/seed.ts (or server/lib/seed.ts):
+- Function seedIfEmpty(db):
+  - Check if deals table has rows
+  - If 0 rows, insert:
+    Deals:
+      - “Apex Industrial – Unitranche” (sector: Industrials, amount: 450000000, status: BOOKBUILDING)
+      - “Nimbus Software – TLA” (sector: Software, amount: 300000000, status: MARKETING)
+    Lenders (6–10):
+      - names, emails, organizations, fund types
+    Invitations:
+      - invite lenders to deals with tiers:
+        - early for most
+        - full for a subset
+        - legal for 1–2
+      - ndaRequired true for all
+      - set ndaSignedAt for some lenders and null for others
+    Documents per deal:
+      - Lender Presentation (visible early)
+      - Supplemental Information (visible early/full)
+      - KYC & Compliance (visible full)
+      - Lender Paydown Model (visible full)
+      - Legal docs (visible legal)
+      - set updatedAt to staggered times and include changeSummary for 1–2
+    Q&A items:
+      - 3–5 questions across lenders (some answered, some open)
+    Commitment:
+      - 1–2 lenders submitted commitments for “Apex Industrial”
+    Logs:
+      - a few VIEW_DEAL and SIGN_NDA events for realism
+
+2) Call seedIfEmpty on server startup:
+- In server/index.ts (or main server entry), after DB init and migrations:
+  await seedIfEmpty(db)
+
+3) Provide an admin-only endpoint to reseed (dev only):
+- POST /api/admin/seed/reset (guarded by env PROTOTYPE_MODE=true)
+- Clears tables and reseeds.
+(Do not enable in production.)
+
+====================================================
+EXTRA 2) DISABLE DEAD BUTTONS + ADD TOOLTIP (“COMING SOON”)
+====================================================
+
+GOAL:
+No clickable UI should do nothing. If a feature isn’t implemented, disable it and explain.
+
+1) Create a reusable component:
+client/src/components/coming-soon-button.tsx
+Props:
+- enabled: boolean
+- tooltipText: string
+- onClick?: function (only used if enabled)
+Behavior:
+- If enabled=false:
+  - render Button disabled
+  - wrap in Tooltip: “Coming soon: <tooltipText>”
+- If enabled=true:
+  - normal clickable Button
+
+2) Replace any non-functional buttons across app:
+Examples:
+- Publish to news sources
+- Export formats not yet supported
+- Unimplemented analytics actions
+Use ComingSoonButton until implemented.
+
+====================================================
+EXTRA 3) GLOBAL ERROR HANDLING + TOASTS FOR FAILED ACTIONS
+====================================================
+
+GOAL:
+If an API call fails, the user sees a helpful toast and can retry.
+
+1) Add a global API error handler:
+- In lib/queryClient.ts configure react-query default options:
+  - retry: 1
+  - onError: show toast “Something went wrong. Please try again.”
+  - For mutations: show specific error from server if available.
+
+2) Standardize mutation patterns:
+- Wrap createDeal, inviteLender, uploadDoc, signNDA, submitCommitment, answerQA
+with:
+  - pending state (disable button, show spinner)
+  - success toast
+  - error toast with actionable message
+  - invalidate relevant queries on success
+
+3) Add an ErrorBoundary for UI crashes:
+- Create client/src/components/error-boundary.tsx
+- Wrap main app Layout area so unexpected render errors show:
+  “Something went wrong. Refresh or return to dashboard.”
+- Provide “Go to Dashboard” button.
+
+====================================================
+EXTRA 4) ROLE-AWARE REDIRECTS (INVESTOR NEVER SEES 404 FOR RESTRICTED ROUTES)
+====================================================
+
+GOAL:
+Authorization failure should redirect to the right landing, not show NotFound.
+
+1) Create shared helper:
+client/src/lib/auth-redirects.ts
+- getUnauthorizedRedirect(role):
+    investor -> "/investor"
+    issuer/bookrunner -> "/deals"
+- getInvestorDealRedirect(dealId): `/investor/deal/${dealId}`
+
+2) Update route guards:
+- Wherever an unauthorized user currently sees NotFound/404:
+  - redirect instead using wouter setLocation.
+Rules:
+- Investor navigating to /deal/:id/overview, /deal/:id/book, /deal/:id/closing, /analytics, etc:
+  - redirect to /investor (or /investor/deal/:id if dealId present)
+  - append query param:
+    ?reason=restricted&from=<path>
+- If investor tries /deal/:id/* for a deal not in dealAccess:
+  - redirect /investor?reason=unauthorized
+
+3) Preserve true 404:
+- Only show NotFound when route truly does not exist, not when access is denied.
+
+4) Add friendly “Access Notice” banner:
+- client/src/components/access-notice.tsx
+- Reads query params reason/from on /investor and /investor/deal/:id
+- Shows dismissible Alert:
+  - “That page is restricted. Redirected to your lender portal.”
+Auto-dismiss after 6 seconds.
+
+====================================================
+VALIDATION
+====================================================
+
+- Fresh deploy with empty DB seeds realistic data automatically.
+- No dead buttons: either functional or disabled with tooltip.
+- Failed API calls show toasts and buttons re-enable.
+- Investor never sees 404 when trying restricted internal pages; they are redirected with an access notice.
+- Issuer/bookrunner behavior unchanged.
+- App compiles and runs in Replit without runtime errors.
