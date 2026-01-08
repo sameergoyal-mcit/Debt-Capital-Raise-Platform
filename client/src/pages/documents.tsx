@@ -109,12 +109,79 @@ export default function DocumentsPage() {
   const allowedCategories = isInvestor ? getAllowedCategories(accessTier) : null;
 
   // Filter documents for investors (e.g. hide draft internal docs)
-  const accessibleDocs = isInvestor 
+  const baseAccessibleDocs = isInvestor 
     ? mockDocuments.filter(d => 
         allowedCategories?.includes(d.category) && 
         d.status !== "Draft"
       )
     : mockDocuments;
+
+  // Apply user filters
+  const applyDocumentFilters = (docs: Document[], f: DocumentFilters): Document[] => {
+    let filtered = [...docs];
+    
+    // Category filter
+    if (f.categories.length > 0) {
+      filtered = filtered.filter(d => f.categories.includes(d.category));
+    }
+    
+    // Type filter (map to document type field if available)
+    if (f.types.length > 0) {
+      const typeMap: Record<string, string[]> = {
+        "Financial": ["Financials", "Financial Model"],
+        "Legal": ["Credit Agreement", "Security", "Intercreditor"],
+        "Model": ["Lender Paydown Model"],
+        "Presentation": ["Lender Presentation"],
+        "Compliance": ["KYC"],
+        "Other": ["Supplemental Information"]
+      };
+      const allowedCats = f.types.flatMap(t => typeMap[t] || []);
+      filtered = filtered.filter(d => allowedCats.some(c => d.category.includes(c) || d.name.toLowerCase().includes(c.toLowerCase())));
+    }
+    
+    // Visibility/access tier filter
+    if (f.visibility.length > 0) {
+      filtered = filtered.filter(d => f.visibility.includes(d.accessTier || "full"));
+    }
+    
+    // Date range filter
+    if (f.dateRange !== "all") {
+      const now = new Date();
+      const cutoff = f.dateRange === "7days" 
+        ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter(d => new Date(d.lastUpdatedAt) >= cutoff);
+    }
+    
+    // New/Updated only
+    if (f.showNewUpdatedOnly) {
+      filtered = filtered.filter(d => d.isNew || d.isUpdated);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      switch (f.sortBy) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "category":
+          cmp = a.category.localeCompare(b.category);
+          break;
+        case "version":
+          cmp = a.version.localeCompare(b.version);
+          break;
+        case "updatedAt":
+        default:
+          cmp = new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime();
+      }
+      return f.sortOrder === "asc" ? cmp : -cmp;
+    });
+    
+    return filtered;
+  };
+
+  const accessibleDocs = applyDocumentFilters(baseAccessibleDocs, filters);
 
   const selectedDoc = accessibleDocs.find(d => d.id === selectedDocId) || accessibleDocs[0];
 
@@ -127,6 +194,14 @@ export default function DocumentsPage() {
 
   // Grouped Docs helper to safely get array
   const getDocs = (cat: DocumentCategory) => groupedDocs[cat] || [];
+  
+  // Check if any filters are active
+  const hasActiveFilters = filters.categories.length > 0 || 
+    filters.types.length > 0 || 
+    filters.visibility.length > 0 || 
+    filters.dateRange !== "all" || 
+    filters.showNewUpdatedOnly || 
+    filters.showUnviewedOnly;
 
   // Blocking items logic (Internal only)
   const blockingDocs = mockDocuments.filter(d => 

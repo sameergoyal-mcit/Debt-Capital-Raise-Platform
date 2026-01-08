@@ -1,5 +1,5 @@
 import React from "react";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -177,9 +177,11 @@ export default function Timeline() {
                   </div>
                 </div>
                 <Separator className="my-4" />
-                <Button className="w-full" variant="outline">
-                  View Full Calendar
-                </Button>
+                <Link href={`/deal/${dealId}/calendar`}>
+                  <Button className="w-full" variant="outline" data-testid="button-view-calendar">
+                    View Full Calendar
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>

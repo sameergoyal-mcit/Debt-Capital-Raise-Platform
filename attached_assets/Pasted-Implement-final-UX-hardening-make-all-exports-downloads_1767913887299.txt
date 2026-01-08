@@ -1,0 +1,51 @@
+Implement final UX hardening: make all exports/downloads/uploads functional, fix Documents filtering, wire calendar, and improve Closing Checklist for issuer.
+
+1) EXPORT BUTTONS MUST DOWNLOAD FILES
+- Ensure all Export buttons produce a real download using Blob + URL.createObjectURL:
+  - Q&A export CSV respects role scoping (investor: only their Q&A; issuer/bookrunner: all)
+  - Documents export CSV respects current filters + role visibility
+- Use safe CSV escaping (quotes/newlines) and include deal name + timestamp in filename.
+
+2) DOWNLOAD BUTTONS MUST DOWNLOAD FILES
+- For documents with fileRef/url -> download actual file
+- For mock docs without file -> download a placeholder .txt stating doc name/version (never dead button)
+
+3) UPLOAD BUTTON MUST OPEN A MODAL AND CREATE DOC ENTRIES
+- In Documents page:
+  - Upload opens a Dialog allowing:
+    file picker (pdf,xls,xlsx,csv,doc,docx)
+    category (Lender Presentation, Supplemental, KYC & Compliance, Lender Paydown Model, Legal, Closing)
+    type (Financial, Legal, Model, Other)
+    visibility tier (early/full/legal) for issuer/bookrunner
+  - On submit:
+    store uploaded file metadata (fileRef/object URL ok)
+    append a new Document row immediately
+    mark as NEW/UPDATED for investor views and notifications
+- Investor upload remains limited to Legal markups only.
+
+4) FILTER BUTTON MUST APPLY FILTERS TO DOCUMENT LIST
+- Documents page currently shows accessibleDocs but does not apply filters from DocumentFilterPanel.
+- Implement applyDocumentFilters(accessibleDocs, filters) to filter by:
+  - categories (multi)
+  - types (multi)
+  - visibility
+  - dateRange
+  - showNewUpdatedOnly
+  - showUnviewedOnly
+  - sortBy + sortOrder
+- Ensure filter affects UI list AND export output.
+
+5) TIMELINE: “VIEW FULL CALENDAR” MUST OPEN CALENDAR VIEW
+- Add route /deal/:id/calendar (and investor-safe view)
+- Wire button on Timeline page to navigate there
+- Calendar shows month view + agenda list
+- Key events highlighted (Launch, NDA deadline, IOI deadline, Commitment deadline, Allocation, Signing, Funding)
+- Clicking event opens details
+- Include “Download .ics” from calendar view
+
+6) CLOSING CHECKLIST CLEANUP
+- Remove any top-level “View” tab from Closing Checklist UI.
+- Issuer/bookrunner can add checklist items + attach documents:
+  - Use existing AddChecklistItemModal (already supports relatedDocumentId + upload click)
+- Seed checklist based on Agreement Type (Unitranche/TLA/etc):
+  - create base templates per agreement type and initialize on first load if checklist empty

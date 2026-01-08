@@ -13,6 +13,7 @@ import InvestorBook from "@/pages/investor-book";
 import Documents from "@/pages/documents";
 import QACenter from "@/pages/qa";
 import Timeline from "@/pages/timeline";
+import CalendarPage from "@/pages/calendar";
 import Closing from "@/pages/closing";
 import Analytics from "@/pages/analytics";
 import Publish from "@/pages/publish";
@@ -131,6 +132,10 @@ function Router() {
 
       <Route path="/deal/:id/timeline">
         <ProtectedRoute component={Timeline} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
+      </Route>
+
+      <Route path="/deal/:id/calendar">
+        <ProtectedRoute component={CalendarPage} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
       </Route>
 
       <Route path="/deal/:id/commitment">
