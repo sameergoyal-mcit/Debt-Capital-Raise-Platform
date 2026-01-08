@@ -1,0 +1,90 @@
+12) Messages ↔ Q&A link polish:
+- For Q&A items sourced from messages, add “View in Messages” link.
+- Messages page supports query params threadId and qaId to open/highlight.
+- Add message type filter tabs (All/DD/Deal Process) in deal messages.
+
+====================================================
+5) DOCUMENTS / VDR IMPROVEMENTS
+====================================================
+
+13) “What changed?” indicator for updated docs:
+Extend document model with optional changeSummary.
+When updating a doc version in mock data, populate changeSummary like:
+- “Updated covenant definitions”
+- “Revised margin grid”
+Show changeSummary inline under doc name when UPDATED badge present.
+
+14) Batch download (stub + UI):
+On investor documents page add “Download Lender Package” button.
+For now:
+- Generate a ZIP stub (or simulate) OR provide a modal listing included files with “Download” placeholders.
+At minimum:
+- UI exists, shows included docs based on tier.
+Issuer/bookrunner can also download full package.
+
+15) Improved empty states:
+Replace blank lists with instructive empty states:
+- “No commitments yet — lender submissions will appear here.”
+- “No due diligence questions yet — investor questions will be tracked here.”
+
+====================================================
+6) DEMO / SALES IMPROVEMENTS
+====================================================
+
+16) Demo Mode toggle (issuer/bookrunner only):
+Add a toggle in Settings or Deal Admin:
+- Demo Mode: ON/OFF
+When ON:
+- Seed realistic activity:
+  - some NDAs signed
+  - some docs viewed
+  - a few Q&A items
+  - 1–2 commitments submitted
+- Show small helper tooltips on key panels explaining purpose.
+- Disable destructive actions (e.g., deleting invites) if any exist.
+
+====================================================
+7) SECURITY / TRUST SIGNALS (SUBTLE)
+====================================================
+
+17) Access audit indicator:
+Add small footer text (deal pages):
+- “Access logged · NDA enforced · Role-based permissions active”
+Investor view additionally:
+- “You only see your own submissions and questions.”
+
+18) Access logs (lightweight):
+Create an accessLog store (mock) that logs:
+- lenderId, dealId, action (view_doc, upload_markup, submit_commitment, view_qa), timestamp
+Issuer/bookrunner can view a simple “Recent Activity” list.
+
+====================================================
+8) ARCHITECTURE CLEANUP (OPTIONAL BUT RECOMMENDED)
+====================================================
+
+19) DealContextProvider:
+Create client/src/context/deal-context.tsx that provides:
+- deal
+- invitation for current lender (if investor)
+- computed deadlines
+- computed permissions (tier + nda + role)
+Use this provider on deal-scoped routes to reduce repeated lookup logic.
+
+20) Central role capabilities map:
+Create client/src/lib/capabilities.ts:
+can(role).viewInvestorBook
+can(role).sendReminders
+can(role).downloadPackage
+can(role).seeAllQA
+Replace scattered role checks with these helpers.
+
+====================================================
+VALIDATION REQUIREMENTS
+====================================================
+
+- All new UI respects role permissions (no cross-lender leakage).
+- ActionRequiredBar shows correct actions per role.
+- Status chips look consistent across pages.
+- Investor dashboard and deal home show the new cards without breaking routing.
+- Execution heatmap/panel appears for issuer/bookrunner and updates based on real mock data.
+- App builds and runs in Replit without TypeScript errors.
