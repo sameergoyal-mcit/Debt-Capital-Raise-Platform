@@ -1,0 +1,91 @@
+Restructure Messages and Q&A so they are DEAL-SCOPED (not global), and Q&A is sorted/grouped by deal. Remove global /messages from the main sidebar and move all messaging under each deal workspace.
+
+GOAL:
+- Messages should live under a specific deal (Deal Workspace), not as a global top-level nav item.
+- Q&A should default to the current deal and show only that deal’s questions, with optional grouping/switching by deal.
+- For Bookrunner/Issuer who manage multiple deals: provide a deal selector or grouped list by deal (not one giant combined feed).
+
+====================================================
+PART 1 — ROUTING: MAKE MESSAGES DEAL-SCOPED
+====================================================
+
+1) Add deal-scoped Messages routes:
+- Create route: /deal/:id/messages
+- (Optional investor portal route mirror): /investor/deal/:id/messages
+
+2) Remove or de-emphasize global /messages:
+- Remove the main sidebar NavItem that links to "/messages"
+OR
+- Keep it but make it an internal “All Messages” aggregator for issuer/bookrunner only (optional).
+For MVP, remove it from main sidebar.
+
+3) Update Layout Deal Workspace nav:
+- Under “Current Deal”, add:
+  - Messages -> /deal/:id/messages
+- Ensure investor role deal workspace nav includes Messages if you want them to use it:
+  - Investor nav: Messages, Data Room & Docs, Due Diligence, Timeline, Submit Commitment
+
+====================================================
+PART 2 — IMPLEMENT /deal/:id/messages PAGE
+====================================================
+
+4) Create a deal-scoped messages page:
+- File: client/src/pages/deal-messages.tsx (or similar)
+- It should read dealId from route params and only load threads for that dealId.
+
+5) Thread grouping inside a deal:
+- Left panel groups threads within this deal:
+  - Issuer thread
+  - Investor threads (one per lender)
+  - Counsel (optional)
+- Main panel: selected thread conversation + composer
+
+6) Investor scoping:
+- If role=investor:
+  - Only show the investor’s own thread for that deal (lenderId match).
+  - Keep the “Type: Due Diligence / Deal Process” selector in composer.
+  - Due Diligence messages create/sync Q&A items for this deal (existing linkage logic stays).
+
+====================================================
+PART 3 — Q&A: DEFAULT TO CURRENT DEAL + GROUP/SWITCH BY DEAL
+====================================================
+
+7) Change Q&A behavior so it is deal-scoped by default:
+- /deal/:id/qa shows ONLY that deal’s Q&A.
+- Remove any global Q&A view that combines deals by default.
+
+8) For issuer/bookrunner who want cross-deal visibility:
+- Add an optional “All Deals” Q&A page (internal only), e.g.:
+  - /qa (issuer/bookrunner only)
+- On /qa show Q&A grouped by deal:
+  - Section header per deal name
+  - Within each deal section, sort items by most recent activity (answerUpdatedAt or questionCreatedAt)
+
+9) Add a deal selector to Q&A pages (issuer/bookrunner):
+- On /deal/:id/qa include a deal switcher dropdown at top:
+  - “Current deal: [Deal Name]”
+  - Options: other deals (navigates to /deal/:otherId/qa)
+- For investor role, no dropdown (they only see their accessible deal context).
+
+====================================================
+PART 4 — UI / NAV CLEANUP
+====================================================
+
+10) Main sidebar:
+- Remove global “Messages” item from top-level nav.
+- Ensure deal workspace nav includes Messages and Q&A for each deal.
+
+11) Ensure route guards:
+- /deal/:id/messages and /deal/:id/qa require auth.
+- Investor can only access these for deals in dealAccess.
+- Investor cannot see other lenders’ threads or Q&A.
+
+====================================================
+PART 5 — VALIDATION
+====================================================
+
+- Clicking Messages inside a deal goes to /deal/:id/messages and shows only that deal’s threads.
+- Q&A inside a deal shows only that deal’s questions, sorted by recent activity.
+- Optional /qa page (issuer/bookrunner only) groups questions by deal (not a flat list).
+- No global /messages link in main sidebar (unless you keep an internal-only aggregator).
+- App compiles and runs in Replit.

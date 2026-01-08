@@ -74,14 +74,12 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href="/" icon={<LayoutDashboard size={20} />} label="Dashboard" active={location === "/"} />
               <NavItem href="/deals" icon={<Briefcase size={20} />} label="Deals" active={location === "/deals"} />
               <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} />
-              <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
             </>
           )}
 
           {isInvestor && !isDealWorkspace && (
              <>
                <NavItem href="/investor" icon={<LayoutDashboard size={20} />} label="Investor Dashboard" active={location === "/investor"} />
-               <NavItem href="/messages" icon={<MessageSquare size={20} />} label="Messages" active={location === "/messages"} />
              </>
           )}
 
@@ -106,6 +104,7 @@ export function Layout({ children }: LayoutProps) {
               )}
 
               <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} />
+              <NavItem href={`/deal/${dealId}/messages`} icon={<MessageSquare size={20} />} label="Messages" active={isActive(`/deal/${dealId}/messages`)} />
               <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} />
               <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} />
               

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Link, useRoute } from "wouter";
+import { Link, useRoute, useLocation } from "wouter";
 import { 
   Search, 
   Filter, 
@@ -10,7 +10,8 @@ import {
   User,
   Send,
   Download,
-  ExternalLink
+  ExternalLink,
+  ArrowUpDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
@@ -30,30 +31,50 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/auth-context";
 import { getQAs, updateQA, QAItem } from "@/data/qa";
 import { mockMessages, Message } from "@/data/messages";
+import { mockDeals } from "@/data/deals";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 export default function QACenter() {
   const [, params] = useRoute("/deal/:id/qa");
-  const dealId = params?.id || "101"; // Default to 101 for mock
+  const dealId = params?.id || "101";
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // Force refresh helper
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(prev => prev + 1);
 
   const isInvestor = user?.role === "Investor";
+  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
 
-  // Fetch data based on role
+  const currentDeal = mockDeals.find(d => d.id === dealId);
+  const availableDeals = mockDeals;
+
   const qaItems = useMemo(() => {
-    return getQAs(dealId, isInvestor ? user?.lenderId : undefined);
+    const items = getQAs(dealId, isInvestor ? user?.lenderId : undefined);
+    return items.sort((a, b) => {
+      const aDate = a.answerUpdatedAt || a.questionCreatedAt;
+      const bDate = b.answerUpdatedAt || b.questionCreatedAt;
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
   }, [dealId, user, isInvestor, refreshKey]);
+
+  const handleDealChange = (newDealId: string) => {
+    navigate(`/deal/${newDealId}/qa`);
+  };
 
   return (
     <Layout>
@@ -61,19 +82,31 @@ export default function QACenter() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Link href={`/deal/${dealId}/overview`} className="hover:text-primary">Project Titan</Link>
+              <Link href={`/deal/${dealId}/overview`} className="hover:text-primary">{currentDeal?.dealName || "Deal"}</Link>
               <span>/</span>
               <span>Q&A</span>
             </div>
             <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Due Diligence Q&A</h1>
             <p className="text-muted-foreground mt-1">Manage investor inquiries and diligence questions.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            {isInternal && (
+              <Select value={dealId} onValueChange={handleDealChange}>
+                <SelectTrigger className="w-[200px]" data-testid="select-deal">
+                  <SelectValue placeholder="Select Deal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDeals.map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.dealName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" /> Export Q&A Log
             </Button>
             {isInvestor && (
-              <Link href="/messages">
+              <Link href={`/deal/${dealId}/messages`}>
                 <Button className="gap-2">
                     <MessageCircle className="h-4 w-4" /> Ask Question
                 </Button>
@@ -127,8 +160,19 @@ export default function QACenter() {
             {qaItems.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg bg-secondary/5">
                 <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <h3 className="text-lg font-medium">No Questions Yet</h3>
-                <p className="text-sm mt-1">Questions asked via Messages will appear here.</p>
+                <h3 className="text-lg font-medium">No Due Diligence Questions Yet</h3>
+                <p className="text-sm mt-1">
+                  {isInvestor 
+                    ? "Use Messages to ask due diligence questions." 
+                    : "Questions from investors will appear here."}
+                </p>
+                {isInvestor && (
+                  <Link href={`/deal/${dealId}/messages`}>
+                    <Button className="mt-4 gap-2">
+                      <MessageCircle className="h-4 w-4" /> Go to Messages
+                    </Button>
+                  </Link>
+                )}
               </div>
             ) : (
               <Accordion type="single" collapsible className="space-y-3">
@@ -277,8 +321,8 @@ function QAItemRow({ item, isInternal, onUpdate }: { item: QAItem; isInternal: b
              {/* Link back to thread if it exists */}
              {item.threadId && item.source === "messages" && (
                  <div className="flex justify-end pt-2">
-                     <Link href={`/messages?threadId=${item.threadId}&qaId=${item.id}`}>
-                         <Button variant="link" size="sm" className="text-xs text-muted-foreground gap-1 h-auto p-0">
+                     <Link href={`/deal/${item.dealId}/messages?threadId=${item.threadId}&qaId=${item.id}`}>
+                         <Button variant="link" size="sm" className="text-xs text-muted-foreground gap-1 h-auto p-0" data-testid={`link-messages-${item.id}`}>
                              View in Messages <ExternalLink className="h-3 w-3" />
                          </Button>
                      </Link>
