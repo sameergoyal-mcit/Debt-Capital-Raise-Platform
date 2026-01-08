@@ -1,0 +1,103 @@
+Implement “Invite Lender” as a pop-out modal that collects lender details (Name, Email, Organization) and creates an invitation for the current deal.
+
+GOAL:
+When issuer/bookrunner clicks “Invite Lender” in a deal, a modal opens to either select an existing lender OR enter a new lender’s details (name, email, organization). Submitting creates/updates the lender record and creates the deal invitation.
+
+====================================================
+1) UI: Invite Lender Modal (Pop-out)
+====================================================
+
+A) Button placement
+- On Deal Overview (issuer/bookrunner only), in the “Investor Access / Invitations” section, add button:
+  “Invite Lender”
+- Clicking opens a shadcn Dialog modal.
+
+B) Modal fields
+- Dropdown (optional): “Select existing lender”
+  - list shows: Organization — First Last (email)
+  - selecting pre-fills fields below
+- Inputs (required):
+  - First Name
+  - Last Name
+  - Email
+  - Organization
+- Invitation settings:
+  - NDA Required (toggle, default true)
+  - Access Tier (dropdown: early/full/legal, default early)
+- Actions:
+  - Cancel
+  - Send Invite (primary)
+
+C) Validation
+- First/Last/Email/Organization required
+- Email format validation
+- Disable “Send Invite” until valid
+- If lender already invited to this deal, show inline error:
+  “This lender is already invited.”
+
+====================================================
+2) Data Model Updates
+====================================================
+
+A) Lender model/store fields:
+- lenderId
+- firstName
+- lastName
+- email
+- organization
+- createdAt
+
+B) Invitation model/store fields (existing):
+- dealId
+- lenderId
+- invitedBy (session userEmail)
+- invitedAt
+- ndaRequired
+- accessTier
+
+====================================================
+3) Submit Behavior
+====================================================
+
+On “Send Invite”:
+- If existing lender selected:
+  - use existing lenderId
+  - update lender record if user edited fields (keep latest)
+- If no lender selected:
+  - create new lender record (generate lenderId)
+- Check for duplicate invite (dealId + lenderId):
+  - if exists: show error and do not create
+- Create invitation record with dealId, lenderId, invitedAt, invitedBy, ndaRequired, accessTier
+- Close modal
+- Show toast “Invitation sent”
+- Refresh invitations table immediately
+
+====================================================
+4) Notifications / Email
+====================================================
+
+After invitation created:
+- Trigger mock email event “Deal Invitation / NDA Request” to lender email
+- If SendGrid is enabled, send real email
+Email should include:
+- deal name
+- link to investor portal (or login)
+- note that NDA is required if ndaRequired
+
+====================================================
+5) Permissions
+====================================================
+
+- Only issuer/bookrunner can open and submit Invite Lender modal.
+- Investors must never see this UI.
+
+====================================================
+VALIDATION
+====================================================
+
+- Clicking Invite Lender opens modal.
+- User can enter first/last/email/org and send invite.
+- Duplicate invites are prevented with clear message.
+- Invitation appears in table instantly.
+- Email event logs (mock) and/or sends (SendGrid).
+- App compiles and runs in Replit without errors.

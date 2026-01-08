@@ -58,6 +58,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
+import { InviteLenderModal } from "@/components/invite-lender-modal";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -69,6 +70,7 @@ export default function DealOverview() {
   const [invitations, setInvitations] = useState(getDealInvitations(dealId));
   const [activeNdaId, setActiveNdaId] = useState(deal.ndaTemplateId || "nda_std_v1");
   const [isNdaDialogOpen, setIsNdaDialogOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   
   const ndaTemplate = getNDATemplate(activeNdaId);
   const { toast } = useToast();
@@ -100,17 +102,8 @@ export default function DealOverview() {
     alert("Downloading Covenant Compliance Certificate...");
   };
   
-  const handleInviteLender = async () => {
-     toast({
-        title: "Invitation Sent",
-        description: "Lender invited: credit@pimco.com"
-     });
-     
-     await emailService.send({
-        to: "credit@pimco.com",
-        subject: `Investment Opportunity: ${deal.dealName}`,
-        html: emailTemplates.ndaInvitation(deal.dealName, `https://capitalflow.com/deal/${deal.id}/overview`)
-     });
+  const handleInvitationCreated = () => {
+    setInvitations(getDealInvitations(dealId));
   };
 
   return (
@@ -269,7 +262,7 @@ export default function DealOverview() {
                        </DialogContent>
                      </Dialog>
                      
-                     <Button size="sm" className="h-7 text-xs gap-1" onClick={handleInviteLender}>
+                     <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setIsInviteModalOpen(true)} data-testid="button-invite-lender">
                         <Users className="h-3 w-3" /> Invite Lender
                      </Button>
                   </div>
@@ -659,6 +652,15 @@ export default function DealOverview() {
           </div>
         </div>
       </div>
+      
+      <InviteLenderModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        dealId={dealId}
+        dealName={deal.dealName}
+        invitedBy="Sarah Jenkins"
+        onInvitationCreated={handleInvitationCreated}
+      />
     </Layout>
   );
 }
