@@ -41,6 +41,41 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [messageType, setMessageType] = useState<"deal_process" | "due_diligence">("deal_process");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
+  const [filterType, setFilterType] = useState<"all" | "due_diligence" | "deal_process">("all");
+
+  // Read URL params for deep linking
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const threadId = params.get("threadId");
+    const qaId = params.get("qaId");
+    
+    if (threadId) {
+      setActiveThreadId(threadId);
+      setMobileView("chat");
+      
+      // If we have a QA ID, try to find the message and scroll to it
+      if (qaId) {
+          // Allow time for messages to render
+          setTimeout(() => {
+              // Find message with this qaId
+              const msgs = getMessages(threadId);
+              const targetMsg = msgs.find(m => m.qaId === qaId);
+              
+              if (targetMsg) {
+                  const element = document.getElementById(`msg-${targetMsg.id}`);
+                  if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      // Add highlight class temporarily
+                      element.classList.add("bg-primary/5", "rounded-lg", "transition-colors", "duration-1000");
+                      setTimeout(() => {
+                          element.classList.remove("bg-primary/5");
+                      }, 2000);
+                  }
+              }
+          }, 500);
+      }
+    }
+  }, []);
 
   const threads = useMemo(() => {
     if (!user) return [];
@@ -59,13 +94,26 @@ export default function MessagesPage() {
     Counsel: filteredThreads.filter(t => t.category === "Counsel")
   };
 
-  const activeThread = threads.find(t => t.id === activeThreadId);
-  const messages = activeThreadId ? getMessages(activeThreadId) : [];
+  const activeThread = useMemo(() => {
+    return threads.find(t => t.id === activeThreadId);
+  }, [threads, activeThreadId]);
+
+  const messages = useMemo(() => {
+    if (!activeThreadId) return [];
+    let msgs = getMessages(activeThreadId);
+    
+    // Apply filter
+    if (filterType !== "all") {
+        msgs = msgs.filter(m => m.category === filterType);
+    }
+    return msgs;
+  }, [activeThreadId, filterType]);
 
   const handleThreadClick = (threadId: string) => {
     setActiveThreadId(threadId);
     setMobileView("chat");
     setMessageType("deal_process"); // Reset on thread change
+    setFilterType("all"); // Reset filter
   };
 
   const handleBackToList = () => {
@@ -249,6 +297,31 @@ export default function MessagesPage() {
                 </div>
               </div>
 
+              {/* Filter Bar */}
+              <div className="px-4 py-2 border-b border-border bg-secondary/5 flex items-center gap-2">
+                 <span className="text-xs font-medium text-muted-foreground">Show:</span>
+                 <div className="flex bg-secondary/50 rounded-md p-0.5">
+                   <button 
+                     onClick={() => setFilterType("all")}
+                     className={cn("text-[10px] px-2 py-1 rounded-sm transition-all", filterType === "all" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                   >
+                     All
+                   </button>
+                   <button 
+                     onClick={() => setFilterType("due_diligence")}
+                     className={cn("text-[10px] px-2 py-1 rounded-sm transition-all", filterType === "due_diligence" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                   >
+                     Due Diligence
+                   </button>
+                   <button 
+                     onClick={() => setFilterType("deal_process")}
+                     className={cn("text-[10px] px-2 py-1 rounded-sm transition-all", filterType === "deal_process" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                   >
+                     Deal Process
+                   </button>
+                 </div>
+              </div>
+
               {/* Chat Messages */}
               <ScrollArea className="flex-1 p-4 md:p-6">
                 <div className="space-y-6 max-w-3xl mx-auto">
@@ -257,11 +330,17 @@ export default function MessagesPage() {
                         <span className="text-[10px] text-muted-foreground bg-secondary/50 px-2 py-1 rounded-full">Today</span>
                     </div>
 
+                  {messages.length === 0 && (
+                      <div className="text-center py-10 text-muted-foreground text-sm">
+                        {filterType === "all" ? "No messages yet." : `No ${filterType.replace("_", " ")} messages found.`}
+                      </div>
+                  )}
+
                   {messages.map((msg) => {
                     const isMe = (user.role === "Bookrunner" && msg.senderId === "u1") || (user.role === "Investor" && msg.senderId === "u3"); // Mock logic
                     
                     return (
-                      <div key={msg.id} className={cn("flex gap-3", isMe ? "flex-row-reverse" : "flex-row")}>
+                      <div key={msg.id} id={`msg-${msg.id}`} className={cn("flex gap-3 scroll-mt-24", isMe ? "flex-row-reverse" : "flex-row")}>
                         <Avatar className="h-8 w-8 mt-1 border">
                           <AvatarFallback>U</AvatarFallback>
                         </Avatar>
@@ -291,7 +370,17 @@ export default function MessagesPage() {
                                    "mt-1 text-[10px] gap-1 px-1.5 h-5 font-normal",
                                    isMe ? "bg-primary-foreground/10 text-muted-foreground border-primary/20" : "bg-background/50 border-border/50"
                                )}>
-                                   <HelpCircle className="h-3 w-3" /> Due Diligence → Q&A
+                                   <HelpCircle className="h-3 w-3" /> Due Diligence
+                               </Badge>
+                           )}
+
+                           {/* Deal Process Badge */}
+                           {msg.category === "deal_process" && (
+                               <Badge variant="outline" className={cn(
+                                   "mt-1 text-[10px] gap-1 px-1.5 h-5 font-normal",
+                                   isMe ? "bg-primary-foreground/10 text-muted-foreground border-primary/20" : "bg-background/50 border-border/50"
+                               )}>
+                                   <MessageCircle className="h-3 w-3" /> Deal Process
                                </Badge>
                            )}
 
@@ -310,27 +399,36 @@ export default function MessagesPage() {
                 
                 {/* Type Selector for Investors */}
                 {isInvestor && activeThread.category === "Investor" && (
-                  <div className="flex items-center gap-2 px-1">
-                    <span className="text-xs font-medium text-muted-foreground">Message Type:</span>
-                    <Select value={messageType} onValueChange={(v: any) => setMessageType(v)}>
-                        <SelectTrigger className="h-7 text-xs w-[180px] bg-secondary/30 border-transparent hover:bg-secondary/50 focus:ring-0">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="deal_process">
-                                <div className="flex items-center gap-2">
-                                    <MessageCircle className="h-3 w-3" /> Deal Process Related
-                                </div>
-                            </SelectItem>
-                            <SelectItem value="due_diligence">
-                                <div className="flex items-center gap-2">
-                                    <HelpCircle className="h-3 w-3" /> Due Diligence Question
-                                </div>
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-1 px-1">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground">Message Type:</span>
+                        <Select value={messageType} onValueChange={(v: any) => setMessageType(v)}>
+                            <SelectTrigger className="h-7 text-xs w-[180px] bg-secondary/30 border-transparent hover:bg-secondary/50 focus:ring-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="deal_process">
+                                    <div className="flex items-center gap-2">
+                                        <MessageCircle className="h-3 w-3" /> Deal Process Related
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="due_diligence">
+                                    <div className="flex items-center gap-2">
+                                        <HelpCircle className="h-3 w-3" /> Due Diligence Question
+                                    </div>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        
+                        {/* Type Helper Text */}
+                        <span className="text-[10px] text-muted-foreground hidden md:inline-block">
+                            {messageType === "due_diligence" 
+                                ? "Tracked in Q&A log. Best for formal diligence." 
+                                : "Stays in Messages. Best for process & logistics."}
+                        </span>
+                    </div>
                     {messageType === "due_diligence" && (
-                        <span className="text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full animate-in fade-in slide-in-from-left-2">
+                        <span className="text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full w-fit animate-in fade-in slide-in-from-left-2">
                             Will create a Q&A item
                         </span>
                     )}

@@ -275,9 +275,9 @@ function QAItemRow({ item, isInternal, onUpdate }: { item: QAItem; isInternal: b
              )}
              
              {/* Link back to thread if it exists */}
-             {item.threadId && (
+             {item.threadId && item.source === "messages" && (
                  <div className="flex justify-end pt-2">
-                     <Link href="/messages">
+                     <Link href={`/messages?threadId=${item.threadId}&qaId=${item.id}`}>
                          <Button variant="link" size="sm" className="text-xs text-muted-foreground gap-1 h-auto p-0">
                              View in Messages <ExternalLink className="h-3 w-3" />
                          </Button>

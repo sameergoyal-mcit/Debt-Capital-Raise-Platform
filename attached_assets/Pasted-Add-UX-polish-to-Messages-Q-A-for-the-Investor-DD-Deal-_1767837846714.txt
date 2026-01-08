@@ -1,0 +1,107 @@
+Add UX polish to Messages + Q&A for the Investor DD/Deal-Process tagging workflow.
+
+GOAL:
+Improve usability by adding filters, deep links between Messages and Q&A, and clear user guidance—while preserving strict investor scoping.
+
+====================================================
+1) MESSAGES THREAD FILTER (All / Due Diligence / Deal Process)
+====================================================
+
+A) In /messages thread view (for investor threads and also visible to issuer/bookrunner):
+- Add a filter control near the top of the conversation panel:
+  - “Show:” segmented control or tabs with:
+    - All
+    - Due Diligence
+    - Deal Process
+- Filter logic:
+  - All: show all messages in the thread
+  - Due Diligence: show only messages where category == "due_diligence"
+  - Deal Process: show only messages where category == "deal_process"
+- Default: All
+- Keep the composer visible regardless of filter.
+
+B) Add a small badge to message bubbles:
+- If category == due_diligence show “Due Diligence”
+- If category == deal_process show “Deal Process”
+- Use subtle pill styling (shadcn Badge).
+
+====================================================
+2) CLEAR INVESTOR GUIDANCE IN COMPOSER
+====================================================
+
+In the investor message composer:
+- Next to the Type selector add helper text:
+  - “Due Diligence messages are tracked in Q&A and can be answered there.”
+  - “Deal Process messages stay in Messages only.”
+- Add tooltip icon (optional) explaining the difference.
+
+Also:
+- Make the Type selector required for investor sends.
+- Default remains “Deal Process Related”.
+
+====================================================
+3) Q&A PAGE: “VIEW IN MESSAGES” DEEP LINK
+====================================================
+
+A) For Q&A items where source == "messages" and threadId exists:
+- Add a button/link on each Q&A card:
+  - Label: “View in Messages”
+  - On click, navigate to:
+    /messages?threadId=<threadId>&qaId=<qaId>
+  - Ensure /messages reads these query params and auto-selects the thread.
+
+B) In /messages:
+- On load, if query param threadId is present:
+  - auto-select that thread in the left list
+- If qaId is present:
+  - scroll to the message(s) associated with that qaId if messageIds exist
+  - otherwise scroll to the first message with qaId matching
+  - briefly highlight that message (e.g., soft background for 2 seconds)
+
+====================================================
+4) BIDIRECTIONAL SYNC “ANSWERED” UX
+====================================================
+
+A) In Q&A page for issuer/bookrunner:
+- Add “Post Answer” action (already exists if answering supported)
+- If Q&A item has threadId:
+  - When an answer is submitted in Q&A, also append a message into that thread:
+    - category = "due_diligence"
+    - body = answer text
+    - mark as “Answer posted via Q&A” (small subtext or metadata)
+- Ensure it updates Q&A status to “answered”.
+
+B) In Q&A page for investors:
+- They should never see “Mark answered” controls.
+- They only see:
+  - status, timestamps, “View in Messages” link
+
+====================================================
+5) ROLE SAFETY + SCOPING CHECKS
+====================================================
+
+- Investor can ONLY deep link to threads they own (lenderId match).
+- If an investor attempts to open /messages?threadId=... not theirs:
+  - redirect to /investor with a friendly access notice.
+- Q&A list for investors remains lender-scoped.
+
+====================================================
+6) LIGHT UI POLISH
+====================================================
+
+- Add empty states:
+  - If filtered view has no messages: “No due diligence messages yet.”
+  - If Q&A has no items: “No due diligence questions yet.”
+- Add small timestamps to messages and Q&A items.
+- Keep styling consistent with shadcn components.
+
+====================================================
+VALIDATION
+====================================================
+
+- Investor can filter conversation by message type.
+- Investor sees clear explanation of DD vs Deal Process.
+- “View in Messages” from Q&A navigates and auto-selects thread + highlights the relevant message.
+- Issuer answers in Q&A posts back into Messages thread (when linked).
+- No cross-lender access leakage.
+- App compiles and runs in Replit.
