@@ -107,6 +107,43 @@ export default function InvestorDashboard() {
           </Button>
         </div>
 
+        {/* My Exposure Summary */}
+        <Card className="bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" /> My Exposure Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="text-center p-4 bg-background/60 rounded-lg border border-border/50">
+                <div className="text-3xl font-bold text-primary">{deals.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">Active Deals</p>
+              </div>
+              <div className="text-center p-4 bg-background/60 rounded-lg border border-border/50">
+                <div className="text-3xl font-bold text-green-600">
+                  {deals.filter(d => d.stats.commitmentSubmitted).length}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Commitments Submitted</p>
+              </div>
+              <div className="text-center p-4 bg-background/60 rounded-lg border border-border/50">
+                <div className="text-3xl font-bold text-amber-600">
+                  {deals.filter(d => d.stats.actionRequired).length}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Pending Actions</p>
+              </div>
+              <div className="text-center p-4 bg-background/60 rounded-lg border border-border/50">
+                <div className="text-xl font-semibold text-foreground">
+                  {deals.length > 0 && deals[0].stats.nextDeadlineDate 
+                    ? format(parseISO(deals[0].stats.nextDeadlineDate), "MMM d") 
+                    : "-"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Next Deadline</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Priority Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <Card className="bg-primary/5 border-primary/20">
@@ -116,7 +153,7 @@ export default function InvestorDashboard() {
                </CardTitle>
              </CardHeader>
              <CardContent>
-               <div className="text-2xl font-bold">{deals.filter(d => d.stats.actionRequired).length}</div>
+               <div className="text-2xl font-bold" data-testid="text-action-count">{deals.filter(d => d.stats.actionRequired).length}</div>
                <p className="text-xs text-muted-foreground mt-1">Deals requiring attention</p>
              </CardContent>
            </Card>
@@ -128,7 +165,7 @@ export default function InvestorDashboard() {
                </CardTitle>
              </CardHeader>
              <CardContent>
-               <div className="text-2xl font-bold">{deals.reduce((acc, d) => acc + d.stats.newDocsCount, 0)}</div>
+               <div className="text-2xl font-bold" data-testid="text-docs-count">{deals.reduce((acc, d) => acc + d.stats.newDocsCount, 0)}</div>
                <p className="text-xs text-muted-foreground mt-1">Uploaded in last 7 days</p>
              </CardContent>
            </Card>
@@ -140,7 +177,7 @@ export default function InvestorDashboard() {
                </CardTitle>
              </CardHeader>
              <CardContent>
-               <div className="text-2xl font-bold">{deals.filter(d => d.stats.nextDeadlineLabel?.includes("Deadline")).length}</div>
+               <div className="text-2xl font-bold" data-testid="text-deadline-count">{deals.filter(d => d.stats.nextDeadlineLabel?.includes("Deadline")).length}</div>
                <p className="text-xs text-muted-foreground mt-1">Due within 14 days</p>
              </CardContent>
            </Card>

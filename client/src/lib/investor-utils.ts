@@ -14,6 +14,7 @@ export interface InvestorDealSummary {
     nextDeadlineLabel: string | null;
     nextDeadlineDate: string | null;
     actionRequired: "Sign NDA" | "Review Docs" | "Submit Commitment" | "Q&A Response" | null;
+    commitmentSubmitted: boolean;
   };
 }
 
@@ -114,11 +115,14 @@ function computeDealStats(deal: Deal, invite: Invitation, lenderId: string) {
       }
   }
 
+  const commitmentSubmitted = actionRequired !== "Submit Commitment" && invite.ndaSignedAt !== undefined;
+
   return {
     newDocsCount,
     openQACount,
     nextDeadlineLabel,
     nextDeadlineDate,
-    actionRequired
+    actionRequired,
+    commitmentSubmitted
   };
 }

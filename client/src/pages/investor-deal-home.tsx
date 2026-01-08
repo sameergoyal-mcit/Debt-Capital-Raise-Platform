@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { NDAGate } from "@/components/nda-gate";
+import { DealPageHeader } from "@/components/deal-page-header";
+import { ActionRequiredBar, computeInvestorActions } from "@/components/action-required-bar";
 import { 
   ArrowRight, 
   Clock, 
@@ -21,7 +23,8 @@ import {
   PenTool,
   HelpCircle,
   ExternalLink,
-  Calendar
+  Calendar,
+  History
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
@@ -81,55 +84,67 @@ export default function InvestorDealHome() {
     });
   };
 
+  const investorActions = computeInvestorActions(dealId, {
+    ndaSigned: isNdaSigned,
+    hasUpdatedDocs: stats.newDocsCount > 0,
+    commitmentSubmitted: stats.commitmentSubmitted,
+    hasAnsweredQA: stats.openQACount > 0,
+    commitmentWindowOpen: true
+  });
+
   return (
     <Layout>
       <AccessNotice />
+      <DealPageHeader 
+        deal={{
+          id: deal.id,
+          dealName: deal.dealName,
+          sponsor: deal.sponsor,
+          industry: deal.sector,
+          instrument: deal.instrument,
+          size: deal.facilitySize,
+          stage: deal.stage,
+          nextDeadline: stats.nextDeadlineDate || undefined,
+          nextDeadlineLabel: stats.nextDeadlineLabel || undefined
+        }}
+        role="Investor"
+        showBackLink
+        backLinkHref="/investor"
+      />
+      
       <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
-         {/* Breadcrumb-ish */}
-         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-             <Link href="/investor" className="hover:text-primary">Dashboard</Link>
-             <span>/</span>
-             <span className="font-medium text-foreground">{deal.dealName}</span>
-         </div>
+         <ActionRequiredBar dealId={dealId} actions={investorActions} role="Investor" />
 
-         {/* Header */}
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-             <div>
-                 <div className="flex items-center gap-3 mb-2">
-                     <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">{deal.instrument}</Badge>
-                     <Badge variant="secondary" className="font-normal">{deal.sector}</Badge>
+         {/* Primary Call to Action */}
+         {!isNdaSigned ? (
+             <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-4 rounded-lg shadow-sm">
+                 <div className="flex items-center gap-3 text-amber-800">
+                     <Lock className="h-5 w-5" />
+                     <div className="text-sm font-medium">NDA Required to access Data Room</div>
                  </div>
-                 <h1 className="text-4xl font-serif font-bold text-primary tracking-tight">{deal.dealName}</h1>
-                 <p className="text-lg text-muted-foreground mt-1">{deal.sponsor} • ${(deal.facilitySize / 1e6).toFixed(0)}M Transaction</p>
+                 <Link href={`/deal/${dealId}/documents`}>
+                     <Button className="bg-amber-600 hover:bg-amber-700 text-white">Sign NDA Now</Button>
+                 </Link>
              </div>
-             
-             {/* Primary Call to Action */}
-             {!isNdaSigned ? (
-                 <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-4 rounded-lg shadow-sm">
-                     <div className="flex items-center gap-3 text-amber-800">
-                         <Lock className="h-5 w-5" />
-                         <div className="text-sm font-medium">NDA Required to access Data Room</div>
-                     </div>
-                     {/* FIX: Link to Documents/NDA Gate instead of Overview */}
-                     <Link href={`/deal/${dealId}/documents`}>
-                         <Button className="bg-amber-600 hover:bg-amber-700 text-white">Sign NDA Now</Button>
-                     </Link>
-                 </div>
-             ) : (
-                 <div className="flex gap-3">
-                     <Link href={`/deal/${dealId}/documents`}>
-                        <Button variant="outline" className="gap-2 h-12">
-                            <FileText className="h-4 w-4" /> Data Room
-                        </Button>
-                     </Link>
-                     <Link href={`/deal/${dealId}/commitment`}>
-                        <Button className="gap-2 h-12 shadow-md">
-                            <PenTool className="h-4 w-4" /> Submit Commitment
-                        </Button>
-                     </Link>
-                 </div>
-             )}
-         </div>
+         ) : (
+             <div className="flex gap-3">
+                 <Link href={`/deal/${dealId}/documents`}>
+                    <Button variant="outline" className="gap-2 h-12">
+                        <FileText className="h-4 w-4" /> Data Room
+                    </Button>
+                 </Link>
+                 <Link href={`/deal/${dealId}/messages`}>
+                    <Button variant="outline" className="gap-2 h-12">
+                        <MessageSquare className="h-4 w-4" /> Messages
+                    </Button>
+                 </Link>
+                 <Link href={`/deal/${dealId}/commitment`}>
+                    <Button className="gap-2 h-12 shadow-md">
+                        <PenTool className="h-4 w-4" /> Submit Commitment
+                    </Button>
+                 </Link>
+             </div>
+         )}
 
          <Separator className="my-6" />
 
@@ -280,10 +295,16 @@ export default function InvestorDealHome() {
                                  Browse Data Room
                              </Button>
                          </Link>
+                         <Link href={`/deal/${dealId}/messages`}>
+                             <Button variant="ghost" className="w-full justify-start gap-3 h-10 border border-transparent hover:border-border hover:bg-secondary/50">
+                                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                 Messages
+                             </Button>
+                         </Link>
                          <Link href={`/deal/${dealId}/qa`}>
                              <Button variant="ghost" className="w-full justify-start gap-3 h-10 border border-transparent hover:border-border hover:bg-secondary/50">
                                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                                 Ask a Question
+                                 Due Diligence Q&A
                              </Button>
                          </Link>
                          <Link href={`/deal/${dealId}/commitment`}>
@@ -292,6 +313,55 @@ export default function InvestorDealHome() {
                                  Commitment Form
                              </Button>
                          </Link>
+                     </CardContent>
+                 </Card>
+
+                 {/* Your Activity Log */}
+                 <Card className="bg-slate-50 border-slate-200">
+                     <CardHeader className="pb-3 border-b border-slate-100">
+                         <CardTitle className="text-base flex items-center gap-2">
+                             <History className="h-4 w-4 text-muted-foreground" /> Your Activity
+                         </CardTitle>
+                     </CardHeader>
+                     <CardContent className="pt-4">
+                         <div className="space-y-3 text-sm">
+                             {invitation.ndaSignedAt && (
+                                 <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
+                                     <div className="flex items-center gap-2">
+                                         <CheckCircle className="h-4 w-4 text-green-600" />
+                                         <span>NDA Signed</span>
+                                     </div>
+                                     <span className="text-xs text-muted-foreground">
+                                         {format(parseISO(invitation.ndaSignedAt), "MMM d, h:mm a")}
+                                     </span>
+                                 </div>
+                             )}
+                             {stats.commitmentSubmitted && (
+                                 <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
+                                     <div className="flex items-center gap-2">
+                                         <PenTool className="h-4 w-4 text-blue-600" />
+                                         <span>Commitment Submitted</span>
+                                     </div>
+                                     <span className="text-xs text-muted-foreground">Recently</span>
+                                 </div>
+                             )}
+                             {stats.openQACount > 0 && (
+                                 <div className="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
+                                     <div className="flex items-center gap-2">
+                                         <HelpCircle className="h-4 w-4 text-purple-600" />
+                                         <span>{stats.openQACount} Q&A Response{stats.openQACount > 1 ? "s" : ""}</span>
+                                     </div>
+                                     <Link href={`/deal/${dealId}/qa`}>
+                                         <span className="text-xs text-primary hover:underline cursor-pointer">View</span>
+                                     </Link>
+                                 </div>
+                             )}
+                             {!invitation.ndaSignedAt && !stats.commitmentSubmitted && stats.openQACount === 0 && (
+                                 <div className="text-center py-4 text-muted-foreground text-xs">
+                                     No activity yet. Start by signing the NDA.
+                                 </div>
+                             )}
+                         </div>
                      </CardContent>
                  </Card>
              </div>

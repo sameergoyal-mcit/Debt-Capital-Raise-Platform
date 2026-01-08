@@ -1,0 +1,232 @@
+Implement a comprehensive UX + visual + workflow improvement pass across Investor, Issuer, and Bookrunner views. Focus on clarity, execution tracking, and lender trust. Keep all existing role-based permissions intact.
+
+====================================================
+0) GLOBAL DESIGN SYSTEM CLEANUP
+====================================================
+
+1) Standardize status chips across the app (single source of truth):
+Create client/src/lib/status-chips.ts with enums + helpers for:
+- NDA: NOT_SENT | SENT | SIGNED
+- DOCS: NEW | UPDATED | VIEWED
+- COMMITMENT: NOT_SUBMITTED | SUBMITTED | FIRM | WITHDRAWN
+- QA: OPEN | ANSWERED
+- DEAL_STAGE: STRUCTURING | NDA | CIM | MARKETING | IOI | BOOKBUILDING | ALLOCATION | DOCS | SIGNING | FUNDING | CLOSED | PAUSED
+Return:
+- label
+- variant/className
+- optional icon
+Replace ad-hoc badges across pages with these helpers for consistent styling.
+
+2) Add a consistent Deal Page Header component:
+Create client/src/components/deal-page-header.tsx
+Props: deal, role
+Display on all deal-scoped pages:
+- Borrower / Deal Name
+- Instrument + Size
+- Issuer/Sponsor name
+- Stage chip
+- (optional) next deadline chip
+Ensure this renders at top of:
+overview, documents, qa, timeline, commitment, messages, closing, publish.
+
+====================================================
+1) “ACTION REQUIRED” STRIP (ALL ROLES)
+====================================================
+
+3) Create an ActionRequiredBar component:
+client/src/components/action-required-bar.tsx
+- Shows up at the top of deal pages.
+- Computes role-specific “next actions”.
+
+Investor actions:
+- Sign NDA (if required and not signed)
+- Review updated docs (if visible docs updated since lastViewedAt)
+- Submit commitment (if within commitment window and not submitted)
+- Review answered Q&A (if any answers updated since investorLastSeenAt)
+
+Issuer/Bookrunner actions:
+- Lenders missing NDA
+- Lenders missing commitments
+- Lenders who haven’t viewed latest legal docs (if tier legal)
+- Open Q&A count by category
+
+Make it a compact horizontal strip with chips + “View” links.
+
+====================================================
+2) INVESTOR EXPERIENCE IMPROVEMENTS
+====================================================
+
+4) Investor Dashboard: Add “My Exposure” summary card:
+On /investor show card with:
+- Active deals count
+- Commitments submitted count
+- Pending actions count
+- Next deadline across all deals
+Use computed selectors from existing stores.
+
+5) Confirmation receipts for investor actions:
+After investor actions:
+- NDA signed
+- Commitment submitted/updated/withdrawn
+- Markup uploaded
+Show an inline confirmation banner (shadcn Alert) with:
+- ✅ confirmation message
+- timestamp
+- “You can update until <deadline>” if applicable
+Persist last action per deal/lender so it can re-render after refresh.
+
+6) Investor Activity Log (per deal):
+On /investor/deal/:id add “Your Activity” card listing:
+- NDA signed time
+- Commitment submissions (submitted/updated/withdrawn)
+- Markup uploads
+- DD questions asked + answered timestamps
+This must be lender-scoped and read-only.
+
+====================================================
+3) ISSUER/BOOKRUNNER EXECUTION IMPROVEMENTS
+====================================================
+
+7) Execution Heatmap / Tracker Table:
+On issuer/bookrunner deal home/overview add a compact table:
+Columns:
+Lender | NDA | Docs Viewed | Q&A | Commitment | Markup | Last Activity
+Rules:
+- NDA = Signed / Not Signed
+- Docs Viewed = Viewed latest (only relevant docs visible to that lender by tier)
+- Q&A = Open count + badge
+- Commitment = status + timestamp
+- Markup = submitted? (legal only)
+- Last Activity = max(lastViewedAt, lastQuestionAt, lastCommitmentAt, lastMarkupAt)
+Make table sortable by “Needs attention”.
+
+8) “Who should I chase today?” Priorities panel:
+Add a card listing top follow-ups computed:
+- Missing commitment, deadline soon
+- Legal docs not viewed
+- NDA not signed near NDA deadline
+- Q&A open > 0
+Each item includes lender name + reason + one-click action:
+- Open lender detail drawer or send reminder modal pre-filtered to that lender.
+
+9) Reminder effectiveness tracking:
+When “Send Reminders” is used:
+- Store reminderAudit entries per deal + lender:
+  sentAt, sentBy, reminderType, subject hash
+Show in execution table:
+- lastReminderAt
+- remindersCount
+Add filter: “Reminded in last 48h” to avoid over-emailing.
+
+====================================================
+4) Q&A + MESSAGING POLISH
+====================================================
+
+10) Q&A auto-category + triage:
+Add a Category field to Q&A items:
+- Financial
+- Legal
+- Structure
+- Other
+When investor submits a DD message or Q&A:
+- auto-suggest category using simple keyword heuristic (no AI dependency)
+- investor can adjust category on submit
+Issuer/bookrunner can filter Q&A by category and status.
+
+11) “Answered / Resolved” UX:
+When issuer/bookrunner answers:
+- set status=ANSWERED
+- show “Answered on <date>”
+Investor can optionally “Re-open”:
+- adds a new follow-up question entry (linked thread) and sets status=OPEN again.
+
+12) Messages ↔ Q&A link polish:
+- For Q&A items sourced from messages, add “View in Messages” link.
+- Messages page supports query params threadId and qaId to open/highlight.
+- Add message type filter tabs (All/DD/Deal Process) in deal messages.
+
+====================================================
+5) DOCUMENTS / VDR IMPROVEMENTS
+====================================================
+
+13) “What changed?” indicator for updated docs:
+Extend document model with optional changeSummary.
+When updating a doc version in mock data, populate changeSummary like:
+- “Updated covenant definitions”
+- “Revised margin grid”
+Show changeSummary inline under doc name when UPDATED badge present.
+
+14) Batch download (stub + UI):
+On investor documents page add “Download Lender Package” button.
+For now:
+- Generate a ZIP stub (or simulate) OR provide a modal listing included files with “Download” placeholders.
+At minimum:
+- UI exists, shows included docs based on tier.
+Issuer/bookrunner can also download full package.
+
+15) Improved empty states:
+Replace blank lists with instructive empty states:
+- “No commitments yet — lender submissions will appear here.”
+- “No due diligence questions yet — investor questions will be tracked here.”
+
+====================================================
+6) DEMO / SALES IMPROVEMENTS
+====================================================
+
+16) Demo Mode toggle (issuer/bookrunner only):
+Add a toggle in Settings or Deal Admin:
+- Demo Mode: ON/OFF
+When ON:
+- Seed realistic activity:
+  - some NDAs signed
+  - some docs viewed
+  - a few Q&A items
+  - 1–2 commitments submitted
+- Show small helper tooltips on key panels explaining purpose.
+- Disable destructive actions (e.g., deleting invites) if any exist.
+
+====================================================
+7) SECURITY / TRUST SIGNALS (SUBTLE)
+====================================================
+
+17) Access audit indicator:
+Add small footer text (deal pages):
+- “Access logged · NDA enforced · Role-based permissions active”
+Investor view additionally:
+- “You only see your own submissions and questions.”
+
+18) Access logs (lightweight):
+Create an accessLog store (mock) that logs:
+- lenderId, dealId, action (view_doc, upload_markup, submit_commitment, view_qa), timestamp
+Issuer/bookrunner can view a simple “Recent Activity” list.
+
+====================================================
+8) ARCHITECTURE CLEANUP (OPTIONAL BUT RECOMMENDED)
+====================================================
+
+19) DealContextProvider:
+Create client/src/context/deal-context.tsx that provides:
+- deal
+- invitation for current lender (if investor)
+- computed deadlines
+- computed permissions (tier + nda + role)
+Use this provider on deal-scoped routes to reduce repeated lookup logic.
+
+20) Central role capabilities map:
+Create client/src/lib/capabilities.ts:
+can(role).viewInvestorBook
+can(role).sendReminders
+can(role).downloadPackage
+can(role).seeAllQA
+Replace scattered role checks with these helpers.
+
+====================================================
+VALIDATION REQUIREMENTS
+====================================================
+
+- All new UI respects role permissions (no cross-lender leakage).
+- ActionRequiredBar shows correct actions per role.
+- Status chips look consistent across pages.
+- Investor dashboard and deal home show the new cards without breaking routing.
+- Execution heatmap/panel appears for issuer/bookrunner and updates based on real mock data.
+- App builds and runs in Replit without TypeScript errors.
