@@ -42,39 +42,59 @@ const actionIcons: Record<ActionItem["type"], React.ReactNode> = {
 export function ActionRequiredBar({ dealId, actions, role }: ActionRequiredBarProps) {
   if (actions.length === 0) return null;
 
+  // Show max 3 items, compact layout
+  const displayActions = actions.slice(0, 3);
+  const hasUrgent = displayActions.some(a => a.urgent);
+
   return (
-    <div className="bg-amber-50/80 border border-amber-200/60 rounded-lg px-4 py-3 mb-6 animate-in fade-in slide-in-from-top-2 duration-300" data-testid="action-required-bar">
-      <div className="flex items-center gap-2 mb-2">
-        <AlertCircle className="h-4 w-4 text-amber-600" />
-        <span className="text-sm font-semibold text-amber-800">
-          {actions.length} Action{actions.length > 1 ? "s" : ""} Required
-        </span>
-      </div>
-      
-      <div className="flex flex-wrap gap-2">
-        {actions.map((action) => (
-          <Link key={action.id} href={action.href}>
-            <button
-              className={cn(
-                "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                "hover:scale-[1.02] active:scale-[0.98]",
-                action.urgent
-                  ? "bg-red-100 text-red-700 border border-red-200 hover:bg-red-150"
-                  : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-100"
+    <div 
+      className={cn(
+        "rounded-md px-4 py-2.5 mb-4",
+        hasUrgent 
+          ? "bg-red-900/5 border border-red-900/10" 
+          : "bg-amber-900/5 border border-amber-900/10"
+      )} 
+      data-testid="action-required-bar"
+    >
+      <div className="flex items-center gap-3">
+        <AlertCircle 
+          className={cn(
+            "h-4 w-4 shrink-0",
+            hasUrgent ? "text-red-800" : "text-amber-800"
+          )} 
+        />
+        
+        <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+          {displayActions.map((action, index) => (
+            <React.Fragment key={action.id}>
+              <Link href={action.href}>
+                <span
+                  className={cn(
+                    "text-sm font-medium cursor-pointer hover:underline inline-flex items-center gap-1.5",
+                    action.urgent ? "text-red-800" : "text-amber-800"
+                  )}
+                  data-testid={`action-${action.type}`}
+                >
+                  {actionIcons[action.type]}
+                  {action.label}
+                  {action.count !== undefined && action.count > 0 && (
+                    <span className="text-xs opacity-70">({action.count})</span>
+                  )}
+                  <ChevronRight className="h-3 w-3" />
+                </span>
+              </Link>
+              {index < displayActions.length - 1 && (
+                <span className="text-slate-300">·</span>
               )}
-              data-testid={`action-${action.type}`}
-            >
-              {actionIcons[action.type]}
-              <span>{action.label}</span>
-              {action.count !== undefined && action.count > 0 && (
-                <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-amber-200/50">
-                  {action.count}
-                </Badge>
-              )}
-              <ChevronRight className="h-3 w-3 opacity-50" />
-            </button>
-          </Link>
-        ))}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {actions.length > 3 && (
+          <span className="text-xs text-slate-500">
+            +{actions.length - 3} more
+          </span>
+        )}
       </div>
     </div>
   );

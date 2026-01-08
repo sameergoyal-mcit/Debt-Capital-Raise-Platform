@@ -1,4 +1,10 @@
-export type DocumentCategory = "Lender Presentation" | "Credit Agreement" | "Security" | "Intercreditor" | "Financials" | "KYC" | "Other";
+// Debt capital markets document folder terminology
+export type DocumentCategory = 
+  | "Lender Presentation" 
+  | "Supplemental Information" 
+  | "KYC & Compliance" 
+  | "Lender Paydown Model" 
+  | "Legal";
 export type DocumentStatus = "Draft" | "In Review" | "Comments Outstanding" | "Issuer Approved" | "Lender Approved" | "Ready to Sign";
 
 export interface DocumentVersion {
@@ -28,7 +34,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d1",
     name: "Credit Agreement v3.docx",
-    category: "Credit Agreement",
+    category: "Legal",
     status: "Comments Outstanding",
     version: "v3.0",
     lastUpdatedAt: new Date().toISOString(),
@@ -47,7 +53,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d2",
     name: "Intercreditor Agreement v1.pdf",
-    category: "Intercreditor",
+    category: "Legal",
     status: "In Review",
     version: "v1.0",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -61,7 +67,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d3",
     name: "Security Agreement.docx",
-    category: "Security",
+    category: "Legal",
     status: "Ready to Sign",
     version: "vFinal",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
@@ -74,7 +80,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d4",
     name: "FY24 Audited Financials.pdf",
-    category: "Financials",
+    category: "Supplemental Information",
     status: "Issuer Approved",
     version: "vFinal",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
@@ -87,7 +93,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d5",
     name: "KYC Pack - Borrower.zip",
-    category: "KYC",
+    category: "KYC & Compliance",
     status: "Lender Approved",
     version: "v1.0",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
@@ -131,7 +137,7 @@ export const mockDocuments: Document[] = [
   {
     id: "d8",
     name: "Quality of Earnings Report.pdf",
-    category: "Financials",
+    category: "Supplemental Information",
     status: "Issuer Approved",
     version: "vFinal",
     lastUpdatedAt: new Date(Date.now() - 86400000 * 8).toISOString(),
@@ -140,6 +146,24 @@ export const mockDocuments: Document[] = [
     dealId: "101",
     fileSize: "3.1 MB",
     accessTier: "full"
+  },
+  {
+    id: "d9",
+    name: "Lender Paydown Model.xlsx",
+    category: "Lender Paydown Model",
+    status: "Issuer Approved",
+    version: "v1.2",
+    lastUpdatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    owner: "Bank",
+    openCommentsCount: 0,
+    dealId: "101",
+    changeSummary: "Revised margin grid per updated term sheet",
+    fileSize: "1.8 MB",
+    accessTier: "full",
+    versionHistory: [
+      { version: "v1.0", uploadedAt: new Date(Date.now() - 86400000 * 12).toISOString(), uploadedBy: "Bank" },
+      { version: "v1.2", uploadedAt: new Date(Date.now() - 86400000 * 5).toISOString(), uploadedBy: "Bank", changeSummary: "Revised margin grid per updated term sheet" }
+    ]
   }
 ];
 

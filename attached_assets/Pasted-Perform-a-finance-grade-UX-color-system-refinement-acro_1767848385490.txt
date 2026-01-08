@@ -1,0 +1,79 @@
+Perform a finance-grade UX + color system refinement across the app, using debt-process terminology (use “Lender Presentation”, NOT “CIM”).
+
+====================================================
+1) Global Color System (Institutional)
+====================================================
+
+- Replace any bright/saturated colors with muted finance-safe palette.
+- Standardize status colors everywhere via a shared map:
+  - COMPLETE = muted green (#166534)
+  - PENDING = muted amber (#92400E)
+  - BLOCKED/MISSING = muted red (#7F1D1D)
+  - INFO = slate (#334155)
+
+Create client/src/lib/status-colors.ts and client/src/lib/status-chips.ts and apply to all badges/chips.
+
+====================================================
+2) Tables & Scannability
+====================================================
+
+- Reduce heavy gridlines; use subtle row striping.
+- Add left-border priority markers for rows (Investor Book / Execution table):
+  - Red border: action required (blocking)
+  - Amber border: deadline soon
+  - Gray: informational
+- Use tabular numeric font for all numeric columns:
+  spreads, OID, fees, amounts, commitments, leverage, rates.
+
+====================================================
+3) Button Hierarchy (3-level)
+====================================================
+
+- Use only:
+  - Primary (filled muted blue): submit/send core actions (Submit Commitment, Send Reminder)
+  - Secondary (outline): navigation (View Docs, View Q&A)
+  - Destructive (text red): withdraw/remove
+- Remove filled secondary buttons and unnecessary icons.
+
+====================================================
+4) Deal Stage Progress Indicator
+====================================================
+
+- Add a horizontal deal stage progress component and show on all deal pages.
+- Stages are debt stages (not equity):
+  NDA → Lender Presentation → IOI → Bookbuilding → Docs → Signing → Funding
+- Completed stages: green check
+- Current: blue highlight
+- Future: gray
+
+====================================================
+5) Action Required Strip Polish
+====================================================
+
+- Make Action Required bar compact, light amber background, dark text.
+- Avoid red unless truly blocking.
+- Show 1–3 items max with “View” links to the right page.
+
+====================================================
+6) Document Folder Naming
+====================================================
+
+In investor VDR, ensure folders use debt terminology:
+- Lender Presentation
+- Supplemental Information
+- KYC & Compliance
+- Lender Paydown Model
+- Legal (Read-only + upload markups)
+
+Remove any occurrence of “CIM”.
+
+====================================================
+7) Trust Signals
+====================================================
+
+Add a subtle footer line on deal pages:
+- “Access logged · NDA enforced · Role-based permissions active”
+Investor view also adds:
+- “You only see your own submissions and questions.”
+
+Ensure the UI remains conservative/institutional and consistent across screens.
