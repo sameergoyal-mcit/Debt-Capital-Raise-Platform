@@ -1,7 +1,7 @@
 import { mockDeals, Deal } from "@/data/deals";
 import { getInvitation, Invitation } from "@/data/invitations";
 import { mockDocuments } from "@/data/documents";
-import { mockQAs, QA } from "@/data/qa";
+import { getQAs, QAItem } from "@/data/qa";
 import { parseISO, isAfter, differenceInDays } from "date-fns";
 import { dealDeadlines } from "@/lib/deal-deadlines";
 
@@ -55,7 +55,7 @@ function computeDealStats(deal: Deal, invite: Invitation, lenderId: string) {
     if (d.dealId !== deal.id) return false;
     
     // Tier check (mock)
-    if (invite.accessTier === "early" && d.category !== "CIM" && d.category !== "Other") return false;
+    if (invite.accessTier === "early" && d.category !== "Lender Presentation" && d.category !== "Other") return false;
 
     const updated = parseISO(d.lastUpdatedAt);
     return differenceInDays(now, updated) < 7;
@@ -63,10 +63,9 @@ function computeDealStats(deal: Deal, invite: Invitation, lenderId: string) {
 
   // Open Q&A Count (Unanswered questions asked by this lender, OR active threads)
   // Requirement: "reflect unanswered questions... not Answered"
-  const openQACount = mockQAs.filter((qa: QA) => 
-    qa.dealId === deal.id && 
-    qa.askedByLenderId === lenderId && 
-    qa.status !== "Answered" 
+  // Use getQAs helper
+  const openQACount = getQAs(deal.id, lenderId).filter(qa => 
+    qa.status !== "answered" && qa.status !== "closed"
   ).length;
 
   // Next Deadline Logic using centralized helper

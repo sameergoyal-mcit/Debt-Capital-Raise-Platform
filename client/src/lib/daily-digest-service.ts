@@ -3,7 +3,7 @@ import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { format, parseISO, isAfter, differenceInDays } from "date-fns";
 import { mockDocuments, Document } from "@/data/documents";
-import { mockQAs, QA } from "@/data/qa";
+import { getQAs, QAItem } from "@/data/qa";
 
 // Mock store for last digest timestamps (In a real app, this would be in the database)
 // key: lenderId, value: ISO string
@@ -141,11 +141,11 @@ export const dailyDigestService = {
 
     // B) Q&A
     // Questions asked by THIS lender where answer updated > lastDigest
-    const relevantQA = mockQAs.filter((qa: QA) => 
-        qa.dealId === deal.id && 
-        qa.askedByLenderId === lenderId && 
-        qa.status === "Answered" &&
-        isAfter(parseISO(qa.answeredAt || ""), lastDigest)
+    // Use getQAs helper
+    const relevantQA = getQAs(deal.id, lenderId).filter((qa: QAItem) => 
+        (qa.status === "answered" || qa.status === "closed") &&
+        qa.answerUpdatedAt &&
+        isAfter(parseISO(qa.answerUpdatedAt), lastDigest)
     );
     
     const qaUpdates = relevantQA.map(qa => `Answer received: "${qa.question.substring(0, 30)}..."`);
