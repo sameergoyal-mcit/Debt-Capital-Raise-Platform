@@ -1,0 +1,168 @@
+Upgrade prototype to “Prototyping+” with persistence, NDA wall gating, credit engine, and audit trail. Keep changes minimal but real.
+
+====================================================
+STEP 1 — ADD POSTGRES + DRIZZLE PERSISTENCE
+====================================================
+
+1) Add managed PostgreSQL in Replit (use Replit DB / Postgres add-on).
+- Ensure DATABASE_URL is available as an env var.
+
+2) Update shared/schema.ts (Drizzle schema):
+Create tables:
+
+A) deals
+- id (uuid or serial)
+- name (text)
+- borrowerName (text)
+- issuerName (text)
+- sector (text)
+- amount (numeric)
+- status (text)  // e.g. MARKETING / BOOKBUILDING / DOCS / CLOSED / PAUSED
+- createdAt, updatedAt (timestamps)
+
+B) lenders
+- id
+- firstName
+- lastName
+- email (unique)
+- organization (text)
+- fundType (text optional)
+- createdAt, updatedAt
+
+C) invitations
+- id
+- dealId (fk deals)
+- lenderId (fk lenders)
+- accessTier (text: early/full/legal)
+- ndaRequired (boolean)
+- ndaSignedAt (timestamp nullable)
+- invitedAt (timestamp)
+- invitedBy (text)
+
+D) documents
+- id
+- dealId (fk deals)
+- category (text: Lender Presentation, Supplemental, KYC & Compliance, Lender Paydown Model, Legal, Closing)
+- type (text: Financial, Legal, Model, Other)
+- name (text)
+- version (int)
+- visibilityTier (text: early/full/legal)
+- fileUrl or fileKey (text)
+- changeSummary (text nullable)
+- uploadedAt, updatedAt
+
+E) commitments
+- id
+- dealId (fk)
+- lenderId (fk)
+- status (text: submitted/firm/withdrawn)
+- submittedAt
+- payloadJson (jsonb)  // spread, OID, ticket, conditions, etc.
+
+F) qa_items
+- id
+- dealId (fk)
+- lenderId (fk)
+- category (text: Financial/Legal/Structure/Other)
+- status (text: open/answered)
+- question (text)
+- askedAt
+- answer (text nullable)
+- answeredAt (timestamp nullable)
+- source (text: messages/qa)
+
+G) logs (audit trail)
+- id
+- dealId (fk nullable)
+- lenderId (fk nullable)
+- actorRole (text: issuer/bookrunner/investor)
+- actorId/email (text nullable)
+- action (text: VIEW_DEAL, SIGN_NDA, DOWNLOAD_DOC, UPLOAD_MARKUP, SUBMIT_COMMITMENT)
+- metadata (jsonb nullable)
+- createdAt
+
+3) Replace server/storage.ts mock store with Drizzle ORM implementation:
+- Implement CRUD methods for:
+  - listDeals, createDeal
+  - listLenders, createOrUpdateLenderByEmail
+  - createInvitation, listInvitationsByDeal, listInvitationsByLender
+  - updateInvitationNdaSignedAt
+  - listDocumentsByDeal, createDocument
+  - createCommitment, getCommitmentByDealAndLender
+  - listQAByDeal (scoped), createQA, answerQA
+  - createLog, listLogsByDeal
+
+4) Add migrations:
+- Use drizzle-kit to generate migrations and run them on startup or via script.
+- Ensure app runs after refresh with persisted data.
+
+====================================================
+STEP 2 — NDA WALL + ROLE SIMULATION (DEMO SAFE)
+====================================================
+
+1) Add a simple demo login / role simulation page (dev-only):
+- /login supports choosing role: issuer, bookrunner, investor
+- For investor, allow choosing a lender identity (email) that maps to lenders table.
+- Store session in a simple server session or client localStorage for prototype.
+
+2) NDA gating:
+- In Investor Dashboard and Investor Deal Home:
+  - “View Deal” button must be functional.
+  - If invitation.ndaRequired is true and ndaSignedAt is null:
+     show “Sign NDA” modal (not the deal content).
+  - On signing:
+     update invitations.ndaSignedAt in DB
+     create audit log SIGN_NDA
+     then allow access
+
+3) Add audit logging for investor actions:
+- When investor views deal: create log VIEW_DEAL
+- When investor downloads doc: DOWNLOAD_DOC
+- When investor submits commitment: SUBMIT_COMMITMENT
+
+====================================================
+STEP 3 — CREDIT ENGINE (SERVER LIB)
+====================================================
+
+1) Create server/lib/credit-engine.ts:
+- Functions to compute:
+  - leverage ratios (Net Debt / EBITDA)
+  - covenant headroom (simple v1)
+  - pricing pressure indicator (based on commitments received vs target amount and spread distribution if present)
+Inputs should come from DB fields (deals + commitments + optional deal assumptions).
+Return a summary object.
+
+2) Update DealOverview:
+- Fetch credit engine summary via an API route:
+  GET /api/deals/:id/credit-summary
+- Display badges that update after:
+  - new commitments
+  - refresh
+- Use react-query to refetch after mutations and periodically (e.g., 15–30s) in prototype mode.
+
+====================================================
+STEP 4 — PROTOTYPE POLISH (SECRETS + AUDIT VIEW)
+====================================================
+
+1) Secrets management:
+- Move any fake API keys/email configs to Replit Secrets:
+  SENDGRID_API_KEY, BASE_URL, etc.
+- App should work without them (mock mode) but use secrets if present.
+
+2) Audit Trail UI:
+- Create issuer/bookrunner-only page or panel:
+  /deal/:id/audit
+- Show latest 50 logs:
+  time, actorRole, action, lender/issuer, metadata
+- Link from Deal Admin.
+
+====================================================
+VALIDATION
+====================================================
+
+- Creating deal/lender/invites persists across refresh.
+- Investor sees NDA wall before accessing deal materials.
+- Signing NDA updates DB + logs.
+- Commitments persist and update issuer/bookrunner view.
+- Credit summary badges update from DB-backed data.
+- Audit trail page shows view/sign/download/submit events.
