@@ -1,6 +1,6 @@
 type UserRole = "Bookrunner" | "Issuer" | "Investor";
 
-interface Capabilities {
+export interface Capabilities {
   viewInvestorBook: boolean;
   sendReminders: boolean;
   downloadPackage: boolean;
