@@ -1,0 +1,174 @@
+Implement “Extras” for demo polish by making ALL key action buttons functional (download/preview) instead of toasts/no-ops. Focus on Deal Overview and other high-visibility pages. If a real file doesn’t exist yet, generate and download a placeholder PDF/CSV/TXT so nothing is dead in a demo.
+
+TARGETS (at minimum):
+- Deal Overview: Print Engagement, Download IOI Report, Export Deal Summary, Send Reminders (already specified as modal)
+- Q&A: Export Q&A (must download CSV)
+- Documents: Export CSV + Download file buttons + Upload modal
+- Timeline/Calendar: Download ICS, Export Timeline (CSV/PDF)
+
+====================================================
+0) Create shared download utilities (client)
+====================================================
+
+1) Add file: client/src/lib/download.ts
+Implement:
+- downloadBlob(filename: string, blob: Blob)
+- downloadTextFile(filename: string, text: string, mime = "text/plain;charset=utf-8")
+- downloadCsv(filename: string, rows: Record<string,string|number|null|undefined>[])
+  - include safe CSV escaping (quotes, commas, newlines)
+  - include header row from keys
+
+Use:
+- const url = URL.createObjectURL(blob)
+- const a = document.createElement("a"); a.href=url; a.download=filename; a.click()
+- URL.revokeObjectURL(url) after a short timeout
+
+2) Add helper: client/src/lib/format.ts
+- formatDateForFilename(date) => YYYY-MM-DD_HH-mm
+- slugify(str)
+
+====================================================
+1) Deal Overview actions — must actually download files
+====================================================
+
+A) “Export Deal Summary” (CSV)
+- In client/src/pages/deal-overview.tsx:
+  - Replace current onClick toast/no-op with:
+    - gather deal summary fields (deal name, borrower, amount, stage, key dates)
+    - plus current counts (invited, nda signed, commitments submitted)
+    - export a 1-row CSV via downloadCsv
+Filename:
+  <dealName>-DealSummary-<timestamp>.csv
+
+B) “Download IOI Report” (CSV now, PDF later)
+- Implement as CSV first (demo-safe).
+Include:
+  - lender organization
+  - nda status
+  - commitment status
+  - submitted spread/oid/ticket (from commitment payload if present)
+  - last activity
+Filename:
+  <dealName>-IOI-Report-<timestamp>.csv
+
+C) “Print Engagement” (print-friendly HTML -> PDF via browser print)
+- Implement a print view route:
+  /deal/:id/print
+- Build a simple print layout:
+  - deal header
+  - execution heatmap table
+  - timeline highlights
+  - latest commitments table
+- On “Print Engagement”, open /deal/:id/print in a new window and call window.print().
+(For demo, this is sufficient. No server-side PDF needed.)
+
+D) “Download Engagement PDF” (optional if button exists)
+- If a dedicated PDF download exists but not implemented:
+  - Provide a generated TXT placeholder download:
+    “Engagement pack placeholder for <dealName>…”
+Do not leave dead buttons.
+
+====================================================
+2) Q&A Export must download CSV (verify + improve)
+====================================================
+
+- In client/src/pages/qa.tsx (or equivalent):
+  - Ensure “Export Q&A” uses downloadCsv from lib/download.ts
+  - Role scoping:
+    - investor: only their lenderId rows
+    - issuer/bookrunner: all lenders
+  - Respect current deal filter (only current deal)
+CSV columns:
+  Deal, Lender, Category, Status, Question, AskedAt, Answer, AnsweredAt, Source
+
+====================================================
+3) Documents: Export CSV + Download + Upload
+====================================================
+
+A) “Export as CSV”
+- Ensure export uses currently filtered documents list (not full list)
+- Columns:
+  Deal, Category, Type, Name, Version, VisibilityTier, UpdatedAt, ChangeSummary
+
+B) Download buttons
+- If document has fileUrl/objectUrl -> open download in new tab OR fetch blob and downloadBlob
+- If no file exists (demo doc):
+  - create placeholder text content with doc name/version/changeSummary
+  - downloadTextFile(<docName>.txt, content)
+No dead downloads.
+
+C) Upload button
+- Ensure upload opens a Dialog:
+  file picker + category + type + visibility + notes
+- On submit:
+  - Create object URL for file and store in docs store (or upload to server if implemented)
+  - Add doc row immediately with updatedAt/version
+  - Show toast “Uploaded <docName>”
+(Investors only allowed upload in Legal as markup; issuer/bookrunner can upload anywhere.)
+
+====================================================
+4) Timeline/Calendar exports must work
+====================================================
+
+A) “Sync Calendar” -> ICS download
+- In client/src/pages/timeline.tsx:
+  - Implement onClick to generate ICS content from deal events and downloadTextFile
+Filename:
+  <dealName>-Timeline-<timestamp>.ics
+Ensure events include:
+  Launch, NDA deadline, IOI deadline, Commitment deadline, Allocation, Signing, Funding
+Use DTSTART/DTEND in ICS (all-day ok).
+
+B) “Export Timeline” (CSV)
+- Export events table via downloadCsv with columns:
+  Deal, EventName, Date, Type, Audience, Notes
+
+C) “View Full Calendar”
+- Must navigate to /deal/:id/calendar
+- Calendar page includes “Download .ics” too (reuse same ICS generator).
+
+====================================================
+5) Global “no dead buttons” sweep rule
+====================================================
+
+1) Create a ComingSoonButton component:
+client/src/components/coming-soon-button.tsx
+- If enabled=false:
+  - render Button disabled inside Tooltip (“Coming soon: …”)
+- If enabled=true:
+  - render normal button
+
+2) Sweep these pages and replace any no-op click handlers:
+- Deal Overview
+- Deals list actions
+- Analytics “Export” if any
+- Closing checklist “Download” if any
+For each:
+- Either implement a real action (download/modal/nav)
+- Or disable w/ tooltip
+No button should click and do nothing.
+
+====================================================
+6) Add a central “Exports” helper for consistent naming
+====================================================
+
+Create client/src/lib/export-names.ts
+- buildExportFilename(dealName, artifactType, ext)
+Example artifactType:
+  DealSummary, IOIReport, QA, Documents, Timeline, Calendar
+Return:
+  <slug(dealName)>-<artifactType>-YYYY-MM-DD_HH-mm.<ext>
+
+Use this everywhere so demos feel consistent.
+
+====================================================
+VALIDATION (DEMO-SAFE)
+====================================================
+
+- Every action button on Deal Overview triggers:
+  download (CSV/TXT/ICS) OR print route OR modal (Send Reminders).
+- Export/Download never results in a toast-only behavior without an actual artifact.
+- Documents download works even for placeholder docs.
+- Timeline “Sync Calendar” downloads a valid .ics file.
+- No dead buttons remain; anything not built is disabled with a tooltip.
+- App compiles and runs in Replit without errors.

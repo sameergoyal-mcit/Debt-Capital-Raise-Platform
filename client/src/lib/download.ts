@@ -13,7 +13,16 @@ export function downloadBlob(filename: string, blob: Blob): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function escapeCsvValue(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (str.includes('"') || str.includes(",") || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
 }
 
 export function downloadCSV(filename: string, headers: string[], rows: string[][]): void {
@@ -23,6 +32,23 @@ export function downloadCSV(filename: string, headers: string[], rows: string[][
   ].join("\n");
   
   downloadTextFile(filename, "text/csv;charset=utf-8;", csvContent);
+}
+
+export function downloadCsvFromRecords(
+  filename: string,
+  rows: Record<string, string | number | boolean | null | undefined>[]
+): void {
+  if (rows.length === 0) {
+    downloadTextFile(filename, "text/csv;charset=utf-8", "");
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+  const headerRow = headers.map(escapeCsvValue).join(",");
+  const dataRows = rows.map((row) =>
+    headers.map((h) => escapeCsvValue(row[h])).join(",")
+  );
+  const csvContent = [headerRow, ...dataRows].join("\n");
+  downloadTextFile(filename, "text/csv;charset=utf-8", csvContent);
 }
 
 export function downloadPlaceholderDoc(docName: string, version: string): void {
