@@ -1,13 +1,111 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema } from "@shared/schema";
-import { runCreditAnalysis } from "./lib/credit-engine";
+import { runCreditModel, calculateQuickSummary, type CreditModelAssumptions } from "./lib/credit-engine";
+import { z } from "zod";
+
+// Authentication middleware (simplified for prototype - checks session/header)
+function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
+  // For prototype: check for user header or session
+  const userId = req.headers["x-user-id"] as string;
+  const userRole = req.headers["x-user-role"] as string;
+  
+  if (userId && userRole) {
+    (req as any).user = { id: userId, role: userRole };
+    return next();
+  }
+  
+  // Allow unauthenticated access in development for demo purposes
+  if (process.env.NODE_ENV !== "production") {
+    (req as any).user = { id: "demo", role: "bookrunner" };
+    return next();
+  }
+  
+  return res.status(401).json({ error: "Authentication required" });
+}
+
+function ensureRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    return next();
+  };
+}
+
+// Middleware to check lender has invitation to deal
+async function ensureLenderHasAccess(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  const dealId = req.params.dealId || req.params.id;
+  
+  if (!user || !dealId) {
+    return res.status(400).json({ error: "Missing user or deal ID" });
+  }
+  
+  // Sponsors and bookrunners have full access
+  if (["sponsor", "bookrunner", "issuer"].includes(user.role)) {
+    return next();
+  }
+  
+  // For lenders, check invitation exists
+  if (user.role === "lender" && user.lenderId) {
+    const invitation = await storage.getInvitation(dealId, user.lenderId);
+    if (!invitation) {
+      return res.status(403).json({ error: "No invitation to this deal" });
+    }
+    (req as any).invitation = invitation;
+    return next();
+  }
+  
+  // Allow in development mode
+  if (process.env.NODE_ENV !== "production") {
+    return next();
+  }
+  
+  return res.status(403).json({ error: "Access denied" });
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // ========== AUTH (Simplified for prototype) ==========
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password, role } = req.body;
+      
+      // For demo: create or find user
+      let user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        // Create demo user
+        user = await storage.createUser({
+          username,
+          password, // Note: In production, hash the password
+          email: `${username}@demo.com`,
+          role: role || "lender",
+        });
+      }
+      
+      res.json({ 
+        user: { id: user.id, username: user.username, role: user.role, email: user.email },
+        message: "Login successful" 
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/auth/me", ensureAuthenticated, async (req, res) => {
+    const user = (req as any).user;
+    res.json(user);
+  });
   
   // ========== DEALS ==========
   app.get("/api/deals", async (req, res) => {
@@ -149,6 +247,8 @@ export async function registerRoutes(
         actorRole: "investor",
         actorEmail: signerEmail,
         action: "SIGN_NDA",
+        resourceId: invitation.id,
+        resourceType: "invitation",
         metadata: { ndaVersion, ip: signerIp },
       });
 
@@ -220,6 +320,8 @@ export async function registerRoutes(
         lenderId: validated.lenderId,
         actorRole: "investor",
         action: "SUBMIT_COMMITMENT",
+        resourceId: commitment.id,
+        resourceType: "commitment",
         metadata: { amount: validated.amount, status: validated.status },
       });
 
@@ -293,6 +395,8 @@ export async function registerRoutes(
         actorRole: "investor",
         actorEmail,
         action: "VIEW_DEAL",
+        resourceId: req.params.dealId,
+        resourceType: "deal",
         metadata: { timestamp: new Date().toISOString() },
       });
       res.status(201).json({ success: true });
@@ -311,7 +415,9 @@ export async function registerRoutes(
         actorRole: "investor",
         actorEmail,
         action: "DOWNLOAD_DOC",
-        metadata: { documentId: req.params.documentId, documentName },
+        resourceId: req.params.documentId,
+        resourceType: "document",
+        metadata: { documentName },
       });
       res.status(201).json({ success: true });
     } catch (error: any) {
@@ -319,7 +425,7 @@ export async function registerRoutes(
     }
   });
 
-  // ========== CREDIT ENGINE ==========
+  // ========== CREDIT ENGINE - Quick Summary ==========
   app.get("/api/deals/:dealId/credit-summary", async (req, res) => {
     try {
       const deal = await storage.getDeal(req.params.dealId);
@@ -327,24 +433,52 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Deal not found" });
       }
 
-      // Calculate EBITDA estimate from facility size (assume 2.5x leverage at close)
-      const estimatedEbitda = Number(deal.facilitySize) / 2.5;
-      
-      const assumptions = {
-        initialDebt: Number(deal.facilitySize),
-        ebitda: estimatedEbitda,
-        interestRate: (deal.spreadLowBps + deal.spreadHighBps) / 2 / 100 + 5.5, // Assume SOFR ~5.5%
-        mandatoryAmort: Number(deal.facilitySize) * 0.05, // 5% annual
-        cashSweepPercent: 50,
-      };
-
-      const summary = runCreditAnalysis(assumptions, {
+      const summary = calculateQuickSummary({
+        facilitySize: Number(deal.facilitySize),
         committed: Number(deal.committed),
         targetSize: Number(deal.targetSize),
+        entryEbitda: deal.entryEbitda ? Number(deal.entryEbitda) : undefined,
+        leverageMultiple: deal.leverageMultiple || undefined,
+        interestRate: deal.interestRate || undefined,
       });
 
       res.json(summary);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== CREDIT ENGINE - Full 5-Year Model ==========
+  const creditModelSchema = z.object({
+    revenue: z.number().positive(),
+    ebitdaMargin: z.number().min(0).max(100),
+    growthPercent: z.number().min(-50).max(100),
+    taxRate: z.number().min(0).max(100),
+    capexPercent: z.number().min(0).max(50),
+    interestRate: z.number().min(0).max(30),
+    amortizationPercent: z.number().min(0).max(20),
+    initialDebt: z.number().positive(),
+    cashSweepPercent: z.number().min(0).max(100).optional(),
+  });
+
+  app.post("/api/deals/:dealId/calculate", async (req, res) => {
+    try {
+      const deal = await storage.getDeal(req.params.dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+
+      // Validate and parse assumptions
+      const assumptions = creditModelSchema.parse(req.body);
+
+      // Run the 5-year credit model
+      const result = runCreditModel(assumptions);
+
+      res.json(result);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid assumptions", details: error.errors });
+      }
       res.status(500).json({ error: error.message });
     }
   });

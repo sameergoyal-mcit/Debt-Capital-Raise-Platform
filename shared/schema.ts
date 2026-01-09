@@ -1,7 +1,30 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, boolean, timestamp, integer, jsonb, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Users Table (for authentication)
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  email: text("email").notNull().unique(),
+  role: text("role").notNull().default("lender"), // sponsor, lender, borrower, bookrunner
+  fundName: text("fund_name"),
+  isAccredited: boolean("is_accredited").default(false),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
 
 // Deals Table
 export const deals = pgTable("deals", {
@@ -10,12 +33,13 @@ export const deals = pgTable("deals", {
   borrowerName: text("borrower_name").notNull(),
   sector: text("sector").notNull(),
   sponsor: text("sponsor").notNull(),
+  sponsorId: varchar("sponsor_id").references(() => users.id),
   instrument: text("instrument").notNull(),
   facilityType: text("facility_type").notNull(),
   facilitySize: numeric("facility_size").notNull(),
   currency: text("currency").notNull().default("USD"),
   stage: text("stage").notNull(),
-  status: text("status").notNull(),
+  status: text("status").notNull(), // live, closed, paused
   targetSize: numeric("target_size").notNull(),
   committed: numeric("committed").notNull().default("0"),
   pricingBenchmark: text("pricing_benchmark").notNull().default("SOFR"),
@@ -27,6 +51,13 @@ export const deals = pgTable("deals", {
   hardCloseDate: text("hard_close_date"),
   launchDate: text("launch_date").notNull(),
   ndaTemplateId: text("nda_template_id").default("nda_std_v1"),
+  ndaRequired: boolean("nda_required").default(true),
+  // Financial modeling fields
+  entryEbitda: numeric("entry_ebitda"),
+  leverageMultiple: real("leverage_multiple"),
+  interestRate: real("interest_rate"),
+  revenueGrowth: real("revenue_growth"),
+  capexPercent: real("capex_percent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -42,6 +73,7 @@ export type Deal = typeof deals.$inferSelect;
 // Lenders Table
 export const lenders = pgTable("lenders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   email: text("email").notNull().unique(),
@@ -65,7 +97,8 @@ export const invitations = pgTable("invitations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id").notNull().references(() => deals.id),
   lenderId: varchar("lender_id").notNull().references(() => lenders.id),
-  accessTier: text("access_tier").notNull().default("early"),
+  token: varchar("token").default(sql`gen_random_uuid()`),
+  accessTier: text("access_tier").notNull().default("early"), // early, full, legal
   ndaRequired: boolean("nda_required").notNull().default(true),
   ndaSignedAt: timestamp("nda_signed_at"),
   ndaVersion: text("nda_version"),
@@ -80,6 +113,7 @@ export const invitations = pgTable("invitations", {
 export const insertInvitationSchema = createInsertSchema(invitations).omit({
   id: true,
   invitedAt: true,
+  token: true,
 });
 export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
 export type Invitation = typeof invitations.$inferSelect;
@@ -157,9 +191,12 @@ export const logs = pgTable("logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id").references(() => deals.id),
   lenderId: varchar("lender_id").references(() => lenders.id),
+  userId: varchar("user_id").references(() => users.id),
   actorRole: text("actor_role").notNull(),
   actorEmail: text("actor_email"),
-  action: text("action").notNull(),
+  action: text("action").notNull(), // view_deal, download_doc, sign_nda, submit_commitment
+  resourceId: varchar("resource_id"),
+  resourceType: text("resource_type"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -170,3 +207,10 @@ export const insertLogSchema = createInsertSchema(logs).omit({
 });
 export type InsertLog = z.infer<typeof insertLogSchema>;
 export type Log = typeof logs.$inferSelect;
+
+// Sessions table for Passport.js session storage
+export const sessions = pgTable("sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});

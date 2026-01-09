@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import type { InsertDeal, InsertLender, InsertInvitation, InsertDocument, InsertQAItem, InsertCommitment } from "@shared/schema";
+import type { InsertDeal, InsertLender, InsertInvitation, InsertDocument, InsertQAItem, InsertCommitment, InsertUser } from "@shared/schema";
 
 export async function seedIfEmpty() {
   // Check if data already exists
@@ -11,12 +11,46 @@ export async function seedIfEmpty() {
 
   console.log("Seeding database with demo data...");
 
+  // Create demo users
+  const demoUsers: InsertUser[] = [
+    {
+      username: "bookrunner",
+      password: "demo123",
+      email: "bookrunner@demo.com",
+      role: "bookrunner",
+      firstName: "John",
+      lastName: "Smith",
+    },
+    {
+      username: "sponsor",
+      password: "demo123",
+      email: "sponsor@demo.com",
+      role: "sponsor",
+      fundName: "Vista Equity Partners",
+      firstName: "Jane",
+      lastName: "Doe",
+    },
+    {
+      username: "lender",
+      password: "demo123",
+      email: "lender@apollocredit.com",
+      role: "lender",
+      fundName: "Apollo Credit",
+      isAccredited: true,
+      firstName: "Sarah",
+      lastName: "Chen",
+    },
+  ];
+
+  const createdUsers = await Promise.all(demoUsers.map(u => storage.createUser(u)));
+
   // Create Deals
   const deal1: InsertDeal = {
     dealName: "Project Titan",
     borrowerName: "Titan Software Inc.",
     sector: "Enterprise SaaS",
     sponsor: "Vista Equity Partners",
+    sponsorId: createdUsers[1].id,
     instrument: "Senior Secured Term Loan",
     facilityType: "First Lien",
     facilitySize: "450000000",
@@ -34,6 +68,12 @@ export async function seedIfEmpty() {
     hardCloseDate: "2026-03-05",
     launchDate: "2026-01-15",
     ndaTemplateId: "nda_std_v1",
+    ndaRequired: true,
+    entryEbitda: "180000000",
+    leverageMultiple: 2.5,
+    interestRate: 11.5,
+    revenueGrowth: 8.0,
+    capexPercent: 5.0,
   };
 
   const deal2: InsertDeal = {
@@ -57,6 +97,12 @@ export async function seedIfEmpty() {
     closeDate: "2026-03-31",
     launchDate: "2026-01-20",
     ndaTemplateId: "nda_std_v1",
+    ndaRequired: true,
+    entryEbitda: "120000000",
+    leverageMultiple: 2.5,
+    interestRate: 10.5,
+    revenueGrowth: 6.0,
+    capexPercent: 4.0,
   };
 
   const createdDeal1 = await storage.createDeal(deal1);
@@ -65,6 +111,7 @@ export async function seedIfEmpty() {
   // Create Lenders
   const lenders: InsertLender[] = [
     {
+      userId: createdUsers[2].id,
       firstName: "Sarah",
       lastName: "Chen",
       email: "sarah.chen@apollocredit.com",
@@ -312,6 +359,7 @@ export async function seedIfEmpty() {
     actorRole: "investor",
     actorEmail: createdLenders[0].email,
     action: "SIGN_NDA",
+    resourceType: "invitation",
     metadata: { ndaVersion: "1.0", ip: "192.168.1.10" },
   });
 
@@ -321,6 +369,8 @@ export async function seedIfEmpty() {
     actorRole: "investor",
     actorEmail: createdLenders[0].email,
     action: "VIEW_DEAL",
+    resourceId: createdDeal1.id,
+    resourceType: "deal",
     metadata: { timestamp: threeDaysAgo.toISOString() },
   });
 
@@ -330,6 +380,7 @@ export async function seedIfEmpty() {
     actorRole: "investor",
     actorEmail: createdLenders[1].email,
     action: "DOWNLOAD_DOC",
+    resourceType: "document",
     metadata: { documentName: "Lender Presentation - Titan Software" },
   });
 
@@ -339,9 +390,10 @@ export async function seedIfEmpty() {
     actorRole: "investor",
     actorEmail: createdLenders[0].email,
     action: "SUBMIT_COMMITMENT",
+    resourceType: "commitment",
     metadata: { amount: "75000000", status: "firm" },
   });
 
   console.log("Database seeded successfully!");
-  console.log(`Created ${createdLenders.length} lenders and 2 deals with documents, Q&A, and commitments.`);
+  console.log(`Created ${createdUsers.length} users, ${createdLenders.length} lenders and 2 deals with documents, Q&A, and commitments.`);
 }

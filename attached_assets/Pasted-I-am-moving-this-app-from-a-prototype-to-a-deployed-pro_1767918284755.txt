@@ -1,0 +1,33 @@
+I am moving this app from a prototype to a deployed production environment. Please implement the following full-stack upgrades to enable persistence, security, and advanced financial modeling.
+
+PHASE 1: INFRASTRUCTURE & SCHEMA (PostgreSQL)
+1. Replace `MemStorage` in `server/storage.ts` with a persistent `PostgresStorage` class using Drizzle ORM and the `pg` driver.
+2. Update `shared/schema.ts` to include these tables:
+   - `users`: Add `role` (sponsor, lender, borrower), `fund_name`, and `is_accredited`.
+   - `deals`: Add fields for `entry_ebitda`, `leverage_multiple`, `interest_rate`, `revenue_growth`, `capex_percent`, `status` (live, closed), and `nda_required` (boolean).
+   - `invitations`: Track `token`, `lender_id`, `deal_id`, `nda_signed_at` (timestamp), and `access_tier` (early, full, legal).
+   - `audit_logs`: Log `user_id`, `action` (view_deal, download_doc), `resource_id`, and `timestamp`.
+
+PHASE 2: SECURITY & ROLES (Passport.js)
+1. In `server/routes.ts`, implement Passport.js with `local` strategy.
+2. Create middleware `ensureAuthenticated` and `ensureRole(role)`.
+3. Secure all `/api/deals/:id` routes:
+   - Sponsors can view/edit their own deals.
+   - Lenders can ONLY view deals if they have a matching record in the `invitations` table.
+4. Remove all client-side "mock data" imports in `investor-dashboard.tsx` and fetch real data from these secure endpoints instead.
+
+PHASE 3: FINANCIAL LOGIC (Credit Engine)
+1. Create `server/lib/credit-engine.ts`.
+2. Implement a `runCreditModel(assumptions)` function that calculates a 5-year waterfall:
+   - Inputs: Revenue, EBITDA Margin, Growth %, Tax Rate, CapEx %, Interest Rate, Amortization %.
+   - Logic: EBITDA -> Less: Interest/Tax/CapEx -> Free Cash Flow -> Less: Mandatory Amort -> Less: Cash Sweep (50% of excess).
+   - Output: Array of objects containing `{ year, revenue, ebitda, fcf, beginning_debt, ending_debt, leverage_ratio }`.
+3. Create a POST route `/api/deals/:id/calculate` that accepts assumptions, runs this engine, and returns the projection.
+
+PHASE 4: INTERACTIVE UI (Paydown Model)
+1. Create `client/src/components/paydown-model.tsx`.
+2. Add Shadcn Sliders for `Revenue Growth` (0-20%) and `Leverage` (2.0x-7.0x).
+3. Display the results in a Recharts BarChart (Debt Balance vs. FCF) and a detailed HTML Table.
+4. Embed this component into a new "Financials" tab on the `DealOverview` page.
+
+Execute these changes now.

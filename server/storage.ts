@@ -3,6 +3,8 @@ import { eq, and, desc } from "drizzle-orm";
 import pg from "pg";
 import * as schema from "@shared/schema";
 import type {
+  User,
+  InsertUser,
   Deal,
   InsertDeal,
   Lender,
@@ -25,9 +27,15 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
 });
 
-const db = drizzle(pool, { schema });
+export const db = drizzle(pool, { schema });
 
 export interface IStorage {
+  // Users
+  getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
   // Deals
   listDeals(): Promise<Deal[]>;
   getDeal(id: string): Promise<Deal | undefined>;
@@ -38,6 +46,7 @@ export interface IStorage {
   listLenders(): Promise<Lender[]>;
   getLender(id: string): Promise<Lender | undefined>;
   getLenderByEmail(email: string): Promise<Lender | undefined>;
+  getLenderByUserId(userId: string): Promise<Lender | undefined>;
   createLender(lender: InsertLender): Promise<Lender>;
   updateLender(id: string, lender: Partial<InsertLender>): Promise<Lender | undefined>;
 
@@ -45,6 +54,7 @@ export interface IStorage {
   listInvitationsByDeal(dealId: string): Promise<Invitation[]>;
   listInvitationsByLender(lenderId: string): Promise<Invitation[]>;
   getInvitation(dealId: string, lenderId: string): Promise<Invitation | undefined>;
+  getInvitationByToken(token: string): Promise<Invitation | undefined>;
   createInvitation(invitation: InsertInvitation): Promise<Invitation>;
   updateInvitationNdaSigned(dealId: string, lenderId: string, signerEmail: string, signerIp: string, ndaVersion: string): Promise<Invitation | undefined>;
   updateInvitationTier(dealId: string, lenderId: string, newTier: string, changedBy: string): Promise<Invitation | undefined>;
@@ -73,6 +83,27 @@ export interface IStorage {
 }
 
 export class DrizzleStorage implements IStorage {
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const results = await db.select().from(schema.users).where(eq(schema.users.id, id));
+    return results[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const results = await db.select().from(schema.users).where(eq(schema.users.username, username));
+    return results[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const results = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    return results[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const results = await db.insert(schema.users).values(user).returning();
+    return results[0];
+  }
+
   // Deals
   async listDeals(): Promise<Deal[]> {
     return db.select().from(schema.deals).orderBy(desc(schema.deals.updatedAt));
@@ -112,6 +143,11 @@ export class DrizzleStorage implements IStorage {
     return results[0];
   }
 
+  async getLenderByUserId(userId: string): Promise<Lender | undefined> {
+    const results = await db.select().from(schema.lenders).where(eq(schema.lenders.userId, userId));
+    return results[0];
+  }
+
   async createLender(lender: InsertLender): Promise<Lender> {
     const results = await db.insert(schema.lenders).values(lender).returning();
     return results[0];
@@ -140,6 +176,11 @@ export class DrizzleStorage implements IStorage {
       .select()
       .from(schema.invitations)
       .where(and(eq(schema.invitations.dealId, dealId), eq(schema.invitations.lenderId, lenderId)));
+    return results[0];
+  }
+
+  async getInvitationByToken(token: string): Promise<Invitation | undefined> {
+    const results = await db.select().from(schema.invitations).where(eq(schema.invitations.token, token));
     return results[0];
   }
 
