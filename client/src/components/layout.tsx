@@ -17,7 +17,9 @@ import {
   HelpCircle,
   Megaphone,
   LogOut,
-  PenTool
+  PenTool,
+  FlaskConical,
+  Calculator
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,15 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href="/deals" icon={<Briefcase size={20} />} label="Deals" active={location === "/deals"} />
               <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} />
             </>
+          )}
+          
+          {isInternal && (
+            <div className="mt-4 pt-4 border-t border-sidebar-border">
+              <div className="px-4 mb-2">
+                <h4 className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">Sandbox</h4>
+              </div>
+              <NavItem href="/sandbox/financial-model" icon={<Calculator size={20} />} label="Financial Model" active={isActive("/sandbox/financial-model")} />
+            </div>
           )}
 
           {isInvestor && !isDealWorkspace && (

@@ -214,3 +214,35 @@ export const sessions = pgTable("sessions", {
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire").notNull(),
 });
+
+// Deal Models Table - for storing sandbox financial model assumptions
+export const dealModels = pgTable("deal_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  name: text("name").notNull().default("Financial Model"),
+  assumptions: jsonb("assumptions").$type<{
+    revenue: number;
+    growthPercent: number;
+    ebitdaMargin: number;
+    leverageMultiple: number;
+    interestRate: number;
+    taxRate?: number;
+    capexPercent?: number;
+    amortizationPercent?: number;
+    cashSweepPercent?: number;
+  }>().notNull(),
+  isPublished: boolean("is_published").default(false),
+  publishedAt: timestamp("published_at"),
+  publishedBy: varchar("published_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertDealModelSchema = createInsertSchema(dealModels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertDealModel = z.infer<typeof insertDealModelSchema>;
+export type DealModel = typeof dealModels.$inferSelect;

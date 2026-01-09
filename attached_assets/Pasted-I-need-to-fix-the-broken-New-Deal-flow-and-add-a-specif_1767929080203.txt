@@ -1,0 +1,29 @@
+I need to fix the broken "New Deal" flow and add a specific "Sandbox" module for Issuers. Please execute the following plan:
+
+PHASE 1: FIX "NEW DEAL" (Database & Form)
+1. Update `shared/schema.ts`: Ensure the `deals` table has fields for `name`, `amount` (numeric), `sector`, `ebitda` (numeric), `status` (default 'draft'), and `sponsor_id` (foreign key to users).
+2. Create API Route: In `server/routes.ts`, add `POST /api/deals`. It must validate the input using Zod and insert the new deal into PostgreSQL.
+3. UI Component: Create `client/src/components/create-deal-dialog.tsx`.
+   - Use a Shadcn Dialog triggered by the "New Deal" button.
+   - Include a form (react-hook-form) for Name, Target Amount, and Sector.
+   - On submit, call the API and redirect the user to `/deal/:id`.
+
+PHASE 2: THE "SANDBOX" (New Dashboard Feature)
+1. Sidebar Update: In `client/src/components/layout.tsx`, add a "Sandbox" navigation item that includes a "Financial Model" sub-tab.
+   - *Constraint:* Only render this tab if `user.role` is 'issuer' or 'bookrunner'.
+2. Create Page: `client/src/pages/sandbox/financial-model.tsx`.
+   - Layout: Split screen. Left side = Input Form. Right side = Paydown Charts.
+   - Inputs: Revenue Base, Growth %, EBITDA Margin %, Leverage Multiple, Interest Rate.
+   - Logic: Use `server/lib/credit-engine.ts` (create if missing) to calculate a 5-year FCF sweep.
+   - Output: A Recharts AreaChart showing Debt Balance decreasing over 5 years.
+
+PHASE 3: PUBLISH TO DATA ROOM
+1. Schema Update: Add a `deal_models` table to store the saved assumptions (JSONB) linked to a `deal_id`.
+2. Publishing Action: Add a "Publish to Data Room" button in the Sandbox header.
+   - Action: It saves the current model assumptions to `deal_models`.
+   - It also inserts a record into the `documents` table with type `interactive_model`.
+3. Investor View: Update the `DataRoom` component.
+   - If a document has type `interactive_model`, render a "View Model" button instead of "Download".
+   - Clicking it opens the model in "Read-Only" mode for the Investor.
+
+Execute these changes to make the platform functional.

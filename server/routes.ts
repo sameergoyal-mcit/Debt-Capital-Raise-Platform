@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema } from "@shared/schema";
+import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema, insertDealModelSchema } from "@shared/schema";
 import { runCreditModel, calculateQuickSummary, type CreditModelAssumptions } from "./lib/credit-engine";
 import { z } from "zod";
 
@@ -549,6 +549,75 @@ export async function registerRoutes(
         sentCount: recipients.length,
         message: `Reminders sent to ${recipients.length} recipients`,
       });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== DEAL MODELS (Sandbox) ==========
+  app.get("/api/deals/:dealId/models", async (req, res) => {
+    try {
+      const models = await storage.listDealModelsByDeal(req.params.dealId);
+      res.json(models);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/deal-models/:id", async (req, res) => {
+    try {
+      const model = await storage.getDealModel(req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      res.json(model);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deal-models", async (req, res) => {
+    try {
+      const validated = insertDealModelSchema.parse(req.body);
+      const model = await storage.createDealModel(validated);
+      
+      if (validated.isPublished) {
+        await storage.createDocument({
+          dealId: validated.dealId,
+          category: "Financial",
+          type: "interactive_model",
+          name: validated.name || "Financial Model",
+          visibilityTier: "full",
+          owner: "Deal Team",
+        });
+      }
+      
+      res.status(201).json(model);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/deal-models/:id/publish", async (req, res) => {
+    try {
+      const model = await storage.getDealModel(req.params.id);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+      
+      const user = (req as any).user;
+      const publishedModel = await storage.publishDealModel(req.params.id, user?.id || "system");
+      
+      await storage.createDocument({
+        dealId: model.dealId,
+        category: "Financial",
+        type: "interactive_model",
+        name: model.name || "Financial Model",
+        visibilityTier: "full",
+        owner: "Deal Team",
+      });
+      
+      res.json(publishedModel);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -19,6 +19,8 @@ import type {
   InsertQAItem,
   Log,
   InsertLog,
+  DealModel,
+  InsertDealModel,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -80,6 +82,13 @@ export interface IStorage {
   // Audit Logs
   createLog(log: InsertLog): Promise<Log>;
   listLogsByDeal(dealId: string, limit?: number): Promise<Log[]>;
+
+  // Deal Models
+  listDealModelsByDeal(dealId: string): Promise<DealModel[]>;
+  getDealModel(id: string): Promise<DealModel | undefined>;
+  createDealModel(model: InsertDealModel): Promise<DealModel>;
+  updateDealModel(id: string, model: Partial<InsertDealModel>): Promise<DealModel | undefined>;
+  publishDealModel(id: string, userId: string): Promise<DealModel | undefined>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -322,6 +331,43 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.logs.dealId, dealId))
       .orderBy(desc(schema.logs.createdAt))
       .limit(limit);
+  }
+
+  // Deal Models
+  async listDealModelsByDeal(dealId: string): Promise<DealModel[]> {
+    return db
+      .select()
+      .from(schema.dealModels)
+      .where(eq(schema.dealModels.dealId, dealId))
+      .orderBy(desc(schema.dealModels.createdAt));
+  }
+
+  async getDealModel(id: string): Promise<DealModel | undefined> {
+    const results = await db.select().from(schema.dealModels).where(eq(schema.dealModels.id, id));
+    return results[0];
+  }
+
+  async createDealModel(model: InsertDealModel): Promise<DealModel> {
+    const results = await db.insert(schema.dealModels).values(model).returning();
+    return results[0];
+  }
+
+  async updateDealModel(id: string, model: Partial<InsertDealModel>): Promise<DealModel | undefined> {
+    const results = await db
+      .update(schema.dealModels)
+      .set({ ...model, updatedAt: new Date() })
+      .where(eq(schema.dealModels.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async publishDealModel(id: string, userId: string): Promise<DealModel | undefined> {
+    const results = await db
+      .update(schema.dealModels)
+      .set({ isPublished: true, publishedAt: new Date(), publishedBy: userId, updatedAt: new Date() })
+      .where(eq(schema.dealModels.id, id))
+      .returning();
+    return results[0];
   }
 }
 

@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { AccessNotice } from "@/components/access-notice";
+import { CreateDealDialog } from "@/components/create-deal-dialog";
 
 export default function Deals() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -144,9 +145,7 @@ export default function Deals() {
               <Download className="h-4 w-4" /> Export
             </Button>
             {user?.role !== "Investor" && (
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                <Plus className="h-4 w-4" /> New Deal
-              </Button>
+              <CreateDealDialog />
             )}
           </div>
         </div>
