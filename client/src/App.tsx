@@ -29,7 +29,6 @@ import MessagesPage from "@/pages/messages";
 import DealMessagesPage from "@/pages/deal-messages";
 import AuditTrail from "@/pages/audit-trail";
 import DealPrint from "@/pages/deal-print";
-import FinancialModel from "@/pages/sandbox/financial-model";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Protected Route Wrapper
@@ -106,14 +105,6 @@ function Router() {
       {/* Analytics - Internal Only */}
       <Route path="/analytics">
         <ProtectedRoute component={Analytics} allowedRoles={["Issuer", "Bookrunner"]} />
-      </Route>
-
-      {/* Sandbox - Financial Model */}
-      <Route path="/sandbox/financial-model">
-        <ProtectedRoute component={FinancialModel} allowedRoles={["Issuer", "Bookrunner"]} />
-      </Route>
-      <Route path="/sandbox/financial-model/:dealId">
-        <ProtectedRoute component={FinancialModel} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
 
       <Route path="/messages">

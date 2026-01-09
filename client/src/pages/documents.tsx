@@ -51,6 +51,7 @@ import { UploadDocumentModal, UploadedDocument } from "@/components/upload-docum
 import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/components/document-filter-panel";
 import { DealSandbox } from "@/components/deal-sandbox";
 import { useEffect } from "react";
+import { DocumentVersionBadge, generateMockVersions, DocumentVersion } from "@/components/document-versions";
 
 interface GranularAssumptions {
   ltmRevenue: number;
@@ -602,6 +603,17 @@ export default function DocumentsPage() {
                           </div>
                         )}
 
+                       {/* Version History */}
+                       <div className="border-t pt-6">
+                         <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                           <History className="h-4 w-4" />
+                           Version History
+                         </h3>
+                         <VersionHistoryPanel documentName={selectedDoc.name} onDownload={(versionId) => {
+                           toast({ title: "Download Started", description: `Downloading version ${versionId}...` });
+                         }} />
+                       </div>
+
                        {/* Metadata */}
                        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                           <div>
@@ -769,36 +781,48 @@ export default function DocumentsPage() {
 
 function FolderGroup({ title, docs, selectedId, onSelect }: { title: string, docs: Document[], selectedId?: string, onSelect: (id: string) => void }) {
   if (docs.length === 0) return null;
-  
+
   return (
     <div>
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 sticky top-0 bg-card py-1 z-10">
         {title}
       </h3>
       <div className="space-y-1">
-        {docs.map(doc => (
-          <div 
-            key={doc.id}
-            onClick={() => onSelect(doc.id)}
-            className={cn(
-              "flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors text-sm group",
-              selectedId === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50"
-            )}
-          >
-            <FileText className={cn("h-4 w-4 mt-0.5 shrink-0", selectedId === doc.id ? "text-primary" : "text-muted-foreground")} />
-            <div className="flex-1 overflow-hidden">
-              <div className="truncate font-medium">{doc.name}</div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-muted-foreground">{doc.version}</span>
-                {doc.openCommentsCount > 0 && (
-                  <Badge variant="secondary" className="h-4 px-1 text-[10px] gap-1">
-                    <MessageSquare className="h-2 w-2" /> {doc.openCommentsCount}
-                  </Badge>
-                )}
+        {docs.map(doc => {
+          const versions = generateMockVersions(doc.name);
+          const currentVersionNum = parseInt(doc.version.replace('v', '')) || versions.find(v => v.isCurrentVersion)?.version || 1;
+
+          return (
+            <div
+              key={doc.id}
+              onClick={() => onSelect(doc.id)}
+              className={cn(
+                "flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors text-sm group",
+                selectedId === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50"
+              )}
+            >
+              <FileText className={cn("h-4 w-4 mt-0.5 shrink-0", selectedId === doc.id ? "text-primary" : "text-muted-foreground")} />
+              <div className="flex-1 overflow-hidden">
+                <div className="truncate font-medium">{doc.name}</div>
+                <div className="flex items-center justify-between mt-1">
+                  <DocumentVersionBadge
+                    currentVersion={currentVersionNum}
+                    totalVersions={versions.length}
+                    versions={versions}
+                    onDownload={(versionId) => {
+                      // Would download specific version
+                    }}
+                  />
+                  {doc.openCommentsCount > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px] gap-1">
+                      <MessageSquare className="h-2 w-2" /> {doc.openCommentsCount}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -868,4 +892,70 @@ function AccessRow({ investor, user, action, file, time }: { investor: string; u
       <TableCell className="text-muted-foreground text-sm">{time}</TableCell>
     </TableRow>
   )
+}
+
+// Version History Panel component
+function VersionHistoryPanel({ documentName, onDownload }: { documentName: string; onDownload?: (versionId: string) => void }) {
+  const versions = generateMockVersions(documentName);
+  const currentVersion = versions.find(v => v.isCurrentVersion);
+
+  return (
+    <div className="space-y-3">
+      {versions.map((version, index) => (
+        <div
+          key={version.id}
+          className={cn(
+            "relative flex items-start justify-between p-3 rounded-lg border transition-colors",
+            version.isCurrentVersion
+              ? "border-primary/50 bg-primary/5"
+              : "border-border hover:bg-muted/50"
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={cn(
+                "flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium",
+                version.isCurrentVersion
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              v{version.version}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-medium text-sm truncate">
+                  {version.filename}
+                </span>
+                {version.isCurrentVersion && (
+                  <Badge className="text-[10px] px-1.5 py-0 h-4">Current</Badge>
+                )}
+              </div>
+              {version.changeSummary && (
+                <p className="text-xs text-muted-foreground mb-1.5 line-clamp-1">
+                  {version.changeSummary}
+                </p>
+              )}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{version.uploadedBy}</span>
+                <span>•</span>
+                <span>{format(version.uploadedAt, "MMM d, yyyy 'at' h:mm a")}</span>
+              </div>
+            </div>
+          </div>
+
+          {onDownload && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => onDownload(version.id)}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }

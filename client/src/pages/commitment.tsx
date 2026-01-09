@@ -90,17 +90,30 @@ export default function SubmitCommitment() {
             <CardContent className="space-y-6">
               
               <div className="space-y-4">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <Label className="text-base">Commitment Amount</Label>
-                  <span className="text-2xl font-bold font-serif text-primary">
-                    ${(amount / 1000000).toFixed(1)}M
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      value={amount / 1000000}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setAmount(Math.min(50000000, Math.max(1000000, value * 1000000)));
+                      }}
+                      className="w-24 text-right font-bold text-lg"
+                      min={1}
+                      max={50}
+                      step={0.5}
+                    />
+                    <span className="text-muted-foreground font-medium">M</span>
+                  </div>
                 </div>
-                <Slider 
-                  value={[amount]} 
-                  min={1000000} 
-                  max={50000000} 
-                  step={500000} 
+                <Slider
+                  value={[amount]}
+                  min={1000000}
+                  max={50000000}
+                  step={500000}
                   onValueChange={(v) => setAmount(v[0])}
                   className="py-4"
                 />
@@ -108,6 +121,41 @@ export default function SubmitCommitment() {
                   <span>$1.0M</span>
                   <span>$25.0M</span>
                   <span>$50.0M</span>
+                </div>
+                {/* Quick preset buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={amount === 5000000 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAmount(5000000)}
+                  >
+                    $5M
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={amount === 10000000 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAmount(10000000)}
+                  >
+                    $10M
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={amount === 25000000 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAmount(25000000)}
+                  >
+                    $25M
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={amount === 50000000 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAmount(50000000)}
+                  >
+                    $50M
+                  </Button>
                 </div>
               </div>
 
