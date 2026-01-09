@@ -39,26 +39,58 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with PostgreSQL dialect
 - **Schema Location**: `shared/schema.ts` (shared between client and server)
 - **Migrations**: Drizzle Kit with `db:push` command
-- **Current State**: Uses mock data stores in `client/src/data/` for prototyping; designed for easy swap to real database
+- **Database Tables**: users, deals, lenders, invitations, documents, commitments, qa_items, logs, sessions
+- **Seed Data**: Demo users (bookrunner/sponsor/lender with password "demo123"), sample deals, lenders, and audit logs
 
 ### Authentication & Authorization
+- **Auth API**: POST /api/auth/login, POST /api/auth/register with bcrypt password hashing
+- **Middleware**: `ensureAuthenticated` and `ensureRole` for API route protection
 - **Auth Context**: Client-side auth state in `client/src/context/auth-context.tsx`
 - **Session Storage**: localStorage persistence
 - **Roles**: Three distinct roles with different permissions:
-  - `issuer`: Deal sponsors, full access to their deals
+  - `sponsor`: Deal sponsors, full access to their deals
   - `bookrunner`: Arrangers, full access plus investor book management
-  - `investor`: Lenders, scoped access to invited deals only
+  - `lender`: Lenders, scoped access to invited deals only
 - **Route Guards**: `ProtectedRoute` component with role-based access control
 - **NDA Gating**: `NDAGate` component enforces NDA signing before document access
 
+### Financial Modeling (Credit Engine)
+- **Location**: `server/lib/credit-engine.ts`
+- **5-Year Paydown Model**: POST /api/deals/:id/calculate
+  - Revenue projections with growth rate
+  - EBITDA and margin calculations
+  - Interest expense, taxes, capex
+  - Mandatory amortization + cash sweep paydown
+  - Leverage ratio projections (entry to exit)
+- **Quick Summary**: GET /api/deals/:id/credit-summary for dashboard metrics
+
 ### Key Data Models
-- **Deals**: Core deal entity with stages, pricing, covenants
-- **Lenders**: Institutional investor profiles
-- **Invitations**: Deal access grants with NDA tracking and tier levels (early/full/legal)
+- **Users**: Authentication with bcrypt-hashed passwords and roles
+- **Deals**: Core deal entity with stages, pricing, covenants, financial modeling fields
+- **Lenders**: Institutional investor profiles linked to users
+- **Invitations**: Deal access grants with NDA tracking, tokens, and tier levels (early/full/legal)
 - **Documents**: Tiered document access with version tracking
 - **Q&A**: Due diligence questions with message-to-Q&A sync
 - **Commitments**: Lender commitment submissions with firm-up workflow
-- **Messages**: Deal-scoped threaded messaging
+- **Logs**: Audit trail tracking all investor actions (view deal, download doc, sign NDA, submit commitment)
+
+### API Endpoints
+- **Auth**: POST /api/auth/login, POST /api/auth/register, GET /api/auth/me
+- **Deals**: GET/POST /api/deals, GET/PATCH /api/deals/:id
+- **Lenders**: GET/POST /api/lenders, GET /api/lenders/:id
+- **Invitations**: GET /api/deals/:dealId/invitations, POST /api/invitations, POST /api/invitations/:dealId/:lenderId/sign-nda
+- **Documents**: GET /api/deals/:dealId/documents, POST /api/documents
+- **Commitments**: GET /api/deals/:dealId/commitments, POST /api/commitments
+- **Q&A**: GET /api/deals/:dealId/qa, POST /api/qa, PATCH /api/qa/:id/answer
+- **Audit Logs**: GET /api/deals/:dealId/logs, POST /api/logs
+- **Credit Model**: GET /api/deals/:dealId/credit-summary, POST /api/deals/:dealId/calculate
+
+## Recent Changes (Jan 2026)
+- Transitioned from frontend-only prototype to full-stack with PostgreSQL persistence
+- Added users table with bcrypt password hashing for secure authentication
+- Implemented 5-year debt paydown waterfall model with complete financial projections
+- Created audit trail page for tracking investor activity
+- Added seed data with demo users (username: bookrunner/sponsor/lender, password: demo123)
 
 ### File Structure Patterns
 ```
