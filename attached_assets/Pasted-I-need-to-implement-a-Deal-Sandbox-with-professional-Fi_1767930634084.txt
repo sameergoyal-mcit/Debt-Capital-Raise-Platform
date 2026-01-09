@@ -1,0 +1,56 @@
+I need to implement a "Deal Sandbox" with professional Financial Reporting standards. Please execute this specific 3-phase plan. 
+
+IMPORTANT CONTEXT:
+- Do NOT make "Sandbox" a global sidebar item.
+- It must be a new Tab named "Financial Model" inside the existing `DealOverview` page.
+- The output must look like a 10-K Financial Statement (Grid format), not just charts.
+
+PHASE 1: GRANULAR CREDIT ENGINE (server/lib/credit-engine.ts)
+Refactor `runCreditModel` to accept year-by-year array inputs.
+1. Update Input Interface `DealAssumptions`:
+   - `revenue_growth`: number[] (Array of 5 percentages for Projected Years 1-5).
+   - `ebitda_margins`: number[] (Array of 5 percentages).
+   - `capex_percent`: number[] (Array of 5 percentages).
+   - `adjustments`: number[] (Array of 5 currency values for one-off add-backs).
+   - `tax_rate`: number.
+   - `debt_structure`: { senior_amount: number, interest_rate: number, amort_rate: number }.
+2. Logic Update:
+   - Calculate `Gross EBITDA` = Revenue * Margin.
+   - Calculate `Adj. EBITDA` = Gross EBITDA + Adjustments.
+   - Calculate `FCF` = Adj. EBITDA - Interest - Tax - CapEx - Mandatory Amort.
+   - Calculate `Ending Debt` = Beginning Debt - Mandatory Amort - Cash Sweep.
+   - Calculate `DSCR` and `Leverage Ratio`.
+
+PHASE 2: THE 10-K STYLE UI (client/src/components/deal-sandbox.tsx)
+Create a component `DealSandbox` and embed it as a Tab in `client/src/pages/deal-overview.tsx`.
+1. Split-Pane Layout:
+   - **Left Pane (Inputs):** A "Spreadsheet-style" grid where users can type values for Growth %, Margins %, and Adjustments for Years 1-5.
+   - **Right Pane (Outputs):** A standard Financial Reporting Table (The "10-K View").
+2. The 10-K Table Structure:
+   - Columns: `LTM (Actual)` | `Year 1` | `Year 2` | `Year 3` | `Year 4` | `Year 5`
+   - Rows (Formatted exactly like this):
+     - **Revenue** (Currency)
+     - *% Growth* (Italicized, %)
+     - **Gross EBITDA** (Currency)
+     - *% Margin* (Italicized, %)
+     - (+) Adjustments
+     - **Adjusted EBITDA** (Bold, Currency)
+     - (-) Depreciation & Amortization (Mocked or % of Rev)
+     - **EBIT**
+     - (-) Interest Expense
+     - (-) Taxes
+     - **Net Income**
+     - (+) D&A Add-back
+     - (-) CapEx
+     - (-) Mandatory Debt Paydown
+     - **Free Cash Flow (FCF)**
+3. Visuals: Below the table, show a small line chart for "Leverage Evolution" (Net Debt / EBITDA).
+
+PHASE 3: PUBLISH TO DATA ROOM
+1. Add a "Publish Model" button in the Sandbox header.
+2. When clicked:
+   - Save the full state (all granular arrays) to a new table `deal_models`.
+   - Create a record in `documents` with type `interactive_model`.
+   - On the Investor Dashboard, clicking this document should open the `DealSandbox` in "Read-Only" mode.
+
+Execute this now.

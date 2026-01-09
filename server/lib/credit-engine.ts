@@ -1,3 +1,178 @@
+export interface DebtStructure {
+  seniorAmount: number;
+  interestRate: number;
+  amortRate: number;
+}
+
+export interface GranularAssumptions {
+  ltmRevenue: number;
+  ltmEbitda: number;
+  revenueGrowth: number[];
+  ebitdaMargins: number[];
+  capexPercent: number[];
+  adjustments: number[];
+  taxRate: number;
+  daPercent: number;
+  debtStructure: DebtStructure;
+  cashSweepPercent: number;
+}
+
+export interface GranularYearProjection {
+  year: number;
+  label: string;
+  revenue: number;
+  revenueGrowth: number;
+  grossEbitda: number;
+  ebitdaMargin: number;
+  adjustments: number;
+  adjEbitda: number;
+  da: number;
+  ebit: number;
+  interest: number;
+  taxes: number;
+  netIncome: number;
+  daAddback: number;
+  capex: number;
+  mandatoryAmort: number;
+  fcf: number;
+  beginningDebt: number;
+  cashSweep: number;
+  endingDebt: number;
+  leverageRatio: number;
+  dscr: number;
+}
+
+export interface GranularModelResult {
+  projections: GranularYearProjection[];
+  summary: {
+    totalPaydown: number;
+    paydownPercent: number;
+    exitLeverage: number;
+    avgDscr: number;
+    entryLeverage: number;
+  };
+}
+
+export function runGranularCreditModel(assumptions: GranularAssumptions): GranularModelResult {
+  const {
+    ltmRevenue,
+    ltmEbitda,
+    revenueGrowth,
+    ebitdaMargins,
+    capexPercent,
+    adjustments,
+    taxRate,
+    daPercent,
+    debtStructure,
+    cashSweepPercent,
+  } = assumptions;
+
+  const projections: GranularYearProjection[] = [];
+  let currentDebt = debtStructure.seniorAmount;
+  let prevRevenue = ltmRevenue;
+
+  const ltmProjection: GranularYearProjection = {
+    year: 0,
+    label: "LTM",
+    revenue: ltmRevenue,
+    revenueGrowth: 0,
+    grossEbitda: ltmEbitda,
+    ebitdaMargin: ltmRevenue > 0 ? (ltmEbitda / ltmRevenue) * 100 : 0,
+    adjustments: 0,
+    adjEbitda: ltmEbitda,
+    da: ltmRevenue * (daPercent / 100),
+    ebit: ltmEbitda - ltmRevenue * (daPercent / 100),
+    interest: debtStructure.seniorAmount * (debtStructure.interestRate / 100),
+    taxes: 0,
+    netIncome: 0,
+    daAddback: ltmRevenue * (daPercent / 100),
+    capex: 0,
+    mandatoryAmort: 0,
+    fcf: 0,
+    beginningDebt: debtStructure.seniorAmount,
+    cashSweep: 0,
+    endingDebt: debtStructure.seniorAmount,
+    leverageRatio: ltmEbitda > 0 ? debtStructure.seniorAmount / ltmEbitda : 0,
+    dscr: 0,
+  };
+  projections.push(ltmProjection);
+
+  for (let i = 0; i < 5; i++) {
+    const year = i + 1;
+    const beginningDebt = currentDebt;
+    const growth = revenueGrowth[i] || 0;
+    const margin = ebitdaMargins[i] || 25;
+    const capex = capexPercent[i] || 3;
+    const adj = adjustments[i] || 0;
+
+    const revenue = prevRevenue * (1 + growth / 100);
+    const grossEbitda = revenue * (margin / 100);
+    const adjEbitda = grossEbitda + adj;
+    const da = revenue * (daPercent / 100);
+    const ebit = adjEbitda - da;
+    const interest = beginningDebt * (debtStructure.interestRate / 100);
+    const preTaxIncome = ebit - interest;
+    const taxes = Math.max(0, preTaxIncome * (taxRate / 100));
+    const netIncome = preTaxIncome - taxes;
+    const daAddback = da;
+    const capexAmount = revenue * (capex / 100);
+    const mandatoryAmort = Math.min(debtStructure.seniorAmount * (debtStructure.amortRate / 100), beginningDebt);
+    const fcfBeforeSweep = netIncome + daAddback - capexAmount - mandatoryAmort;
+    const availableForSweep = Math.max(0, fcfBeforeSweep);
+    const cashSweep = availableForSweep * (cashSweepPercent / 100);
+    const endingDebt = Math.max(0, beginningDebt - mandatoryAmort - cashSweep);
+    const leverageRatio = adjEbitda > 0 ? endingDebt / adjEbitda : 0;
+    const debtService = interest + mandatoryAmort;
+    const dscr = debtService > 0 ? adjEbitda / debtService : 0;
+
+    projections.push({
+      year,
+      label: `Year ${year}`,
+      revenue: Math.round(revenue),
+      revenueGrowth: growth,
+      grossEbitda: Math.round(grossEbitda),
+      ebitdaMargin: margin,
+      adjustments: Math.round(adj),
+      adjEbitda: Math.round(adjEbitda),
+      da: Math.round(da),
+      ebit: Math.round(ebit),
+      interest: Math.round(interest),
+      taxes: Math.round(taxes),
+      netIncome: Math.round(netIncome),
+      daAddback: Math.round(daAddback),
+      capex: Math.round(capexAmount),
+      mandatoryAmort: Math.round(mandatoryAmort),
+      fcf: Math.round(fcfBeforeSweep),
+      beginningDebt: Math.round(beginningDebt),
+      cashSweep: Math.round(cashSweep),
+      endingDebt: Math.round(endingDebt),
+      leverageRatio: Math.round(leverageRatio * 100) / 100,
+      dscr: Math.round(dscr * 100) / 100,
+    });
+
+    currentDebt = endingDebt;
+    prevRevenue = revenue;
+  }
+
+  const yearProjections = projections.filter(p => p.year > 0);
+  const totalPaydown = debtStructure.seniorAmount - (yearProjections[4]?.endingDebt || 0);
+  const paydownPercent = (totalPaydown / debtStructure.seniorAmount) * 100;
+  const exitLeverage = yearProjections[4]?.leverageRatio || 0;
+  const avgDscr = yearProjections.reduce((sum, p) => sum + p.dscr, 0) / 5;
+  const entryLeverage = ltmEbitda > 0 ? debtStructure.seniorAmount / ltmEbitda : 0;
+
+  return {
+    projections,
+    summary: {
+      totalPaydown: Math.round(totalPaydown),
+      paydownPercent: Math.round(paydownPercent * 10) / 10,
+      exitLeverage: Math.round(exitLeverage * 100) / 100,
+      avgDscr: Math.round(avgDscr * 100) / 100,
+      entryLeverage: Math.round(entryLeverage * 100) / 100,
+    },
+  };
+}
+
 export interface CreditModelAssumptions {
   revenue: number;
   ebitdaMargin: number;
@@ -54,42 +229,18 @@ export function runCreditModel(assumptions: CreditModelAssumptions): CreditModel
 
   for (let year = 1; year <= 5; year++) {
     const beginningDebt = currentDebt;
-    
-    // Revenue with growth
     const yearRevenue = revenue * Math.pow(1 + growthPercent / 100, year - 1);
-    
-    // EBITDA
     const ebitda = yearRevenue * (ebitdaMargin / 100);
-    
-    // Interest expense
     const interest = beginningDebt * (interestRate / 100);
-    
-    // Pre-tax income (simplified)
     const preTaxIncome = ebitda - interest;
-    
-    // Taxes
     const taxes = Math.max(0, preTaxIncome * (taxRate / 100));
-    
-    // CapEx
     const capex = yearRevenue * (capexPercent / 100);
-    
-    // Free Cash Flow
     const fcf = ebitda - interest - taxes - capex;
-    
-    // Mandatory amortization
     const mandatoryAmort = Math.min(initialDebt * (amortizationPercent / 100), beginningDebt);
-    
-    // Cash available for sweep
     const availableForSweep = Math.max(0, fcf - mandatoryAmort);
     const cashSweep = availableForSweep * (cashSweepPercent / 100);
-    
-    // Total debt paydown
     const totalPaydown = mandatoryAmort + cashSweep;
-    
-    // Ending debt
     const endingDebt = Math.max(0, beginningDebt - totalPaydown);
-    
-    // Leverage ratio (Net Debt / EBITDA)
     const leverageRatio = ebitda > 0 ? endingDebt / ebitda : 0;
 
     projections.push({
@@ -111,7 +262,6 @@ export function runCreditModel(assumptions: CreditModelAssumptions): CreditModel
     currentDebt = endingDebt;
   }
 
-  // Calculate summary metrics
   const totalPaydown = projections.reduce((sum, p) => sum + p.totalPaydown, 0);
   const paydownPercent = (totalPaydown / initialDebt) * 100;
   const exitLeverage = projections[4]?.leverageRatio || 0;
@@ -128,7 +278,6 @@ export function runCreditModel(assumptions: CreditModelAssumptions): CreditModel
   };
 }
 
-// Quick summary for dashboard badges
 export interface CreditSummary {
   currentLeverage: number;
   projectedLeverage: number;
@@ -146,33 +295,22 @@ export function calculateQuickSummary(deal: {
   interestRate?: number;
 }): CreditSummary {
   const { facilitySize, committed, targetSize, entryEbitda, leverageMultiple, interestRate } = deal;
-  
-  // Use provided EBITDA or estimate from leverage
   const ebitda = entryEbitda || facilitySize / (leverageMultiple || 4);
-  const rate = interestRate || 10; // Default 10% all-in
-  
+  const rate = interestRate || 10;
   const currentLeverage = facilitySize / ebitda;
-  
-  // Simple 1-year projection
   const interestExpense = facilitySize * (rate / 100);
   const fcf = ebitda - interestExpense;
-  const paydown = Math.max(0, fcf * 0.3); // 30% of FCF for paydown
+  const paydown = Math.max(0, fcf * 0.3);
   const projectedDebt = facilitySize - paydown;
   const projectedEbitda = ebitda * 1.05;
   const projectedLeverage = projectedDebt / projectedEbitda;
-  
-  // Covenant headroom (assume 5.5x threshold)
   const covenantThreshold = 5.5;
   const covenantHeadroom = ((covenantThreshold - currentLeverage) / covenantThreshold) * 100;
-  
-  // Pricing pressure
   const coverageRatio = committed / targetSize;
   let pricingPressure: "Tightening" | "Stable" | "Widening";
   if (coverageRatio >= 1.2) pricingPressure = "Tightening";
   else if (coverageRatio >= 0.9) pricingPressure = "Stable";
   else pricingPressure = "Widening";
-  
-  // Debt service coverage
   const dscr = ebitda / (interestExpense + facilitySize * 0.05);
 
   return {
