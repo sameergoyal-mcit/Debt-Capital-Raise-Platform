@@ -12,17 +12,22 @@ import {
   Calendar, 
   AlertTriangle, 
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  Download
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { useAuth } from "@/context/auth-context";
+import { downloadICS, downloadCsvFromRecords } from "@/lib/download";
+import { buildExportFilename } from "@/lib/export-names";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Timeline() {
   const [, params] = useRoute("/deal/:id/timeline");
   const dealId = params?.id;
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const { user } = useAuth();
+  const { toast } = useToast();
   const isInvestor = user?.role === "Investor";
 
   const allMilestones = [
@@ -65,6 +70,29 @@ export default function Timeline() {
     ? allMilestones.filter(m => !m.internalOnly) 
     : allMilestones;
 
+  const allEvents = milestones.flatMap(m => m.items);
+
+  const handleSyncCalendar = () => {
+    const icsEvents = allEvents.map(item => ({
+      title: `${deal.dealName}: ${item.title}`,
+      start: new Date(item.date),
+      description: `Deal milestone for ${deal.dealName}`,
+    }));
+    downloadICS(buildExportFilename(deal.dealName, "Calendar", "ics"), icsEvents);
+    toast({ title: "Calendar Downloaded", description: "ICS file ready to import into your calendar." });
+  };
+
+  const handleExportTimeline = () => {
+    const rows = allEvents.map(item => ({
+      Deal: deal.dealName,
+      EventName: item.title,
+      Date: item.date,
+      Status: item.status,
+    }));
+    downloadCsvFromRecords(buildExportFilename(deal.dealName, "Timeline", "csv"), rows);
+    toast({ title: "Timeline Exported", description: "CSV downloaded successfully." });
+  };
+
   return (
     <Layout>
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -79,7 +107,10 @@ export default function Timeline() {
             <p className="text-muted-foreground">Key milestones and critical path for {deal.dealName}.</p>
           </div>
           <div className="flex items-center gap-3">
-             <Button>
+             <Button variant="outline" onClick={handleExportTimeline} data-testid="button-export-timeline">
+               <Download className="mr-2 h-4 w-4" /> Export CSV
+             </Button>
+             <Button onClick={handleSyncCalendar} data-testid="button-sync-calendar">
                <Calendar className="mr-2 h-4 w-4" /> Sync Calendar
              </Button>
           </div>
