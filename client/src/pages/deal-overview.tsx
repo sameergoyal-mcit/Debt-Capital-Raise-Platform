@@ -62,6 +62,9 @@ import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
 import { PaydownModel } from "@/components/paydown-model";
 import { SendRemindersModal } from "@/components/send-reminders-modal";
+import { downloadCsvFromRecords } from "@/lib/download";
+import { buildExportFilename } from "@/lib/export-names";
+import { format as formatDate } from "date-fns";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -102,12 +105,69 @@ export default function DealOverview() {
   };
 
   const handleExportCovenants = () => {
-    // Mock export
-    alert("Downloading Covenant Compliance Certificate...");
+    const covenantData = (deal as any).covenants || [];
+    downloadCsvFromRecords(
+      buildExportFilename(deal.dealName, "DealSummary", "csv"),
+      covenantData.map((c: Covenant) => ({
+        Covenant: c.name,
+        Threshold: c.threshold,
+        ProForma: c.proForma,
+        Unit: c.unit
+      }))
+    );
   };
   
   const handleInvitationCreated = () => {
     setInvitations(getDealInvitations(dealId));
+  };
+
+  const handleExportDealSummary = () => {
+    const signedCount = invitations.filter(i => i.ndaSignedAt).length;
+    
+    downloadCsvFromRecords(
+      buildExportFilename(deal.dealName, "DealSummary", "csv"),
+      [{
+        DealName: deal.dealName,
+        Borrower: deal.borrowerName,
+        Sector: deal.sector,
+        Instrument: deal.instrument,
+        Stage: deal.stage,
+        FacilitySizeMM: (deal.facilitySize / 1_000_000).toFixed(1),
+        SpreadLowBps: deal.pricing.spreadLowBps,
+        SpreadHighBps: deal.pricing.spreadHighBps,
+        OID: deal.pricing.oid,
+        CloseDate: deal.closeDate,
+        HardCloseDate: deal.hardCloseDate || "",
+        InvitedCount: invitations.length,
+        NDASignedCount: signedCount,
+        CommittedPct: `${(deal.committedPct * 100).toFixed(0)}%`,
+        CoverageRatio: `${(deal.coverageRatio * 100).toFixed(0)}%`,
+        ExportedAt: formatDate(new Date(), "yyyy-MM-dd HH:mm")
+      }]
+    );
+    toast({ title: "Deal Summary Exported", description: "CSV downloaded successfully." });
+  };
+
+  const handleDownloadIOIReport = () => {
+    const reportRows = invitations.map(inv => {
+      const lender = mockLenders.find(l => l.id === inv.lenderId);
+      const ndaStatus = inv.ndaSignedAt ? "signed" : (inv.ndaRequired ? "pending" : "not_required");
+      return {
+        Organization: lender?.name || inv.lenderId,
+        NDAStatus: ndaStatus,
+        AccessTier: inv.accessTier,
+        NDASignedAt: inv.ndaSignedAt ? formatDate(new Date(inv.ndaSignedAt), "yyyy-MM-dd") : "",
+        InvitedAt: formatDate(new Date(inv.invitedAt), "yyyy-MM-dd"),
+        InvitedBy: inv.invitedBy
+      };
+    });
+    
+    downloadCsvFromRecords(buildExportFilename(deal.dealName, "IOIReport", "csv"), reportRows);
+    toast({ title: "IOI Report Downloaded", description: "CSV with lender details exported." });
+  };
+
+  const handlePrintEngagement = () => {
+    window.open(`/deal/${dealId}/print`, "_blank");
   };
 
   return (
@@ -139,13 +199,13 @@ export default function DealOverview() {
             <p className="text-muted-foreground mt-1">{deal.sector} • ${(deal.facilitySize / 1000000).toFixed(1)}M {deal.instrument}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handlePrintEngagement} data-testid="button-print-engagement">
               <Printer className="h-4 w-4" /> Print Engagement
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadIOIReport} data-testid="button-download-ioi">
               <Download className="h-4 w-4" /> Download IOI Report
             </Button>
-            <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground">
+            <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground" onClick={handleExportDealSummary} data-testid="button-export-deal-summary">
               <FileText className="h-4 w-4" /> Export Deal Summary
             </Button>
             <Button 

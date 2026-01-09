@@ -28,6 +28,7 @@ import Settings from "@/pages/settings";
 import MessagesPage from "@/pages/messages";
 import DealMessagesPage from "@/pages/deal-messages";
 import AuditTrail from "@/pages/audit-trail";
+import DealPrint from "@/pages/deal-print";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Protected Route Wrapper
@@ -153,6 +154,11 @@ function Router() {
 
       <Route path="/deal/:id/audit">
         <ProtectedRoute component={AuditTrail} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* Print View (opens in new window) */}
+      <Route path="/deal/:id/print">
+        <ProtectedRoute component={DealPrint} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
 
       {/* Viewer Pages */}
