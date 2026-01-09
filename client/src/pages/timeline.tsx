@@ -21,6 +21,7 @@ import { useAuth } from "@/context/auth-context";
 import { downloadICS, downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
 import { useToast } from "@/hooks/use-toast";
+import { parse } from "date-fns";
 
 export default function Timeline() {
   const [, params] = useRoute("/deal/:id/timeline");
@@ -75,7 +76,7 @@ export default function Timeline() {
   const handleSyncCalendar = () => {
     const icsEvents = allEvents.map(item => ({
       title: `${deal.dealName}: ${item.title}`,
-      start: new Date(item.date),
+      start: parse(item.date, "MMM dd, yyyy", new Date()),
       description: `Deal milestone for ${deal.dealName}`,
     }));
     downloadICS(buildExportFilename(deal.dealName, "Calendar", "ics"), icsEvents);

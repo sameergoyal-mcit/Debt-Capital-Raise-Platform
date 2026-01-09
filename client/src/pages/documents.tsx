@@ -411,7 +411,7 @@ export default function DocumentsPage() {
                             </DialogContent>
                           </Dialog>
                         )}
-                        <Button size="sm" variant="outline" className="gap-2">
+                        <Button size="sm" variant="outline" className="gap-2" onClick={() => handleDownloadDoc(selectedDoc)} data-testid="button-download-doc">
                           <Download className="h-4 w-4" /> Download
                         </Button>
                       </div>
@@ -475,9 +475,9 @@ export default function DocumentsPage() {
                                     </div>
                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                       {!isInvestor && (
-                                        <Button size="sm" variant="outline" className="h-7 text-xs">Review</Button>
+                                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => toast({ title: "Coming Soon", description: "Markup review feature is in development." })} data-testid="button-review-markup">Review</Button>
                                       )}
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Download className="h-4 w-4" /></Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { downloadPlaceholderDoc(markup.filename, "v1"); toast({ title: "Download Started", description: `Downloading ${markup.filename}...` }); }} data-testid="button-download-markup"><Download className="h-4 w-4" /></Button>
                                     </div>
                                   </div>
                                 ))}
