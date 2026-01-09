@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import type { InsertDeal, InsertLender, InsertInvitation, InsertDocument, InsertQAItem, InsertCommitment, InsertUser } from "@shared/schema";
 
@@ -11,11 +12,14 @@ export async function seedIfEmpty() {
 
   console.log("Seeding database with demo data...");
 
+  // Hash demo password
+  const hashedPassword = await bcrypt.hash("demo123", 10);
+
   // Create demo users
   const demoUsers: InsertUser[] = [
     {
       username: "bookrunner",
-      password: "demo123",
+      password: hashedPassword,
       email: "bookrunner@demo.com",
       role: "bookrunner",
       firstName: "John",
@@ -23,7 +27,7 @@ export async function seedIfEmpty() {
     },
     {
       username: "sponsor",
-      password: "demo123",
+      password: hashedPassword,
       email: "sponsor@demo.com",
       role: "sponsor",
       fundName: "Vista Equity Partners",
@@ -32,7 +36,7 @@ export async function seedIfEmpty() {
     },
     {
       username: "lender",
-      password: "demo123",
+      password: hashedPassword,
       email: "lender@apollocredit.com",
       role: "lender",
       fundName: "Apollo Credit",

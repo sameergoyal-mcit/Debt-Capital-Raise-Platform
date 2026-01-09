@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema } from "@shared/schema";
 import { runCreditModel, calculateQuickSummary, type CreditModelAssumptions } from "./lib/credit-engine";
@@ -75,19 +76,29 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // ========== AUTH (Simplified for prototype) ==========
+  // ========== AUTH ==========
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password, role } = req.body;
       
-      // For demo: create or find user
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+      
       let user = await storage.getUserByUsername(username);
       
-      if (!user) {
-        // Create demo user
+      if (user) {
+        // Verify password
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          return res.status(401).json({ error: "Invalid credentials" });
+        }
+      } else {
+        // Create new user with hashed password
+        const hashedPassword = await bcrypt.hash(password, 10);
         user = await storage.createUser({
           username,
-          password, // Note: In production, hash the password
+          password: hashedPassword,
           email: `${username}@demo.com`,
           role: role || "lender",
         });
@@ -96,6 +107,36 @@ export async function registerRoutes(
       res.json({ 
         user: { id: user.id, username: user.username, role: user.role, email: user.email },
         message: "Login successful" 
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { username, password, email, role } = req.body;
+      
+      if (!username || !password || !email) {
+        return res.status(400).json({ error: "Username, password, and email required" });
+      }
+      
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+        email,
+        role: role || "lender",
+      });
+      
+      res.status(201).json({ 
+        user: { id: user.id, username: user.username, role: user.role, email: user.email },
+        message: "Registration successful" 
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
