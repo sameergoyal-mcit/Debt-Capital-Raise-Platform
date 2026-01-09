@@ -75,7 +75,7 @@ export default function Closing() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Closing Checklist</h1>
+              <h1 className="text-2xl font-semibold text-primary tracking-tight">Closing Checklist</h1>
               <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
                 Target: {new Date(deal.closeDate).toLocaleDateString()}
               </Badge>

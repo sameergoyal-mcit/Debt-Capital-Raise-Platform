@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   BarChart, 
   Bar, 
@@ -19,17 +20,42 @@ import {
   Area,
   CartesianGrid
 } from "recharts";
-import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Clock, AlertCircle } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Clock, AlertCircle, Filter } from "lucide-react";
+
+const dealOptions = [
+  { id: "all", name: "All Deals" },
+  { id: "101", name: "Project Titan" },
+  { id: "102", name: "Project Nova" },
+];
 
 export default function Analytics() {
+  const [selectedDeal, setSelectedDeal] = useState("all");
+  
   return (
     <Layout>
       <div className="space-y-6 animate-in fade-in duration-500">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground mt-1">
-            Deep dive into deal execution, lender behavior, and portfolio performance.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Analytics</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Deep dive into deal execution, lender behavior, and portfolio performance.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={selectedDeal} onValueChange={setSelectedDeal}>
+              <SelectTrigger className="w-[180px]" data-testid="select-deal-filter">
+                <SelectValue placeholder="Select deal..." />
+              </SelectTrigger>
+              <SelectContent>
+                {dealOptions.map((deal) => (
+                  <SelectItem key={deal.id} value={deal.id}>
+                    {deal.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Tabs defaultValue="deal" className="space-y-6">
@@ -269,10 +295,10 @@ function StatCard({ title, value, subtext, icon }: { title: string, value: strin
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-y-0 pb-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">{title}</p>
           {icon}
         </div>
-        <div className="text-2xl font-bold font-serif">{value}</div>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
         <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
       </CardContent>
     </Card>
@@ -322,7 +348,7 @@ const pricingBandData = [
 const funnelData = [
   { stage: "Outreach", count: 85, color: "#94a3b8" },
   { stage: "NDA", count: 60, color: "#64748b" },
-  { stage: "CIM", count: 45, color: "#475569" },
+  { stage: "LP", count: 45, color: "#475569" },
   { stage: "IOI", count: 20, color: "#334155" },
   { stage: "Firm Bid", count: 8, color: "#0f172a" },
 ];

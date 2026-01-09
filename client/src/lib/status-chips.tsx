@@ -30,7 +30,7 @@ export const QAStatus = {
 export const DealStage = {
   STRUCTURING: "structuring",
   NDA: "nda",
-  CIM: "cim",
+  LP: "lp",
   MARKETING: "marketing",
   IOI: "ioi",
   BOOKBUILDING: "bookbuilding",
@@ -138,7 +138,7 @@ export function getDealStageChip(stage: DealStageType): ChipConfig {
   const stageLabels: Record<DealStageType, string> = {
     [DealStage.STRUCTURING]: "Structuring",
     [DealStage.NDA]: "NDA Phase",
-    [DealStage.CIM]: "Lender Presentation",
+    [DealStage.LP]: "Lender Presentation",
     [DealStage.MARKETING]: "Marketing",
     [DealStage.IOI]: "IOI Collection",
     [DealStage.BOOKBUILDING]: "Book Building",
@@ -153,7 +153,7 @@ export function getDealStageChip(stage: DealStageType): ChipConfig {
   const stageColors: Record<DealStageType, string> = {
     [DealStage.STRUCTURING]: "bg-slate-100 text-slate-700 border-slate-200",
     [DealStage.NDA]: "bg-amber-100 text-amber-700 border-amber-200",
-    [DealStage.CIM]: "bg-blue-100 text-blue-700 border-blue-200",
+    [DealStage.LP]: "bg-blue-100 text-blue-700 border-blue-200",
     [DealStage.MARKETING]: "bg-indigo-100 text-indigo-700 border-indigo-200",
     [DealStage.IOI]: "bg-purple-100 text-purple-700 border-purple-200",
     [DealStage.BOOKBUILDING]: "bg-violet-100 text-violet-700 border-violet-200",

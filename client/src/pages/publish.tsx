@@ -95,7 +95,7 @@ Schedule:
 
 The Company is rated B2 / B.
 
-Please access the Virtual Data Room (Debt Domain) for the CIM and Legal Model.
+Please access the Virtual Data Room (Debt Domain) for the Lender Presentation and Legal Model.
 Contact: deal.team@capitalflow.com`
   };
 
@@ -155,7 +155,7 @@ Contact: deal.team@capitalflow.com`
               <span>/</span>
               <span>Publish</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Distribution & Announcement</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Distribution & Announcement</h1>
             <p className="text-muted-foreground mt-1">Package pricing updates and announcements for market distribution.</p>
           </div>
           <div className="flex gap-3">

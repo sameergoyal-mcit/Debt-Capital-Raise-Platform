@@ -74,7 +74,7 @@ export default function SubmitCommitment() {
           <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
             <ArrowLeft className="h-4 w-4" /> Back to Deal
           </Button>
-          <h1 className="text-3xl font-serif font-bold text-primary">Submit Commitment</h1>
+          <h1 className="text-2xl font-semibold text-primary">Submit Commitment</h1>
           <p className="text-muted-foreground">
             {deal.dealName} • {deal.instrument} • Target: ${(deal.targetSize / 1000000).toFixed(0)}M
           </p>

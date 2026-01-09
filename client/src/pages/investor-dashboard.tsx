@@ -97,7 +97,7 @@ export default function InvestorDashboard() {
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Investor Dashboard</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Investor Dashboard</h1>
             <p className="text-muted-foreground mt-1">
               Welcome back, {user.name}. You have {deals.length} active opportunities.
             </p>

@@ -61,6 +61,7 @@ import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
 import { PaydownModel } from "@/components/paydown-model";
+import { SendRemindersModal } from "@/components/send-reminders-modal";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -73,6 +74,7 @@ export default function DealOverview() {
   const [activeNdaId, setActiveNdaId] = useState(deal.ndaTemplateId || "nda_std_v1");
   const [isNdaDialogOpen, setIsNdaDialogOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
   
   const ndaTemplate = getNDATemplate(activeNdaId);
   const { toast } = useToast();
@@ -133,7 +135,7 @@ export default function DealOverview() {
                 Coverage: {(deal.coverageRatio * 100).toFixed(0)}%
               </span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">{deal.dealName}</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">{deal.dealName}</h1>
             <p className="text-muted-foreground mt-1">{deal.sector} • ${(deal.facilitySize / 1000000).toFixed(1)}M {deal.instrument}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -146,15 +148,14 @@ export default function DealOverview() {
             <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground">
               <FileText className="h-4 w-4" /> Export Deal Summary
             </Button>
-            <Button variant="destructive" size="sm" className="gap-2" onClick={async () => {
-                toast({ title: "Reminders Sent", description: "Deadlines communicated to all active lenders." });
-                await emailService.send({
-                    to: "all-investors@deal.com",
-                    subject: `URGENT: Deadline - ${deal.dealName}`,
-                    html: emailTemplates.commitmentReminder(deal.dealName, "Tomorrow at 5:00 PM EST")
-                });
-            }}>
-                <AlertCircle className="h-4 w-4" /> Send Reminders
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              className="gap-2" 
+              onClick={() => setIsRemindersModalOpen(true)}
+              data-testid="button-send-reminders"
+            >
+              <AlertCircle className="h-4 w-4" /> Send Reminders
             </Button>
           </div>
         </div>
@@ -195,24 +196,24 @@ export default function DealOverview() {
               <CardContent className="pt-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Target Size</p>
-                    <p className="text-2xl font-serif font-bold text-primary">$45.0M</p>
+                    <p className="section-label mb-1">Target Size</p>
+                    <p className="text-xl font-semibold tabular-nums text-primary">$45.0M</p>
                   </div>
                    <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Committed</p>
+                    <p className="section-label mb-1">Committed</p>
                     <div className="flex items-end gap-2">
-                      <p className="text-2xl font-serif font-bold text-green-700">$32.5M</p>
+                      <p className="text-xl font-semibold tabular-nums text-green-700">$32.5M</p>
                       <span className="text-xs text-green-600 font-medium mb-1.5">(72%)</span>
                     </div>
                   </div>
                    <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Spread Guidance</p>
-                    <p className="text-xl font-medium text-foreground">S + 625-650</p>
+                    <p className="section-label mb-1">Spread Guidance</p>
+                    <p className="text-lg font-medium tabular-nums text-foreground">S + 625-650</p>
                     <p className="text-[10px] text-muted-foreground mt-1">Est. All-In Yield: 11.2% – 11.5%</p>
                   </div>
                    <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">OID / Fees</p>
-                    <p className="text-xl font-medium text-foreground">98.0 / 2.0%</p>
+                    <p className="section-label mb-1">OID / Fees</p>
+                    <p className="text-lg font-medium tabular-nums text-foreground">98.0 / 2.0%</p>
                     <p className="text-[10px] text-muted-foreground mt-1">+25 bps = +$112k/yr Interest</p>
                   </div>
                 </div>
@@ -679,6 +680,13 @@ export default function DealOverview() {
         invitedBy="Sarah Jenkins"
         onInvitationCreated={handleInvitationCreated}
       />
+      
+      <SendRemindersModal
+        isOpen={isRemindersModalOpen}
+        onClose={() => setIsRemindersModalOpen(false)}
+        dealId={dealId}
+        dealName={deal.dealName}
+      />
     </Layout>
   );
 }
@@ -853,7 +861,7 @@ function TeamMember({ name, role, initials }: { name: string; role: string; init
 // Mock Data for Charts
 const engagementData = [
   { name: 'NDA', value: 45, color: '#3b82f6', companies: 'Apollo, Ares, BlackRock' },
-  { name: 'CIM', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
+  { name: 'LP', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
   { name: 'Mgmt', value: 24, color: '#8b5cf6', companies: 'HPS, Golub, Owl Rock' },
   { name: 'IOI', value: 12, color: '#d946ef', companies: 'Barings, Antares' },
   { name: 'Bid', value: 5, color: '#ec4899', companies: 'Sixth Street, Churchill' },

@@ -124,7 +124,7 @@ export default function InvestorBook() {
               <span>/</span>
               <span>Debt Investor Book</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Debt Investor Book</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Debt Investor Book</h1>
             <p className="text-muted-foreground mt-1">
               {role === "bookrunner" 
                 ? "Manage investor interest, allocations, and commitments." 
@@ -446,7 +446,7 @@ function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdate
       <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Project Titan</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Project Titan</h1>
             <p className="text-muted-foreground mt-1">My Interest & Allocation Status</p>
           </div>
           <Dialog open={showIOIForm} onOpenChange={setShowIOIForm}>

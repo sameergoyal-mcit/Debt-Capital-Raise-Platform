@@ -87,7 +87,7 @@ export default function QACenter() {
               <span>/</span>
               <span>Q&A</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Due Diligence Q&A</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Due Diligence Q&A</h1>
             <p className="text-muted-foreground mt-1">Manage investor inquiries and diligence questions.</p>
           </div>
           <div className="flex gap-3 items-center">

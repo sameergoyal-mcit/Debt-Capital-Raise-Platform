@@ -489,6 +489,71 @@ export async function registerRoutes(
     }
   });
 
+  // ========== SEND REMINDERS ==========
+  app.post("/api/deals/:dealId/reminders", async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const { audience, subject, bodyText, recipientLenderIds } = req.body;
+
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+
+      // Get invitations for this deal
+      const invitations = await storage.listInvitationsByDeal(dealId);
+      
+      // Filter based on audience
+      let recipients = invitations;
+      switch (audience) {
+        case "missing_nda":
+          recipients = invitations.filter(inv => !inv.ndaSignedAt);
+          break;
+        case "no_commitment":
+          const commitments = await storage.listCommitmentsByDeal(dealId);
+          const committedLenderIds = new Set(commitments.map(c => c.lenderId));
+          recipients = invitations.filter(inv => !committedLenderIds.has(inv.lenderId));
+          break;
+        case "unviewed_docs":
+          recipients = invitations.filter(inv => inv.accessTier === "early");
+          break;
+        default:
+          // all - keep all invitations
+          break;
+      }
+
+      // If specific lender IDs provided, filter to those
+      if (recipientLenderIds && recipientLenderIds.length > 0) {
+        recipients = recipients.filter(inv => recipientLenderIds.includes(inv.lenderId));
+      }
+
+      // Log the reminder action
+      await storage.createLog({
+        dealId,
+        actorRole: "bookrunner",
+        action: "SEND_REMINDER",
+        resourceType: "deal",
+        resourceId: dealId,
+        metadata: {
+          audience,
+          subject,
+          recipientCount: recipients.length,
+          sentAt: new Date().toISOString(),
+        },
+      });
+
+      // In production, this would send actual emails
+      // For now, we just return success with count
+      res.json({
+        success: true,
+        sentCount: recipients.length,
+        message: `Reminders sent to ${recipients.length} recipients`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ========== CREDIT ENGINE - Full 5-Year Model ==========
   const creditModelSchema = z.object({
     revenue: z.number().positive(),

@@ -1,0 +1,134 @@
+Sweep UX polish + fix dead ends + implement requested behavior:
+
+A) Typography cleanup (finance-grade)
+B) Analytics: rename CIM→LP stage + deal-level drilldowns for funnel/sensitivity/mix
+C) Action buttons: implement Send Reminders modal (editable email + targeting + send)
+D) Remove remaining “CIM” references in UI copy
+
+====================================================
+A) TYPOGRAPHY / UI SWEEP (FINANCE-GRADE)
+====================================================
+
+1) Standardize typography scale (reduce oversized headers):
+- Page H1: use text-2xl (not text-3xl) and font-semibold (not extra-bold)
+- Card titles: text-base or text-lg, consistent across pages
+- Body: default text-sm
+- Secondary labels: text-xs with tracking-wider only for section labels
+
+2) Apply tabular numbers where appropriate:
+- For money / bps / multiples: add "tabular-nums" class to value containers.
+
+3) Reduce visual noise:
+- Remove excessive font-serif usage on numeric metrics; keep serif only for brand title or 1–2 hero headings max.
+
+Implementation:
+- Create utility CSS classes or ensure consistent Tailwind usage across:
+  deal-overview.tsx, deals.tsx, analytics.tsx, documents.tsx, investor dashboard pages.
+
+====================================================
+B) ANALYTICS TAB CHANGES
+====================================================
+
+1) Rename CIM → LP (Lender Presentation) in all analytics funnel usage
+- In client/src/pages/analytics.tsx:
+  funnelData currently has { stage: "CIM", ... }
+  Change to:
+    stage: "LP" (or "Lender Presentation")
+  Also update the title:
+    “Investor Conversion Funnel” should show LP stage (not CIM).
+- Ensure any other “CIM” strings in analytics are removed.
+
+2) Add deal-level drilldown (hover/click) for:
+- Investor Conversion Funnel
+- Pricing Sensitivity
+- Lender Mix
+(and any other major chart cards you listed)
+
+Required behavior:
+- Default view: “All Deals” aggregated.
+- On hover or click of each chart card:
+  allow user to select a specific deal and view that metric by deal.
+
+Implementation approach (simple, effective):
+A) Add a Deal selector at top of Analytics:
+- Dropdown: All Deals + each deal name
+- Store selectedDealId in state.
+- If selectedDealId != "all": filter the chart datasets to that deal only.
+- Add a “Breakdown” link on each card header that opens a modal.
+
+B) Add a modal “Breakdown by Deal”:
+- Clicking on “Investor Conversion Funnel” card header (or “Breakdown”) opens Dialog with:
+  - Deal dropdown
+  - Table showing the metric for each deal (rows: deal, columns: stages or band buckets)
+  - Optional mini chart per deal
+
+C) Data source:
+- If you have real deals in DB, fetch from /api/deals and /api/analytics?dealId=
+- If analytics is still mocked, restructure mock data like:
+  const analyticsByDeal = {
+    [dealId]: { funnelData: [...], pricingBandData: [...], lenderMixData: [...] }
+  }
+Then the selector switches between aggregated and per-deal sets.
+(Do not leave it purely aggregate without the selector.)
+
+====================================================
+C) FIX ACTION BUTTONS: SEND REMINDERS MODAL (DEAL OVERVIEW)
+====================================================
+
+1) Replace “Send Reminders” click behavior in client/src/pages/deal-overview.tsx:
+Current behavior is toast + hardcoded emailService.send() to all-investors@deal.com.
+Change to:
+- Open a Dialog modal “Send Reminders”
+
+2) Modal requirements:
+Fields:
+- Audience targeting (dropdown or multi-select):
+   - All invited lenders
+   - Missing NDA
+   - No commitment submitted
+   - Unviewed key docs (LP/Legal)
+- Optional: select specific lenders (multi-select)
+- Subject (editable input)
+- Email body (editable textarea, seeded with a template)
+- Buttons:
+   - Preview
+   - Send (primary)
+   - Cancel
+
+3) Send behavior:
+- On Send:
+  - Call a backend endpoint (or mock) to “send reminders”
+    POST /api/deals/:id/reminders
+    payload: { recipientLenderIds, subject, bodyHtml/bodyText }
+  - Show success toast with count of recipients
+  - Create audit logs for SEND_REMINDER (one per batch) and optionally “REMINDER_SENT” per lender
+
+4) Backend endpoint:
+- Implement /api/deals/:id/reminders:
+  - Ensure issuer/bookrunner only.
+  - Determine recipients based on filter OR provided lender ids.
+  - If email integration exists, send; else mock-send and return {sentCount}.
+  - Log audit record(s).
+
+====================================================
+D) REMOVE REMAINING CIM REFERENCES (GLOBAL)
+====================================================
+
+Search and replace remaining “CIM” user-facing strings:
+- client/src/pages/analytics.tsx funnel stage “CIM” -> “LP”
+- client/src/pages/deal-overview.tsx chart labels where it says 'CIM'
+- client/src/pages/publish.tsx body copy referencing CIM -> “Lender Presentation” or “LP”
+
+Important:
+- Keep internal enum DealStage.CIM if you want, but all displayed labels must be “Lender Presentation” / “LP”.
+- Prefer changing DealStage enum key from CIM to LP only if it won’t break stored data. If unsure, keep enum but change label text.
+
+====================================================
+VALIDATION
+====================================================
+
+- Analytics shows LP stage not CIM.
+- Analytics has a Deal selector and each major chart can drill down by deal (via selector and/or modal).
+- Send Reminders opens modal and sends (mock or real), with recipients targeting.
+- No dead action buttons remain in Deal Overview header.
+- Typography feels consistent and more institutional across pages.

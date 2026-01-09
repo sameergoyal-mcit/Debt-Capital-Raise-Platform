@@ -297,7 +297,7 @@ export default function DocumentsPage() {
               <span>/</span>
               <span>Data Room & Docs</span>
             </div>
-            <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">
               {isInvestor ? "Virtual Data Room" : "Documents & Redlines"}
             </h1>
           </div>

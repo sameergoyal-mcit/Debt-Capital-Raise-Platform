@@ -71,7 +71,7 @@ export default function Timeline() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-serif font-bold text-primary tracking-tight">Timeline</h1>
+              <h1 className="text-2xl font-semibold text-primary tracking-tight">Timeline</h1>
               <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary">
                 {deal.stage}
               </Badge>
