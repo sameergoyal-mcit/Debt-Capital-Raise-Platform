@@ -60,6 +60,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Seed database if empty
+  try {
+    const { seedIfEmpty } = await import("./seed");
+    await seedIfEmpty();
+  } catch (error) {
+    console.error("Error seeding database:", error);
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
