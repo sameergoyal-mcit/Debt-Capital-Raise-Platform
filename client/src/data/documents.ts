@@ -21,13 +21,17 @@ export interface Document {
   status: DocumentStatus;
   version: string;
   lastUpdatedAt: string;
-  owner: "Issuer Counsel" | "Lender Counsel" | "Bank" | "Issuer";
+  owner: "Issuer Counsel" | "Lender Counsel" | "Bank" | "Issuer" | "Deal Team";
   openCommentsCount: number;
   dealId: string;
   changeSummary?: string;
   versionHistory?: DocumentVersion[];
   fileSize?: string;
   accessTier?: "early" | "full" | "legal";
+  type?: "document" | "interactive_model";
+  fileKey?: string;
+  isNew?: boolean;
+  isUpdated?: boolean;
 }
 
 export const mockDocuments: Document[] = [
@@ -164,6 +168,22 @@ export const mockDocuments: Document[] = [
       { version: "v1.0", uploadedAt: new Date(Date.now() - 86400000 * 12).toISOString(), uploadedBy: "Bank" },
       { version: "v1.2", uploadedAt: new Date(Date.now() - 86400000 * 5).toISOString(), uploadedBy: "Bank", changeSummary: "Revised margin grid per updated term sheet" }
     ]
+  },
+  {
+    id: "d10",
+    name: "5-Year Debt Paydown Model",
+    category: "Lender Paydown Model",
+    status: "Issuer Approved",
+    version: "v1.0",
+    lastUpdatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    owner: "Deal Team",
+    openCommentsCount: 0,
+    dealId: "101",
+    changeSummary: "Interactive financial model with paydown projections",
+    accessTier: "full",
+    type: "interactive_model",
+    fileKey: "model:sample-model-1",
+    isNew: true
   }
 ];
 

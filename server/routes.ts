@@ -584,11 +584,11 @@ export async function registerRoutes(
       if (validated.isPublished) {
         await storage.createDocument({
           dealId: validated.dealId,
-          category: "Financial",
+          category: "Lender Paydown Model",
           type: "interactive_model",
           name: validated.name || "Financial Model",
           visibilityTier: "full",
-          owner: "Deal Team",
+          fileKey: `model:${model.id}`,
         });
       }
       
@@ -610,11 +610,11 @@ export async function registerRoutes(
       
       await storage.createDocument({
         dealId: model.dealId,
-        category: "Financial",
+        category: "Lender Paydown Model",
         type: "interactive_model",
         name: model.name || "Financial Model",
         visibilityTier: "full",
-        owner: "Deal Team",
+        fileKey: `model:${req.params.id}`,
       });
       
       res.json(publishedModel);

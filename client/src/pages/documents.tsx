@@ -49,6 +49,63 @@ import { storageService } from "@/lib/storage-service";
 import { downloadCSV, downloadPlaceholderDoc } from "@/lib/download";
 import { UploadDocumentModal, UploadedDocument } from "@/components/upload-document-modal";
 import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/components/document-filter-panel";
+import { InteractiveModelViewer } from "@/components/interactive-model-viewer";
+import { useEffect } from "react";
+
+interface ModelAssumptions {
+  revenue: number;
+  growthPercent: number;
+  ebitdaMargin: number;
+  leverageMultiple: number;
+  interestRate: number;
+  taxRate: number;
+  capexPercent: number;
+  amortizationPercent: number;
+  cashSweepPercent: number;
+}
+
+const defaultAssumptions: ModelAssumptions = {
+  revenue: 100_000_000,
+  growthPercent: 5,
+  ebitdaMargin: 25,
+  leverageMultiple: 4.0,
+  interestRate: 10,
+  taxRate: 25,
+  capexPercent: 3,
+  amortizationPercent: 1,
+  cashSweepPercent: 50,
+};
+
+function InteractiveModelViewerWrapper({ modelName, fileKey }: { modelName: string; fileKey?: string }) {
+  const [assumptions, setAssumptions] = useState<ModelAssumptions>(defaultAssumptions);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (fileKey && fileKey.startsWith("model:")) {
+      const modelId = fileKey.replace("model:", "");
+      setLoading(true);
+      fetch(`/api/deal-models/${modelId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(model => {
+          if (model?.assumptions) {
+            setAssumptions(model.assumptions);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [fileKey]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-muted-foreground">Loading model...</div>
+      </div>
+    );
+  }
+
+  return <InteractiveModelViewer modelName={modelName} assumptions={assumptions} />;
+}
 
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
@@ -59,8 +116,42 @@ export default function DocumentsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState<DocumentFilters>(defaultDocumentFilters);
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const [apiDocs, setApiDocs] = useState<Document[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetch(`/api/deals/${dealId}/documents`)
+      .then(res => res.ok ? res.json() : [])
+      .then((docs: any[]) => {
+        const categoryMap: Record<string, DocumentCategory> = {
+          "Financial": "Lender Paydown Model",
+          "Lender Paydown Model": "Lender Paydown Model",
+          "Lender Presentation": "Lender Presentation",
+          "Legal": "Legal",
+          "Supplemental Information": "Supplemental Information",
+          "KYC & Compliance": "KYC & Compliance",
+        };
+        const mapped = docs.map(d => ({
+          id: d.id,
+          name: d.name || "Untitled",
+          category: (categoryMap[d.category] || "Lender Paydown Model") as DocumentCategory,
+          status: "Issuer Approved" as const,
+          version: `v${d.version || 1}`,
+          lastUpdatedAt: d.uploadedAt || d.updatedAt || new Date().toISOString(),
+          owner: "Deal Team" as const,
+          openCommentsCount: 0,
+          dealId: d.dealId,
+          changeSummary: d.changeSummary || "",
+          accessTier: (d.visibilityTier || "full") as "early" | "full" | "legal",
+          type: d.type as "document" | "interactive_model" | undefined,
+          fileKey: d.fileKey,
+          isNew: true,
+        }));
+        setApiDocs(mapped);
+      })
+      .catch(() => {});
+  }, [dealId]);
 
   const handleDownloadDoc = (doc: Document) => {
     downloadPlaceholderDoc(doc.name, doc.version);
@@ -97,9 +188,9 @@ export default function DocumentsPage() {
   const getAllowedCategories = (tier: string) => {
     switch(tier) {
       case "legal":
-        return ["Lender Presentation", "Financials", "KYC", "Credit Agreement", "Security", "Intercreditor"];
+        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance", "Legal"];
       case "full":
-        return ["Lender Presentation", "Financials", "KYC"];
+        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance"];
       case "early":
       default:
         return ["Lender Presentation"];
@@ -108,13 +199,14 @@ export default function DocumentsPage() {
 
   const allowedCategories = isInvestor ? getAllowedCategories(accessTier) : null;
 
-  // Filter documents for investors (e.g. hide draft internal docs)
+  const allDocuments = [...mockDocuments, ...apiDocs.filter(d => !mockDocuments.some(m => m.id === d.id))];
+
   const baseAccessibleDocs = isInvestor 
-    ? mockDocuments.filter(d => 
-        allowedCategories?.includes(d.category) && 
+    ? allDocuments.filter(d => 
+        (allowedCategories?.includes(d.category) || d.type === "interactive_model") && 
         d.status !== "Draft"
       )
-    : mockDocuments;
+    : allDocuments;
 
   // Apply user filters
   const applyDocumentFilters = (docs: Document[], f: DocumentFilters): Document[] => {
@@ -204,7 +296,7 @@ export default function DocumentsPage() {
     filters.showUnviewedOnly;
 
   // Blocking items logic (Internal only)
-  const blockingDocs = mockDocuments.filter(d => 
+  const blockingDocs = allDocuments.filter(d => 
     ["Credit Agreement", "Security", "Intercreditor"].includes(d.category) && 
     d.status !== "Ready to Sign" && d.status !== "Lender Approved"
   );
@@ -340,13 +432,13 @@ export default function DocumentsPage() {
                           
                           {(accessTier === "full" || accessTier === "legal") && (
                             <>
-                              <FolderGroup title="Financials & Model" docs={getDocs("Financials")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
-                              <FolderGroup title="KYC" docs={getDocs("KYC")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                              <FolderGroup title="Financials & Model" docs={[...getDocs("Supplemental Information"), ...getDocs("Lender Paydown Model")]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                              <FolderGroup title="KYC" docs={getDocs("KYC & Compliance")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
                             </>
                           )}
 
                           {(accessTier === "legal") && (
-                            <FolderGroup title="Legal Documentation" docs={[...getDocs("Credit Agreement"), ...getDocs("Security"), ...getDocs("Intercreditor")]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                            <FolderGroup title="Legal Documentation" docs={getDocs("Legal")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
                           )}
                           
                           {/* Fallback msg if nothing visible */}
@@ -411,15 +503,23 @@ export default function DocumentsPage() {
                             </DialogContent>
                           </Dialog>
                         )}
-                        <Button size="sm" variant="outline" className="gap-2" onClick={() => handleDownloadDoc(selectedDoc)} data-testid="button-download-doc">
-                          <Download className="h-4 w-4" /> Download
-                        </Button>
+                        {selectedDoc.type !== "interactive_model" && (
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => handleDownloadDoc(selectedDoc)} data-testid="button-download-doc">
+                            <Download className="h-4 w-4" /> Download
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-6 overflow-y-auto">
                    {selectedDoc ? (
+                     selectedDoc.type === "interactive_model" ? (
+                       <InteractiveModelViewerWrapper 
+                         modelName={selectedDoc.name}
+                         fileKey={selectedDoc.fileKey}
+                       />
+                     ) : (
                      <div className="space-y-8">
                        {/* Status Timeline */}
                        <div>
@@ -505,6 +605,7 @@ export default function DocumentsPage() {
                           </div>
                        </div>
                      </div>
+                     )
                    ) : (
                      <div className="flex items-center justify-center h-full text-muted-foreground">
                        Select a file to view details
