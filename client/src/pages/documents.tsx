@@ -49,35 +49,28 @@ import { storageService } from "@/lib/storage-service";
 import { downloadCSV, downloadPlaceholderDoc } from "@/lib/download";
 import { UploadDocumentModal, UploadedDocument } from "@/components/upload-document-modal";
 import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/components/document-filter-panel";
-import { InteractiveModelViewer } from "@/components/interactive-model-viewer";
+import { DealSandbox } from "@/components/deal-sandbox";
 import { useEffect } from "react";
 
-interface ModelAssumptions {
-  revenue: number;
-  growthPercent: number;
-  ebitdaMargin: number;
-  leverageMultiple: number;
-  interestRate: number;
+interface GranularAssumptions {
+  ltmRevenue: number;
+  ltmEbitda: number;
+  revenueGrowth: number[];
+  ebitdaMargins: number[];
+  capexPercent: number[];
+  adjustments: number[];
   taxRate: number;
-  capexPercent: number;
-  amortizationPercent: number;
+  daPercent: number;
+  debtStructure: {
+    seniorAmount: number;
+    interestRate: number;
+    amortRate: number;
+  };
   cashSweepPercent: number;
 }
 
-const defaultAssumptions: ModelAssumptions = {
-  revenue: 100_000_000,
-  growthPercent: 5,
-  ebitdaMargin: 25,
-  leverageMultiple: 4.0,
-  interestRate: 10,
-  taxRate: 25,
-  capexPercent: 3,
-  amortizationPercent: 1,
-  cashSweepPercent: 50,
-};
-
-function InteractiveModelViewerWrapper({ modelName, fileKey }: { modelName: string; fileKey?: string }) {
-  const [assumptions, setAssumptions] = useState<ModelAssumptions>(defaultAssumptions);
+function InteractiveModelViewerWrapper({ modelName, fileKey, dealId }: { modelName: string; fileKey?: string; dealId: string }) {
+  const [assumptions, setAssumptions] = useState<GranularAssumptions | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -98,13 +91,28 @@ function InteractiveModelViewerWrapper({ modelName, fileKey }: { modelName: stri
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full py-12">
         <div className="text-muted-foreground">Loading model...</div>
       </div>
     );
   }
 
-  return <InteractiveModelViewer modelName={modelName} assumptions={assumptions} />;
+  if (!assumptions) {
+    return (
+      <div className="flex items-center justify-center h-full py-12">
+        <div className="text-muted-foreground">Model data not available</div>
+      </div>
+    );
+  }
+
+  return (
+    <DealSandbox 
+      dealId={dealId}
+      dealName={modelName}
+      initialAssumptions={assumptions}
+      readOnly={true}
+    />
+  );
 }
 
 export default function DocumentsPage() {
@@ -518,6 +526,7 @@ export default function DocumentsPage() {
                        <InteractiveModelViewerWrapper 
                          modelName={selectedDoc.name}
                          fileKey={selectedDoc.fileKey}
+                         dealId={dealId}
                        />
                      ) : (
                      <div className="space-y-8">
