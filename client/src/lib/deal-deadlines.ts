@@ -31,12 +31,12 @@ export const dealDeadlines = {
       });
     }
 
-    // 2. IOI Deadline
+    // 2. Initial Terms Deadline (IOI)
     if (deal.ioiDate) {
       const ioiDate = parseISO(deal.ioiDate);
       deadlines.push({
         type: "IOI",
-        label: "IOI Submission",
+        label: "Initial Terms Submission",
         date: deal.ioiDate,
         isOverdue: isBefore(ioiDate, now),
         daysRemaining: Math.ceil((ioiDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

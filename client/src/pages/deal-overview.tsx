@@ -62,6 +62,7 @@ import { SendRemindersModal } from "@/components/send-reminders-modal";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
 import { format as formatDate } from "date-fns";
+import { getTimelineProgress, getDealTimeline } from "@/data/timeline";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -159,8 +160,8 @@ export default function DealOverview() {
       };
     });
     
-    downloadCsvFromRecords(buildExportFilename(deal.dealName, "IOIReport", "csv"), reportRows);
-    toast({ title: "IOI Report Downloaded", description: "CSV with lender details exported." });
+    downloadCsvFromRecords(buildExportFilename(deal.dealName, "TermsReport", "csv"), reportRows);
+    toast({ title: "Terms Report Downloaded", description: "CSV with lender details exported." });
   };
 
   const handlePrintEngagement = () => {
@@ -200,7 +201,7 @@ export default function DealOverview() {
               <Printer className="h-4 w-4" /> Print Engagement
             </Button>
             <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadIOIReport} data-testid="button-download-ioi">
-              <Download className="h-4 w-4" /> Download IOI Report
+              <Download className="h-4 w-4" /> Download Terms Report
             </Button>
             <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground" onClick={handleExportDealSummary} data-testid="button-export-deal-summary">
               <FileText className="h-4 w-4" /> Export Deal Summary
@@ -217,22 +218,8 @@ export default function DealOverview() {
           </div>
         </div>
 
-        {/* Deal Status Timeline */}
-        <div className="relative py-6 overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="absolute top-1/2 left-0 w-full h-1 bg-border -translate-y-1/2 z-0" />
-            <div className="grid grid-cols-8 gap-2 relative z-10">
-              <TimelineStep step="Structuring" status="completed" />
-              <TimelineStep step="NDA" status="completed" />
-              <TimelineStep step="Lender Presentation" status="completed" />
-              <TimelineStep step="Marketing" status="completed" />
-              <TimelineStep step="IOI" status="completed" />
-              <TimelineStep step="Bookbuilding" status="active" />
-              <TimelineStep step="Allocation" status="pending" />
-              <TimelineStep step="Closing" status="pending" />
-            </div>
-          </div>
-        </div>
+        {/* Deal Status Timeline with Progress Summary */}
+        <TimelineSummaryCard dealId={dealId} />
 
         {/* Main Content */}
         <div className="w-full">
@@ -804,6 +791,73 @@ function TimelineStep({ step, status }: { step: string; status: 'completed' | 'a
   );
 }
 
+// Timeline Summary Card Component
+function TimelineSummaryCard({ dealId }: { dealId: string }) {
+  const progress = getTimelineProgress(dealId);
+  const timeline = getDealTimeline(dealId);
+
+  // Find next in-progress milestone
+  const nextMilestone = timeline.milestones.find(m => m.status === "in_progress") ||
+                        timeline.milestones.find(m => m.status === "not_started");
+
+  return (
+    <Link href={`/deal/${dealId}/timeline`}>
+      <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Progress Info */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-lg font-bold text-primary">{progress.percentage}%</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Execution Progress</p>
+                  <p className="text-xs text-muted-foreground">
+                    {progress.completed} of {progress.total} milestones completed
+                  </p>
+                </div>
+              </div>
+
+              {nextMilestone && (
+                <div className="hidden md:flex items-center gap-2 pl-4 border-l border-border">
+                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Next:</p>
+                    <p className="text-sm font-medium text-foreground">{nextMilestone.label}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Visual Timeline - Debt-focused stages */}
+            <div className="relative py-2 overflow-x-auto">
+              <div className="min-w-[600px]">
+                <div className="absolute top-1/2 left-0 w-full h-1 bg-border -translate-y-1/2 z-0" />
+                <div className="grid grid-cols-8 gap-2 relative z-10">
+                  <TimelineStep step="Preparation" status="completed" />
+                  <TimelineStep step="NDA" status="completed" />
+                  <TimelineStep step="LP" status="completed" />
+                  <TimelineStep step="Marketing" status="completed" />
+                  <TimelineStep step="Initial Terms" status="completed" />
+                  <TimelineStep step="Bookbuilding" status="active" />
+                  <TimelineStep step="Allocation" status="pending" />
+                  <TimelineStep step="Closing" status="pending" />
+                </div>
+              </div>
+            </div>
+
+            {/* Arrow indicator */}
+            <div className="hidden lg:flex items-center">
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 function DollarSignIcon({ className }: { className?: string }) {
     return (
         <svg 
@@ -906,6 +960,6 @@ const engagementData = [
   { name: 'NDA', value: 45, color: '#3b82f6', companies: 'Apollo, Ares, BlackRock' },
   { name: 'Lender Pres.', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
   { name: 'Due Diligence', value: 24, color: '#8b5cf6', companies: 'HPS, Golub, Owl Rock' },
-  { name: 'IOI', value: 12, color: '#d946ef', companies: 'Barings, Antares' },
-  { name: 'Bid', value: 5, color: '#ec4899', companies: 'Sixth Street, Churchill' },
+  { name: 'Initial Terms', value: 12, color: '#d946ef', companies: 'Barings, Antares' },
+  { name: 'Commitment', value: 5, color: '#ec4899', companies: 'Sixth Street, Churchill' },
 ];

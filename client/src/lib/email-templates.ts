@@ -57,8 +57,8 @@ export const emailTemplates = {
 
   ioiReminder: (dealName: string, deadline: string) => `
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
-      <h2 style="color: #d9534f;">Deadline Reminder: IOI Submission</h2>
-      <p>This is a reminder that Indications of Interest (IOI) for <strong>${dealName}</strong> are due by <strong>${deadline}</strong>.</p>
+      <h2 style="color: #d9534f;">Deadline Reminder: Initial Terms Submission</h2>
+      <p>This is a reminder that Initial Terms for <strong>${dealName}</strong> are due by <strong>${deadline}</strong>.</p>
       <p>Please submit your preliminary grid via the portal.</p>
     </div>
   `,

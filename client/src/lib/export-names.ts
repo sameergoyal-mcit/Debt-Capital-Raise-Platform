@@ -1,12 +1,13 @@
 import { formatDateForFilename, slugify } from "./format";
 
-export type ArtifactType = 
-  | "DealSummary" 
-  | "IOIReport" 
+export type ArtifactType =
+  | "DealSummary"
+  | "IOIReport"
+  | "TermsReport"
   | "Engagement"
-  | "QA" 
-  | "Documents" 
-  | "Timeline" 
+  | "QA"
+  | "Documents"
+  | "Timeline"
   | "Calendar"
   | "AuditLog"
   | "Commitments";

@@ -52,6 +52,7 @@ import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/
 import { DealSandbox } from "@/components/deal-sandbox";
 import { useEffect } from "react";
 import { DocumentVersionBadge, generateMockVersions, DocumentVersion } from "@/components/document-versions";
+import { autoMarkMilestone } from "@/data/timeline";
 
 interface GranularAssumptions {
   ltmRevenue: number;
@@ -183,6 +184,11 @@ export default function DocumentsPage() {
 
   const handleNewDocUpload = (doc: UploadedDocument) => {
     setUploadedDocs(prev => [...prev, doc]);
+
+    // Auto-mark Lender Presentation Drafting milestone if a Lender Presentation is uploaded
+    if (doc.category === "Lender Presentation") {
+      autoMarkMilestone(dealId, "lender_presentation_uploaded");
+    }
   };
 
   const isInvestor = user?.role === "Investor";

@@ -41,7 +41,7 @@ interface DealCalendarProps {
 const eventTypeColors: Record<CalendarEvent["type"], { bg: string; text: string; label: string }> = {
   launch: { bg: "bg-blue-100", text: "text-blue-800", label: "Launch" },
   nda: { bg: "bg-purple-100", text: "text-purple-800", label: "NDA" },
-  ioi: { bg: "bg-amber-100", text: "text-amber-800", label: "IOI" },
+  ioi: { bg: "bg-amber-100", text: "text-amber-800", label: "Initial Terms" },
   commitment: { bg: "bg-green-100", text: "text-green-800", label: "Commitment" },
   allocation: { bg: "bg-cyan-100", text: "text-cyan-800", label: "Allocation" },
   close: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Close" },
@@ -329,10 +329,10 @@ export function generateDealEvents(deal: {
   if (deal.ioiDeadline) {
     events.push({
       id: `${deal.id}-ioi`,
-      title: "IOI Deadline",
+      title: "Initial Terms Deadline",
       date: new Date(deal.ioiDeadline),
       type: "ioi",
-      description: "Indication of Interest deadline"
+      description: "Deadline for initial term submissions"
     });
   }
 

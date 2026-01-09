@@ -169,7 +169,7 @@ export default function InvestorDealHome() {
                              {[
                                  { label: "Launch", date: deal.launchDate, status: "completed" },
                                  { label: "NDA Deadline", date: parseISO(deal.launchDate) < new Date() ? "2024-03-15T00:00:00Z" : null, status: isNdaSigned ? "completed" : "current" }, // Mock date logic
-                                 { label: "IOI Deadline", date: deal.ioiDate, status: "upcoming" },
+                                 { label: "Initial Terms Deadline", date: deal.ioiDate, status: "upcoming" },
                                  { label: "Commitment Deadline", date: deal.commitmentDate, status: "upcoming" },
                                  { label: "Closing", date: deal.closeDate, status: "upcoming" },
                              ].filter(item => item.date).map((item, i) => (

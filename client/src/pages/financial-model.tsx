@@ -19,6 +19,7 @@ import { ReturnsCalculator } from "@/components/returns-calculator";
 import { Switch } from "@/components/ui/switch";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { format, addYears } from "date-fns";
+import { autoMarkMilestone } from "@/data/timeline";
 
 interface DebtTranche {
   name: string;
@@ -511,6 +512,8 @@ export default function FinancialModelPage() {
         }),
       });
       if (res.ok) {
+        // Auto-mark Financial Model Drafting milestone as complete
+        autoMarkMilestone(dealId, "financial_model_published");
         toast({ title: "Model Published", description: "Financial model is now available in the Data Room." });
       } else {
         throw new Error("Failed to publish");
