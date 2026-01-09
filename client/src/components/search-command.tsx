@@ -25,6 +25,8 @@ import {
   Landmark,
 } from "lucide-react";
 import { mockDeals } from "@/data/deals";
+import { useAuth } from "@/context/auth-context";
+import { can } from "@/lib/capabilities";
 
 interface SearchResult {
   id: string;
@@ -102,6 +104,7 @@ export function SearchCommand({ open: controlledOpen, onOpenChange }: SearchComm
   const [search, setSearch] = useState("");
   const [, navigate] = useLocation();
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const { user } = useAuth();
 
   const isOpen = controlledOpen !== undefined ? controlledOpen : open;
   const setIsOpen = onOpenChange || setOpen;
@@ -156,16 +159,24 @@ export function SearchCommand({ open: controlledOpen, onOpenChange }: SearchComm
       }));
   }, [search]);
 
-  // Filter actions and pages
+  // Filter actions and pages based on user capabilities
   const filteredActions = useMemo(() => {
-    if (!search) return quickActions;
+    // Filter out actions the user doesn't have permission for
+    const permittedActions = quickActions.filter((action) => {
+      if (action.id === "new-deal" && !can(user?.role).createDeal) {
+        return false;
+      }
+      return true;
+    });
+
+    if (!search) return permittedActions;
     const searchLower = search.toLowerCase();
-    return quickActions.filter(
+    return permittedActions.filter(
       (action) =>
         action.title.toLowerCase().includes(searchLower) ||
         action.description?.toLowerCase().includes(searchLower)
     );
-  }, [search]);
+  }, [search, user?.role]);
 
   const filteredPages = useMemo(() => {
     if (!search) return pages;

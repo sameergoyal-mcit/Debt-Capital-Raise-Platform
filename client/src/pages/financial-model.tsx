@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Upload, Calculator, Calendar, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Save, Upload, Calculator, Calendar, ArrowLeft, Plus, Trash2, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { mockDeals } from "@/data/deals";
@@ -17,6 +17,8 @@ import { SensitivityChart } from "@/components/sensitivity-chart";
 import { StressTesting } from "@/components/stress-testing";
 import { ReturnsCalculator } from "@/components/returns-calculator";
 import { Switch } from "@/components/ui/switch";
+import { downloadCsvFromRecords } from "@/lib/download";
+import { format, addYears } from "date-fns";
 
 interface DebtTranche {
   name: string;
@@ -104,6 +106,14 @@ function runGranularModel(assumptions: GranularAssumptions): GranularYearProject
   const closingParsed = assumptions.closingDate ? parseMonthYear(assumptions.closingDate) : null;
   const baseYear = closingParsed?.year || new Date().getFullYear();
 
+  // Generate calendar labels based on closing date
+  const generateCalendarLabel = (yearOffset: number): string | undefined => {
+    if (!closingParsed) return undefined;
+    if (yearOffset === 0) return `LTM (${String(closingParsed.month).padStart(2, '0')}/${closingParsed.year - 1})`;
+    const targetYear = closingParsed.year + (yearOffset - 1);
+    return `${String(closingParsed.month).padStart(2, '0')}/${targetYear}`;
+  };
+
   // LTM row
   const ltmDa = assumptions.ltmRevenue * (assumptions.daPercent / 100);
   const ltmTotalDebt = debtBalances.reduce((sum, b) => sum + b, 0);
@@ -116,7 +126,7 @@ function runGranularModel(assumptions: GranularAssumptions): GranularYearProject
   projections.push({
     year: 0,
     label: "LTM",
-    calendarYear: closingParsed ? `FY${baseYear - 1}` : undefined,
+    calendarYear: generateCalendarLabel(0),
     revenue: assumptions.ltmRevenue,
     revenueGrowth: 0,
     grossEbitda: assumptions.ltmEbitda,
@@ -221,7 +231,7 @@ function runGranularModel(assumptions: GranularAssumptions): GranularYearProject
     projections.push({
       year,
       label: `Year ${year}`,
-      calendarYear: closingParsed ? `FY${baseYear + i}` : undefined,
+      calendarYear: generateCalendarLabel(year),
       revenue,
       revenueGrowth: growth,
       grossEbitda,
@@ -311,8 +321,37 @@ export default function FinancialModelPage() {
   const [signingDateInput, setSigningDateInput] = useState("");
   const [closingDateInput, setClosingDateInput] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
+  const [leverageExpanded, setLeverageExpanded] = useState(false);
+  const [dscrExpanded, setDscrExpanded] = useState(false);
 
   const projections = useMemo(() => runGranularModel(assumptions), [assumptions]);
+
+  // Export projections as CSV
+  const handleExportProjections = () => {
+    const exportData = projections.map(p => ({
+      "Period": p.calendarYear || p.label,
+      "Revenue ($M)": p.revenue.toFixed(1),
+      "Revenue Growth %": `${p.revenueGrowth.toFixed(1)}%`,
+      "Gross EBITDA ($M)": p.grossEbitda.toFixed(1),
+      "EBITDA Margin %": `${p.ebitdaMargin.toFixed(1)}%`,
+      "Adjustments ($M)": p.adjustments.toFixed(1),
+      "Adj. EBITDA ($M)": p.adjEbitda.toFixed(1),
+      "D&A ($M)": p.da.toFixed(1),
+      "EBIT ($M)": p.ebit.toFixed(1),
+      "Interest ($M)": p.totalInterest.toFixed(1),
+      "Taxes ($M)": p.taxes.toFixed(1),
+      "Net Income ($M)": p.netIncome.toFixed(1),
+      "NWC Change ($M)": p.nwcChange.toFixed(1),
+      "CapEx ($M)": p.capex.toFixed(1),
+      "Amortization ($M)": p.totalAmort.toFixed(1),
+      "Free Cash Flow ($M)": p.fcf.toFixed(1),
+      "Beginning Debt ($M)": p.totalBeginningDebt.toFixed(1),
+      "Ending Debt ($M)": p.totalEndingDebt.toFixed(1),
+      "Leverage (x)": `${p.leverageRatio.toFixed(2)}x`,
+      "DSCR (x)": p.year === 0 ? "—" : `${p.dscr.toFixed(2)}x`
+    }));
+    downloadCsvFromRecords(`financial_projections_${deal.dealName.replace(/\s+/g, '_')}_${format(new Date(), "yyyy-MM-dd")}.csv`, exportData);
+  };
 
   // For compatibility with other components that expect the old format
   const legacyAssumptions = useMemo(() => {
@@ -504,7 +543,7 @@ export default function FinancialModelPage() {
             </div>
             <h1 className="text-xl font-semibold text-primary tracking-tight flex items-center gap-2">
               <Calculator className="h-5 w-5" />
-              7-Year Debt Paydown Model
+              Debt Paydown Model
             </h1>
           </div>
           <div className="flex gap-2">
@@ -881,7 +920,13 @@ export default function FinancialModelPage() {
                 <CardHeader className="py-3 px-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm">Financial Projections</CardTitle>
-                    <Badge variant="outline" className="text-[10px]">$MM</Badge>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={handleExportProjections} className="h-6 text-[10px] px-2">
+                        <Download className="h-3 w-3 mr-1" />
+                        Export
+                      </Button>
+                      <Badge variant="outline" className="text-[10px]">$MM</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
@@ -941,6 +986,14 @@ export default function FinancialModelPage() {
                           <td className={`py-1 pr-2 font-bold ${computedClass}`}>Adj. EBITDA</td>
                           {projections.map(p => (
                             <td key={p.label} className={`text-right py-1 px-1.5 font-bold ${computedClass}`}>{fmt(p.adjEbitda)}</td>
+                          ))}
+                        </tr>
+                        <tr className="border-b">
+                          <td className={`py-1 pr-2 pl-3 italic text-muted-foreground`}>% of Revenue</td>
+                          {projections.map(p => (
+                            <td key={p.label} className={`text-right py-1 px-1.5 italic text-muted-foreground`}>
+                              {p.revenue > 0 ? fmtPct((p.adjEbitda / p.revenue) * 100) : "—"}
+                            </td>
                           ))}
                         </tr>
                         <tr className="border-b">
@@ -1037,22 +1090,58 @@ export default function FinancialModelPage() {
                         </tr>
                         <tr className="h-2" />
                         {/* Credit Metrics */}
-                        <tr className="border-b">
-                          <td className={`py-1 pr-2 font-semibold ${computedClass}`}>Leverage</td>
+                        <tr className="border-b cursor-pointer hover:bg-muted/30" onClick={() => setLeverageExpanded(!leverageExpanded)}>
+                          <td className={`py-1 pr-2 font-semibold ${computedClass} flex items-center gap-1`}>
+                            {leverageExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            Total Leverage
+                          </td>
                           {projections.map(p => (
                             <td key={p.label} className={`text-right py-1 px-1.5 font-semibold ${p.leverageRatio > 5 ? "text-amber-600" : p.leverageRatio > 6 ? "text-red-600" : "text-green-600"}`}>
                               {fmtMult(p.leverageRatio)}
                             </td>
                           ))}
                         </tr>
-                        <tr className="border-b">
-                          <td className={`py-1 pr-2 font-semibold ${computedClass}`}>DSCR</td>
+                        {leverageExpanded && assumptions.debtTranches.filter(t => t.enabled).map((tranche, idx) => (
+                          <tr key={`lev-${tranche.name}`} className="border-b bg-muted/20">
+                            <td className={`py-1 pr-2 pl-6 text-muted-foreground`}>{tranche.name}</td>
+                            {projections.map(p => {
+                              const trancheDebt = p.debtByTranche.find(d => d.name === tranche.name);
+                              const trancheLeverage = p.adjEbitda > 0 && trancheDebt ? trancheDebt.ending / p.adjEbitda : 0;
+                              return (
+                                <td key={p.label} className={`text-right py-1 px-1.5 text-muted-foreground`}>
+                                  {fmtMult(trancheLeverage)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                        <tr className="border-b cursor-pointer hover:bg-muted/30" onClick={() => setDscrExpanded(!dscrExpanded)}>
+                          <td className={`py-1 pr-2 font-semibold ${computedClass} flex items-center gap-1`}>
+                            {dscrExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            Total DSCR
+                          </td>
                           {projections.map(p => (
                             <td key={p.label} className={`text-right py-1 px-1.5 font-semibold ${p.dscr < 1.25 ? "text-red-600" : p.dscr < 1.5 ? "text-amber-600" : "text-green-600"}`}>
                               {p.year === 0 ? "—" : fmtMult(p.dscr)}
                             </td>
                           ))}
                         </tr>
+                        {dscrExpanded && assumptions.debtTranches.filter(t => t.enabled).map((tranche, idx) => (
+                          <tr key={`dscr-${tranche.name}`} className="border-b bg-muted/20">
+                            <td className={`py-1 pr-2 pl-6 text-muted-foreground`}>DSCR - {tranche.name}</td>
+                            {projections.map(p => {
+                              const trancheInterest = p.interestByTranche.find(i => i.name === tranche.name);
+                              const trancheAmort = p.amortByTranche.find(a => a.name === tranche.name);
+                              const trancheDebtService = (trancheInterest?.amount || 0) + (trancheAmort?.amount || 0);
+                              const trancheDscr = trancheDebtService > 0 ? p.adjEbitda / trancheDebtService : 0;
+                              return (
+                                <td key={p.label} className={`text-right py-1 px-1.5 text-muted-foreground`}>
+                                  {p.year === 0 ? "—" : fmtMult(trancheDscr)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>

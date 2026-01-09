@@ -941,8 +941,8 @@ function TeamMember({ name, role, initials }: { name: string; role: string; init
 // Mock Data for Charts
 const engagementData = [
   { name: 'NDA', value: 45, color: '#3b82f6', companies: 'Apollo, Ares, BlackRock' },
-  { name: 'LP', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
-  { name: 'Mgmt', value: 24, color: '#8b5cf6', companies: 'HPS, Golub, Owl Rock' },
+  { name: 'Lender Pres.', value: 38, color: '#6366f1', companies: 'Oaktree, Carlyle, KKR' },
+  { name: 'Due Diligence', value: 24, color: '#8b5cf6', companies: 'HPS, Golub, Owl Rock' },
   { name: 'IOI', value: 12, color: '#d946ef', companies: 'Barings, Antares' },
   { name: 'Bid', value: 5, color: '#ec4899', companies: 'Sixth Street, Churchill' },
 ];

@@ -28,18 +28,14 @@ export const QAStatus = {
 } as const;
 
 export const DealStage = {
-  STRUCTURING: "structuring",
+  PRE_LAUNCH: "pre_launch",
   NDA: "nda",
   LP: "lp",
-  MARKETING: "marketing",
+  DUE_DILIGENCE: "due_diligence",
   IOI: "ioi",
-  BOOKBUILDING: "bookbuilding",
-  ALLOCATION: "allocation",
-  DOCS: "docs",
   SIGNING: "signing",
-  FUNDING: "funding",
-  CLOSED: "closed",
-  PAUSED: "paused"
+  ALLOCATION: "allocation",
+  CLOSING: "closing"
 } as const;
 
 export type NDAStatusType = typeof NDAStatus[keyof typeof NDAStatus];
@@ -47,6 +43,30 @@ export type DocsStatusType = typeof DocsStatus[keyof typeof DocsStatus];
 export type CommitmentStatusType = typeof CommitmentStatus[keyof typeof CommitmentStatus];
 export type QAStatusType = typeof QAStatus[keyof typeof QAStatus];
 export type DealStageType = typeof DealStage[keyof typeof DealStage];
+
+// Ordered array of deal stages for progress display
+export const dealStageOrder: DealStageType[] = [
+  DealStage.PRE_LAUNCH,
+  DealStage.NDA,
+  DealStage.LP,
+  DealStage.DUE_DILIGENCE,
+  DealStage.IOI,
+  DealStage.SIGNING,
+  DealStage.ALLOCATION,
+  DealStage.CLOSING
+];
+
+// Human-readable labels for deal stages
+export const dealStageLabels: Record<DealStageType, string> = {
+  [DealStage.PRE_LAUNCH]: "Pre-Launch",
+  [DealStage.NDA]: "NDA",
+  [DealStage.LP]: "Lender Presentation",
+  [DealStage.DUE_DILIGENCE]: "Due Diligence",
+  [DealStage.IOI]: "Indication of Interest",
+  [DealStage.SIGNING]: "Signing",
+  [DealStage.ALLOCATION]: "Allocation",
+  [DealStage.CLOSING]: "Closing"
+};
 
 interface ChipConfig {
   label: string;
@@ -136,38 +156,30 @@ export function getQAChip(status: QAStatusType): ChipConfig {
 
 export function getDealStageChip(stage: DealStageType): ChipConfig {
   const stageLabels: Record<DealStageType, string> = {
-    [DealStage.STRUCTURING]: "Structuring",
-    [DealStage.NDA]: "NDA Phase",
+    [DealStage.PRE_LAUNCH]: "Pre-Launch",
+    [DealStage.NDA]: "NDA",
     [DealStage.LP]: "Lender Presentation",
-    [DealStage.MARKETING]: "Marketing",
-    [DealStage.IOI]: "IOI Collection",
-    [DealStage.BOOKBUILDING]: "Book Building",
-    [DealStage.ALLOCATION]: "Allocation",
-    [DealStage.DOCS]: "Documentation",
+    [DealStage.DUE_DILIGENCE]: "Due Diligence",
+    [DealStage.IOI]: "Indication of Interest",
     [DealStage.SIGNING]: "Signing",
-    [DealStage.FUNDING]: "Funding",
-    [DealStage.CLOSED]: "Closed",
-    [DealStage.PAUSED]: "Paused"
+    [DealStage.ALLOCATION]: "Allocation",
+    [DealStage.CLOSING]: "Closing"
   };
 
   const stageColors: Record<DealStageType, string> = {
-    [DealStage.STRUCTURING]: "bg-slate-100 text-slate-700 border-slate-200",
+    [DealStage.PRE_LAUNCH]: "bg-slate-100 text-slate-700 border-slate-200",
     [DealStage.NDA]: "bg-amber-100 text-amber-700 border-amber-200",
     [DealStage.LP]: "bg-blue-100 text-blue-700 border-blue-200",
-    [DealStage.MARKETING]: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    [DealStage.DUE_DILIGENCE]: "bg-indigo-100 text-indigo-700 border-indigo-200",
     [DealStage.IOI]: "bg-purple-100 text-purple-700 border-purple-200",
-    [DealStage.BOOKBUILDING]: "bg-violet-100 text-violet-700 border-violet-200",
-    [DealStage.ALLOCATION]: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
-    [DealStage.DOCS]: "bg-pink-100 text-pink-700 border-pink-200",
     [DealStage.SIGNING]: "bg-rose-100 text-rose-700 border-rose-200",
-    [DealStage.FUNDING]: "bg-orange-100 text-orange-700 border-orange-200",
-    [DealStage.CLOSED]: "bg-green-100 text-green-700 border-green-200",
-    [DealStage.PAUSED]: "bg-gray-100 text-gray-500 border-gray-200"
+    [DealStage.ALLOCATION]: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+    [DealStage.CLOSING]: "bg-green-100 text-green-700 border-green-200"
   };
 
   return {
     label: stageLabels[stage] || stage,
-    className: stageColors[stage] || stageColors[DealStage.STRUCTURING]
+    className: stageColors[stage] || stageColors[DealStage.PRE_LAUNCH]
   };
 }
 

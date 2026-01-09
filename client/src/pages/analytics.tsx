@@ -348,15 +348,15 @@ const pricingBandData = [
 const funnelData = [
   { stage: "Outreach", count: 85, color: "#94a3b8" },
   { stage: "NDA", count: 60, color: "#64748b" },
-  { stage: "LP", count: 45, color: "#475569" },
+  { stage: "Lender Pres.", count: 45, color: "#475569" },
   { stage: "IOI", count: 20, color: "#334155" },
   { stage: "Firm Bid", count: 8, color: "#0f172a" },
 ];
 
 const timeInStageData = [
   { stage: "NDA", "Current Deal": 5, "Market Benchmark": 7 },
-  { stage: "Diligence", "Current Deal": 14, "Market Benchmark": 21 },
-  { stage: "Documentation", "Current Deal": 10, "Market Benchmark": 14 },
+  { stage: "Due Diligence", "Current Deal": 14, "Market Benchmark": 21 },
+  { stage: "Signing", "Current Deal": 10, "Market Benchmark": 14 },
   { stage: "Closing", "Current Deal": 3, "Market Benchmark": 5 },
 ];
 

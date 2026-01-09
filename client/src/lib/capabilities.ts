@@ -7,6 +7,7 @@ export interface Capabilities {
   seeAllQA: boolean;
   seeAllCommitments: boolean;
   manageDeals: boolean;
+  createDeal: boolean;
   editTermSheet: boolean;
   publishDeal: boolean;
   inviteLenders: boolean;
@@ -26,6 +27,7 @@ const roleCapabilities: Record<UserRole, Capabilities> = {
     seeAllQA: true,
     seeAllCommitments: true,
     manageDeals: true,
+    createDeal: false,
     editTermSheet: true,
     publishDeal: true,
     inviteLenders: true,
@@ -43,6 +45,7 @@ const roleCapabilities: Record<UserRole, Capabilities> = {
     seeAllQA: true,
     seeAllCommitments: true,
     manageDeals: true,
+    createDeal: true,
     editTermSheet: true,
     publishDeal: false,
     inviteLenders: false,
@@ -60,6 +63,7 @@ const roleCapabilities: Record<UserRole, Capabilities> = {
     seeAllQA: false,
     seeAllCommitments: false,
     manageDeals: false,
+    createDeal: false,
     editTermSheet: false,
     publishDeal: false,
     inviteLenders: false,
@@ -81,6 +85,7 @@ export function can(role: UserRole | undefined): Capabilities {
       seeAllQA: false,
       seeAllCommitments: false,
       manageDeals: false,
+      createDeal: false,
       editTermSheet: false,
       publishDeal: false,
       inviteLenders: false,

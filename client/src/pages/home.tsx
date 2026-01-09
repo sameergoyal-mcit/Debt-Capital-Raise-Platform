@@ -1,10 +1,10 @@
 import React from "react";
 import { Link } from "wouter";
-import { 
-  ArrowUpRight, 
-  TrendingUp, 
-  Users, 
-  Clock, 
+import {
+  ArrowUpRight,
+  TrendingUp,
+  Users,
+  Clock,
   ArrowRight,
   MoreHorizontal,
   Activity,
@@ -14,6 +14,9 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/auth-context";
+import { can } from "@/lib/capabilities";
+import { CreateDealWizard } from "@/components/create-deal-wizard";
 import {
   Table,
   TableBody,
@@ -30,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Layout } from "@/components/layout";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
+import { downloadCsvFromRecords } from "@/lib/download";
+import { format } from "date-fns";
 
 const debtMaturityData = [
   { period: "0-3 mos", "Senior Secured": 15, "Mezzanine": 5, "Unitranche": 0 },
@@ -39,6 +44,36 @@ const debtMaturityData = [
 ];
 
 export default function Home() {
+  const { user } = useAuth();
+
+  const handleDownloadReport = () => {
+    // Build comprehensive report data combining deal listing and maturity info
+    const reportData = [
+      // Summary section
+      { "Section": "SUMMARY", "Item": "Total Debt Raised (LTM)", "Value": "$245.8M", "Details": "" },
+      { "Section": "SUMMARY", "Item": "Avg Debt Pricing (SOFR +)", "Value": "625 bps", "Details": "-25 bps vs last quarter" },
+      { "Section": "SUMMARY", "Item": "Committed vs Target", "Value": "82%", "Details": "Across Active Deals" },
+      { "Section": "SUMMARY", "Item": "Active Deals", "Value": "12", "Details": "2 At Risk" },
+      { "Section": "", "Item": "", "Value": "", "Details": "" }, // Empty row separator
+      // Active deals section
+      ...recentDeals.map(deal => ({
+        "Section": "ACTIVE DEALS",
+        "Item": deal.name,
+        "Value": deal.size,
+        "Details": `${deal.sector} - ${deal.status}`
+      })),
+      { "Section": "", "Item": "", "Value": "", "Details": "" }, // Empty row separator
+      // Debt maturity section
+      ...debtMaturityData.map(row => ({
+        "Section": "DEBT MATURING",
+        "Item": row.period,
+        "Value": `$${row["Senior Secured"] + row["Mezzanine"] + row["Unitranche"]}M`,
+        "Details": `Senior: $${row["Senior Secured"]}M, Mezz: $${row["Mezzanine"]}M, Uni: $${row["Unitranche"]}M`
+      }))
+    ];
+    downloadCsvFromRecords(`dashboard_report_${format(new Date(), "yyyy-MM-dd")}.csv`, reportData);
+  };
+
   return (
     <Layout>
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -48,10 +83,8 @@ export default function Home() {
             <p className="text-muted-foreground mt-1">Overview of your Debt Market Activity and Active Deals</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline">Download Report</Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-              New Deal
-            </Button>
+            <Button variant="outline" onClick={handleDownloadReport}>Download Report</Button>
+            {can(user?.role).createDeal && <CreateDealWizard />}
           </div>
         </div>
 

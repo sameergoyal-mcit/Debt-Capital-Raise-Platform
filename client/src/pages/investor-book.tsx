@@ -69,6 +69,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useRole } from "@/context/role";
 import { mockLenders, Lender, LenderStatus, LenderType, computeSeriousnessScore } from "@/data/lenders";
@@ -683,8 +684,19 @@ function IssuerTable({ lenders }: { lenders: Lender[] }) {
             <TableCell className="font-mono text-sm">
               {lender.ticketMin > 0 ? `$${(lender.ticketMin/1000000).toFixed(0)}M - $${(lender.ticketMax/1000000).toFixed(0)}M` : "TBD"}
             </TableCell>
-            <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-              {lender.notes || "-"}
+            <TableCell className="text-sm text-muted-foreground max-w-[200px]">
+              {lender.notes ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block truncate cursor-help">{lender.notes}</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[300px] whitespace-normal">
+                      {lender.notes}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : "-"}
             </TableCell>
           </TableRow>
         ))}

@@ -60,7 +60,9 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { AccessNotice } from "@/components/access-notice";
-import { CreateDealDialog } from "@/components/create-deal-dialog";
+import { CreateDealWizard } from "@/components/create-deal-wizard";
+import { can } from "@/lib/capabilities";
+import { downloadCsvFromRecords } from "@/lib/download";
 
 export default function Deals() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +123,21 @@ export default function Deals() {
   const onHoldDeals = sortDeals(filteredDeals.filter(d => d.status === "Paused"));
   const closedDeals = sortDeals(filteredDeals.filter(d => d.status === "Closed"));
 
+  // Export deals as CSV
+  const handleExport = () => {
+    const exportData = filteredDeals.map(deal => ({
+      "Deal Name": deal.dealName,
+      "Borrower": deal.borrowerName,
+      "Sector": deal.sector,
+      "Size ($M)": (deal.facilitySize / 1000000).toFixed(1),
+      "Status": deal.status,
+      "Stage": deal.stage,
+      "Close Date": deal.closeDate ? format(parseISO(deal.closeDate), "MM/dd/yyyy") : "",
+      "Committed %": `${deal.committedPct.toFixed(1)}%`
+    }));
+    downloadCsvFromRecords(`deals_export_${format(new Date(), "yyyy-MM-dd")}.csv`, exportData);
+  };
+
   // Unique sectors for filter
   const sectors = Array.from(new Set(mockDeals.map(d => d.sector)));
 
@@ -141,11 +158,11 @@ export default function Deals() {
             </p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleExport}>
               <Download className="h-4 w-4" /> Export
             </Button>
-            {user?.role !== "Investor" && (
-              <CreateDealDialog />
+            {can(user?.role).createDeal && (
+              <CreateDealWizard />
             )}
           </div>
         </div>

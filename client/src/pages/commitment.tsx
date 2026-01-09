@@ -30,16 +30,25 @@ export default function SubmitCommitment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
 
+  const isDecline = ticketType === "decline";
+
   const handleSubmit = () => {
     setIsSubmitting(true);
-    
+
     // Simulate API call
     setTimeout(() => {
       setIsSubmitting(false);
-      toast({
-        title: "Commitment Submitted",
-        description: `Your ${ticketType} commitment of $${(amount / 1000000).toFixed(1)}M has been recorded.`,
-      });
+      if (isDecline) {
+        toast({
+          title: "Response Submitted",
+          description: "Your decision to decline has been recorded.",
+        });
+      } else {
+        toast({
+          title: "Commitment Submitted",
+          description: `Your ${ticketType} commitment of $${(amount / 1000000).toFixed(1)}M has been recorded.`,
+        });
+      }
       setLocation(`/deal/${dealId}/overview`);
     }, 1500);
   };
@@ -88,80 +97,10 @@ export default function SubmitCommitment() {
               <CardDescription>Enter your ticket size and conditions.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <Label className="text-base">Commitment Amount</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      value={amount / 1000000}
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value) || 0;
-                        setAmount(Math.min(50000000, Math.max(1000000, value * 1000000)));
-                      }}
-                      className="w-24 text-right font-bold text-lg"
-                      min={1}
-                      max={50}
-                      step={0.5}
-                    />
-                    <span className="text-muted-foreground font-medium">M</span>
-                  </div>
-                </div>
-                <Slider
-                  value={[amount]}
-                  min={1000000}
-                  max={50000000}
-                  step={500000}
-                  onValueChange={(v) => setAmount(v[0])}
-                  className="py-4"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>$1.0M</span>
-                  <span>$25.0M</span>
-                  <span>$50.0M</span>
-                </div>
-                {/* Quick preset buttons */}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={amount === 5000000 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setAmount(5000000)}
-                  >
-                    $5M
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={amount === 10000000 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setAmount(10000000)}
-                  >
-                    $10M
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={amount === 25000000 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setAmount(25000000)}
-                  >
-                    $25M
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={amount === 50000000 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setAmount(50000000)}
-                  >
-                    $50M
-                  </Button>
-                </div>
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Commitment Type</Label>
+                  <Label>Response Type</Label>
                   <Select value={ticketType} onValueChange={setTicketType}>
                     <SelectTrigger>
                       <SelectValue />
@@ -169,44 +108,124 @@ export default function SubmitCommitment() {
                     <SelectContent>
                       <SelectItem value="indicative">Indicative / Soft Circle</SelectItem>
                       <SelectItem value="firm">Firm Commitment</SelectItem>
+                      <SelectItem value="decline">Decline Commitment</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Input value={deal.currency} disabled />
-                </div>
+                {!isDecline && (
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Input value={deal.currency} disabled />
+                  </div>
+                )}
               </div>
 
+              {!isDecline && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-base">Commitment Amount</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">$</span>
+                      <Input
+                        type="number"
+                        value={amount / 1000000}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          setAmount(Math.min(50000000, Math.max(1000000, value * 1000000)));
+                        }}
+                        className="w-24 text-right font-bold text-lg"
+                        min={1}
+                        max={50}
+                        step={0.5}
+                      />
+                      <span className="text-muted-foreground font-medium">M</span>
+                    </div>
+                  </div>
+                  <Slider
+                    value={[amount]}
+                    min={1000000}
+                    max={50000000}
+                    step={500000}
+                    onValueChange={(v) => setAmount(v[0])}
+                    className="py-4"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>$1.0M</span>
+                    <span>$25.0M</span>
+                    <span>$50.0M</span>
+                  </div>
+                  {/* Quick preset buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={amount === 5000000 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setAmount(5000000)}
+                    >
+                      $5M
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={amount === 10000000 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setAmount(10000000)}
+                    >
+                      $10M
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={amount === 25000000 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setAmount(25000000)}
+                    >
+                      $25M
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={amount === 50000000 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setAmount(50000000)}
+                    >
+                      $50M
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label>Conditions / Subjectivities</Label>
-                <Textarea 
-                  placeholder="e.g. Subject to final IC approval, legal review of definitions..." 
+                <Label>{isDecline ? "Reason for Declining (Optional)" : "Conditions / Subjectivities / Highlights"}</Label>
+                <Textarea
+                  placeholder={isDecline
+                    ? "e.g. Pricing outside mandate, sector allocation full, timing constraints..."
+                    : "e.g. Subject to final IC approval, legal review of definitions..."
+                  }
                   className="min-h-[100px]"
                   value={conditions}
                   onChange={(e) => setConditions(e.target.value)}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Supporting Documentation</Label>
-                <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-secondary/20 transition-colors cursor-pointer" onClick={handleFileUpload}>
-                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                   <p className="text-sm font-medium">Click to upload files</p>
-                   <p className="text-xs text-muted-foreground">Internal memos, KYC forms, etc.</p>
-                </div>
-                {files.length > 0 && (
-                  <div className="space-y-2 mt-2">
-                    {files.map((file, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm bg-secondary/30 p-2 rounded">
-                        <FileText className="h-4 w-4 text-primary" />
-                        <span className="flex-1">{file}</span>
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      </div>
-                    ))}
+              {!isDecline && (
+                <div className="space-y-2">
+                  <Label>Supporting Documentation</Label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-secondary/20 transition-colors cursor-pointer" onClick={handleFileUpload}>
+                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm font-medium">Click to upload files</p>
+                    <p className="text-xs text-muted-foreground">Internal memos, KYC forms, etc.</p>
                   </div>
-                )}
-              </div>
+                  {files.length > 0 && (
+                    <div className="space-y-2 mt-2">
+                      {files.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-sm bg-secondary/30 p-2 rounded">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span className="flex-1">{file}</span>
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </CardContent>
             <CardFooter className="flex justify-between border-t p-6">
@@ -215,7 +234,7 @@ export default function SubmitCommitment() {
                 {user.lenderId && <span className="ml-1">({user.lenderId})</span>}
               </div>
               <Button onClick={handleSubmit} disabled={isSubmitting} className="min-w-[150px]">
-                {isSubmitting ? "Submitting..." : ticketType === "firm" ? "Submit Firm Bid" : "Submit Indication"}
+                {isSubmitting ? "Submitting..." : isDecline ? "Submit Decline" : ticketType === "firm" ? "Submit Firm Bid" : "Submit Indication"}
               </Button>
             </CardFooter>
           </Card>

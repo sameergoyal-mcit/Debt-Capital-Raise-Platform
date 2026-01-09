@@ -1,6 +1,6 @@
 import { differenceInDays, parseISO } from "date-fns";
 
-export type DealStage = "Structuring" | "NDA" | "Lender Presentation" | "Marketing" | "IOI" | "Bookbuilding" | "Allocation" | "Docs" | "Signing" | "Funding" | "Closed" | "Paused";
+export type DealStage = "Pre-Launch" | "NDA" | "Lender Presentation" | "Due Diligence" | "Indication of Interest" | "Signing" | "Allocation" | "Closing";
 export type DealStatus = "Active" | "Diligence" | "Closing" | "Closed" | "Paused" | "At Risk";
 export type DealOutcome = "Funded" | "Pulled" | "Refinanced" | "Replaced" | "Other";
 
@@ -69,7 +69,7 @@ export const mockDeals: Deal[] = [
     facilityType: "First Lien",
     facilitySize: 45000000,
     currency: "USD",
-    stage: "Docs",
+    stage: "Signing",
     status: "Closing",
     targetSize: 45000000,
     committed: 45000000,
@@ -101,7 +101,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Unitranche",
     facilitySize: 120000000,
     currency: "USD",
-    stage: "Bookbuilding",
+    stage: "Indication of Interest",
     status: "Active",
     targetSize: 120000000,
     committed: 85000000,
@@ -126,7 +126,7 @@ export const mockDeals: Deal[] = [
     facilityType: "First Lien",
     facilitySize: 35000000,
     currency: "GBP",
-    stage: "Marketing",
+    stage: "Lender Presentation",
     status: "Active",
     targetSize: 35000000,
     committed: 10000000,
@@ -176,7 +176,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Revolver",
     facilitySize: 28000000,
     currency: "USD",
-    stage: "Structuring",
+    stage: "Pre-Launch",
     status: "Active",
     targetSize: 28000000,
     committed: 0,
@@ -199,7 +199,7 @@ export const mockDeals: Deal[] = [
     facilityType: "First Lien",
     facilitySize: 55000000,
     currency: "USD",
-    stage: "IOI",
+    stage: "Indication of Interest",
     status: "Active",
     targetSize: 55000000,
     committed: 15000000,
@@ -224,7 +224,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Senior Unsecured",
     facilitySize: 200000000,
     currency: "EUR",
-    stage: "Marketing",
+    stage: "Lender Presentation",
     status: "Active",
     targetSize: 200000000,
     committed: 45000000,
@@ -249,7 +249,7 @@ export const mockDeals: Deal[] = [
     facilityType: "First Lien",
     facilitySize: 15000000,
     currency: "USD",
-    stage: "Bookbuilding",
+    stage: "Indication of Interest",
     status: "At Risk",
     targetSize: 15000000,
     committed: 4000000,
@@ -274,7 +274,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Junior Capital",
     facilitySize: 25000000,
     currency: "USD",
-    stage: "Docs",
+    stage: "Signing",
     status: "At Risk",
     targetSize: 25000000,
     committed: 22000000,
@@ -301,7 +301,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Unitranche",
     facilitySize: 80000000,
     currency: "USD",
-    stage: "Closed",
+    stage: "Closing",
     status: "Closed",
     targetSize: 80000000,
     committed: 80000000,
@@ -324,7 +324,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Revolver",
     facilitySize: 50000000,
     currency: "USD",
-    stage: "Closed",
+    stage: "Closing",
     status: "Closed",
     targetSize: 50000000,
     committed: 50000000,
@@ -347,7 +347,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Second Lien",
     facilitySize: 30000000,
     currency: "USD",
-    stage: "Closed",
+    stage: "Closing",
     status: "Closed",
     targetSize: 30000000,
     committed: 30000000,
@@ -370,7 +370,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Lease",
     facilitySize: 10000000,
     currency: "USD",
-    stage: "Closed",
+    stage: "Closing",
     status: "Closed",
     targetSize: 10000000,
     committed: 10000000,
@@ -395,7 +395,7 @@ export const mockDeals: Deal[] = [
     facilityType: "First Lien",
     facilitySize: 150000000,
     currency: "USD",
-    stage: "Paused",
+    stage: "Indication of Interest",
     status: "Paused",
     targetSize: 150000000,
     committed: 60000000,
@@ -407,7 +407,7 @@ export const mockDeals: Deal[] = [
     updatedAt: "2025-05-15",
     holdReason: "Pricing too wide",
     holdSince: "2025-05-20",
-    lastStageBeforeHold: "Bookbuilding",
+    lastStageBeforeHold: "Indication of Interest",
   },
   {
     id: "302",
@@ -419,7 +419,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Unitranche",
     facilitySize: 40000000,
     currency: "USD",
-    stage: "Paused",
+    stage: "Allocation",
     status: "Paused",
     targetSize: 40000000,
     committed: 0,
@@ -443,7 +443,7 @@ export const mockDeals: Deal[] = [
     facilityType: "Revolver",
     facilitySize: 75000000,
     currency: "USD",
-    stage: "Paused",
+    stage: "Lender Presentation",
     status: "Paused",
     targetSize: 75000000,
     committed: 0,
@@ -455,7 +455,7 @@ export const mockDeals: Deal[] = [
     updatedAt: "2025-04-20",
     holdReason: "Sponsor paused process",
     holdSince: "2025-04-25",
-    lastStageBeforeHold: "Marketing",
+    lastStageBeforeHold: "Lender Presentation",
   },
 ];
 
@@ -476,8 +476,8 @@ export function computeDealRisk(deal: Deal): { label: string; color: string } {
     return { label, color };
   }
 
-  // Rule 2: At Risk if blockersCount >= 3 AND stage in Docs/Signing
-  if ((deal.blockersCount || 0) >= 3 && ["Docs", "Signing"].includes(deal.stage)) {
+  // Rule 2: At Risk if blockersCount >= 3 AND stage in late stages (Signing/Allocation/Closing)
+  if ((deal.blockersCount || 0) >= 3 && ["Signing", "Allocation", "Closing"].includes(deal.stage)) {
     label = "At Risk";
     color = "bg-red-100 text-red-700 border-red-200";
     return { label, color };

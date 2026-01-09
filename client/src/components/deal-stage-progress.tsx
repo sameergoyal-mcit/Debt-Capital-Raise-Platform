@@ -1,10 +1,10 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { dealStageLabels, dealStageOrder, DealStage } from "@/lib/status-chips";
+import { dealStageLabels, dealStageOrder, DealStageType } from "@/lib/status-chips";
 import { cn } from "@/lib/utils";
 
 interface DealStageProgressProps {
-  currentStage: DealStage;
+  currentStage: DealStageType;
   className?: string;
 }
 
