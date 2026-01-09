@@ -61,6 +61,7 @@ import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
 import { PaydownModel } from "@/components/paydown-model";
+import { DealSandbox } from "@/components/deal-sandbox";
 import { SendRemindersModal } from "@/components/send-reminders-modal";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
@@ -237,7 +238,24 @@ export default function DealOverview() {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content with Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="financial-model" data-testid="tab-financial-model">
+              <Calculator className="h-4 w-4 mr-2" />
+              Financial Model
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="financial-model" className="mt-0">
+            <DealSandbox 
+              dealId={dealId} 
+              dealName={deal.dealName}
+            />
+          </TabsContent>
+
+          <TabsContent value="overview" className="mt-0">
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
           
           {/* Left Column (2/3) */}
@@ -730,6 +748,8 @@ export default function DealOverview() {
 
           </div>
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
       
       <InviteLenderModal
