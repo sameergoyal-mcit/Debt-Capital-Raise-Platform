@@ -116,8 +116,22 @@ export function Layout({ children }: LayoutProps) {
 
             {isInternal && (
               <>
-                <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
-                <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
+                {/* Sandbox Section */}
+                <div className="mt-4 pt-4 border-t border-sidebar-border/50">
+                  <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                    Sandbox
+                  </h4>
+                  <NavItem href={`/deal/${dealId}/sandbox`} icon={<Calculator size={20} />} label="Financial Model" active={isActive(`/deal/${dealId}/sandbox`)} onClick={onNavClick} />
+                </div>
+
+                {/* Actions Section */}
+                <div className="mt-4 pt-4 border-t border-sidebar-border/50">
+                  <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                    Actions
+                  </h4>
+                  <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
+                  <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
+                </div>
               </>
             )}
           </div>
