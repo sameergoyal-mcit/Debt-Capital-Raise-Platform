@@ -1,22 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  BarChart, 
-  Bar, 
-  LineChart, 
-  Line, 
-  PieChart, 
-  Pie, 
-  ResponsiveContainer, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  Legend, 
-  Cell, 
-  AreaChart, 
+import { Badge } from "@/components/ui/badge";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  Cell,
+  AreaChart,
   Area,
   CartesianGrid
 } from "recharts";
@@ -28,8 +29,95 @@ const dealOptions = [
   { id: "102", name: "Project Nova" },
 ];
 
+// Deal-specific data for filtering
+const dealSpecificData: Record<string, {
+  coverage: typeof coverageDataAll;
+  funnel: typeof funnelDataAll;
+  lenderMix: typeof lenderMixDataAll;
+  pricingBands: typeof pricingBandDataAll;
+}> = {
+  "101": {
+    coverage: [
+      { day: "Day 1", ratio: 0.15 },
+      { day: "Day 5", ratio: 0.5 },
+      { day: "Day 10", ratio: 1.0 },
+      { day: "Day 15", ratio: 1.4 },
+      { day: "Day 20", ratio: 1.8 },
+      { day: "Day 25", ratio: 2.1 },
+      { day: "Day 30", ratio: 2.4 },
+    ],
+    funnel: [
+      { stage: "Outreach", count: 45, color: "#94a3b8" },
+      { stage: "NDA", count: 32, color: "#64748b" },
+      { stage: "LP View", count: 24, color: "#475569" },
+      { stage: "IOI", count: 12, color: "#334155" },
+      { stage: "Firm Bid", count: 5, color: "#0f172a" },
+    ],
+    lenderMix: [
+      { name: "Direct Lenders", value: 60, color: "#0f172a" },
+      { name: "Banks", value: 15, color: "#334155" },
+      { name: "Credit Funds", value: 20, color: "#475569" },
+      { name: "Family Offices", value: 5, color: "#94a3b8" },
+    ],
+    pricingBands: [
+      { band: "S+575", volume: 8 },
+      { band: "S+600", volume: 18 },
+      { band: "S+625", volume: 12 },
+      { band: "S+650", volume: 4 },
+    ],
+  },
+  "102": {
+    coverage: [
+      { day: "Day 1", ratio: 0.05 },
+      { day: "Day 5", ratio: 0.3 },
+      { day: "Day 10", ratio: 0.6 },
+      { day: "Day 15", ratio: 1.0 },
+      { day: "Day 20", ratio: 1.2 },
+      { day: "Day 25", ratio: 1.5 },
+      { day: "Day 30", ratio: 1.8 },
+    ],
+    funnel: [
+      { stage: "Outreach", count: 40, color: "#94a3b8" },
+      { stage: "NDA", count: 28, color: "#64748b" },
+      { stage: "LP View", count: 21, color: "#475569" },
+      { stage: "IOI", count: 8, color: "#334155" },
+      { stage: "Firm Bid", count: 3, color: "#0f172a" },
+    ],
+    lenderMix: [
+      { name: "Direct Lenders", value: 50, color: "#0f172a" },
+      { name: "Banks", value: 25, color: "#334155" },
+      { name: "Credit Funds", value: 10, color: "#475569" },
+      { name: "Family Offices", value: 15, color: "#94a3b8" },
+    ],
+    pricingBands: [
+      { band: "S+625", volume: 5 },
+      { band: "S+650", volume: 12 },
+      { band: "S+675", volume: 15 },
+      { band: "S+700", volume: 6 },
+    ],
+  },
+};
+
 export default function Analytics() {
   const [selectedDeal, setSelectedDeal] = useState("all");
+
+  // Filter data based on selected deal
+  const filteredData = useMemo(() => {
+    if (selectedDeal === "all") {
+      return {
+        coverage: coverageDataAll,
+        funnel: funnelDataAll,
+        lenderMix: lenderMixDataAll,
+        pricingBands: pricingBandDataAll,
+      };
+    }
+    return dealSpecificData[selectedDeal] || {
+      coverage: coverageDataAll,
+      funnel: funnelDataAll,
+      lenderMix: lenderMixDataAll,
+      pricingBands: pricingBandDataAll,
+    };
+  }, [selectedDeal]);
   
   return (
     <Layout>
@@ -76,7 +164,7 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={coverageData}>
+                    <AreaChart data={filteredData.coverage}>
                       <defs>
                         <linearGradient id="colorCoverage" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#0f172a" stopOpacity={0.8}/>
@@ -106,7 +194,7 @@ export default function Analytics() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={lenderMixData}
+                        data={filteredData.lenderMix}
                         cx="50%"
                         cy="50%"
                         innerRadius={60}
@@ -114,7 +202,7 @@ export default function Analytics() {
                         paddingAngle={2}
                         dataKey="value"
                       >
-                        {lenderMixData.map((entry, index) => (
+                        {filteredData.lenderMix.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -135,7 +223,7 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={pricingBandData} layout="vertical">
+                    <BarChart data={filteredData.pricingBands} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}M`} />
                       <YAxis dataKey="band" type="category" width={100} fontSize={12} tickLine={false} axisLine={false} />
@@ -158,16 +246,16 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={funnelData}>
+                    <BarChart data={filteredData.funnel}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="stage" fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                      <Tooltip 
+                      <Tooltip
                         cursor={{fill: '#f1f5f9'}}
                         contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }}
                       />
                       <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40}>
-                         {funnelData.map((entry, index) => (
+                         {filteredData.funnel.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
@@ -319,9 +407,9 @@ function BlockerItem({ name, count, percent, color }: { name: string, count: num
   )
 }
 
-// Mock Data
+// Mock Data - Aggregated (All Deals)
 
-const coverageData = [
+const coverageDataAll = [
   { day: "Day 1", ratio: 0.1 },
   { day: "Day 5", ratio: 0.4 },
   { day: "Day 10", ratio: 0.8 },
@@ -331,24 +419,24 @@ const coverageData = [
   { day: "Day 30", ratio: 2.1 },
 ];
 
-const lenderMixData = [
+const lenderMixDataAll = [
   { name: "Direct Lenders", value: 55, color: "#0f172a" },
   { name: "Banks", value: 20, color: "#334155" },
   { name: "Credit Funds", value: 15, color: "#475569" },
   { name: "Family Offices", value: 10, color: "#94a3b8" },
 ];
 
-const pricingBandData = [
+const pricingBandDataAll = [
   { band: "S+600", volume: 5 },
   { band: "S+625", volume: 15 },
   { band: "S+650", volume: 20 },
   { band: "S+675", volume: 5 },
 ];
 
-const funnelData = [
+const funnelDataAll = [
   { stage: "Outreach", count: 85, color: "#94a3b8" },
   { stage: "NDA", count: 60, color: "#64748b" },
-  { stage: "Lender Pres.", count: 45, color: "#475569" },
+  { stage: "LP View", count: 45, color: "#475569" },
   { stage: "IOI", count: 20, color: "#334155" },
   { stage: "Firm Bid", count: 8, color: "#0f172a" },
 ];

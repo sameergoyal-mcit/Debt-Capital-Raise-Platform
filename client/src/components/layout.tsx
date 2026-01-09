@@ -75,14 +75,14 @@ export function Layout({ children }: LayoutProps) {
         {/* Main Navigation */}
         {!isInvestor && (
           <>
-            <NavItem href="/" icon={<LayoutDashboard size={20} />} label="Dashboard" active={location === "/"} onClick={onNavClick} />
-            <NavItem href="/deals" icon={<Briefcase size={20} />} label="Deals" active={location === "/deals"} onClick={onNavClick} />
-            <NavItem href="/analytics" icon={<PieChart size={20} />} label="Analytics" active={location === "/analytics"} onClick={onNavClick} />
+            <NavItem href="/" icon={<LayoutDashboard size={18} />} label="Dashboard" active={location === "/"} onClick={onNavClick} />
+            <NavItem href="/deals" icon={<Briefcase size={18} />} label="Deals" active={location === "/deals"} onClick={onNavClick} />
+            <NavItem href="/analytics" icon={<PieChart size={18} />} label="Analytics" active={location === "/analytics"} onClick={onNavClick} />
           </>
         )}
 
         {isInvestor && !isDealWorkspace && (
-          <NavItem href="/investor" icon={<LayoutDashboard size={20} />} label="Investor Dashboard" active={location === "/investor"} onClick={onNavClick} />
+          <NavItem href="/investor" icon={<LayoutDashboard size={18} />} label="Investor Dashboard" active={location === "/investor"} onClick={onNavClick} />
         )}
 
         {isDealWorkspace && dealId && (
@@ -95,42 +95,44 @@ export function Layout({ children }: LayoutProps) {
             </div>
 
             {isInvestor && (
-              <NavItem href={`/investor/deal/${dealId}`} icon={<LayoutDashboard size={20} />} label="Deal Home" active={isActive(`/investor/deal/${dealId}`)} onClick={onNavClick} />
+              <NavItem href={`/investor/deal/${dealId}`} icon={<LayoutDashboard size={18} />} label="Deal Home" active={isActive(`/investor/deal/${dealId}`)} onClick={onNavClick} />
             )}
 
             {isInternal && (
-              <>
-                <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={20} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} onClick={onNavClick} />
-                <NavItem href={`/deal/${dealId}/book`} icon={<Users size={20} />} label="Debt Investor Book" active={isActive(`/deal/${dealId}/book`)} onClick={onNavClick} />
-              </>
+              <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={18} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} onClick={onNavClick} />
             )}
 
-            <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={20} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} onClick={onNavClick} />
-            <NavItem href={`/deal/${dealId}/messages`} icon={<MessageSquare size={20} />} label="Messages" active={isActive(`/deal/${dealId}/messages`)} onClick={onNavClick} />
-            <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={20} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
-            <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={20} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} onClick={onNavClick} />
+            <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={18} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} onClick={onNavClick} />
+
+            {isInternal && (
+              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={18} />} label="Investor Book" active={isActive(`/deal/${dealId}/book`)} onClick={onNavClick} />
+            )}
+
+            <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={18} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
+            <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={18} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} onClick={onNavClick} />
+            <NavItem href={`/deal/${dealId}/messages`} icon={<MessageSquare size={18} />} label="Messages" active={isActive(`/deal/${dealId}/messages`)} onClick={onNavClick} />
 
             {isInvestor && (
-              <NavItem href={`/deal/${dealId}/commitment`} icon={<PenTool size={20} />} label="Submit Commitment" active={isActive(`/deal/${dealId}/commitment`)} onClick={onNavClick} />
+              <NavItem href={`/deal/${dealId}/commitment`} icon={<PenTool size={18} />} label="Submit Commitment" active={isActive(`/deal/${dealId}/commitment`)} onClick={onNavClick} />
             )}
 
             {isInternal && (
               <>
-                {/* Sandbox Section */}
-                <div className="mt-4 pt-4 border-t border-sidebar-border/50">
+                {/* Modeling Section */}
+                <div className="mt-6 pt-4 border-t border-sidebar-border/50">
                   <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-                    Sandbox
+                    Modeling
                   </h4>
-                  <NavItem href={`/deal/${dealId}/sandbox`} icon={<Calculator size={20} />} label="Financial Model" active={isActive(`/deal/${dealId}/sandbox`)} onClick={onNavClick} />
+                  <NavItem href={`/deal/${dealId}/model`} icon={<Calculator size={18} />} label="Financial Model" active={isActive(`/deal/${dealId}/model`)} onClick={onNavClick} />
                 </div>
 
                 {/* Actions Section */}
-                <div className="mt-4 pt-4 border-t border-sidebar-border/50">
+                <div className="mt-6 pt-4 border-t border-sidebar-border/50">
                   <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
                     Actions
                   </h4>
-                  <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={20} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
-                  <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={20} />} label="Publish & Announce" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
+                  <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={18} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
+                  <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={18} />} label="Publish Deal" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
                 </div>
               </>
             )}
@@ -139,7 +141,7 @@ export function Layout({ children }: LayoutProps) {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border">
-        <NavItem href="/settings" icon={<Settings size={20} />} label="Settings" active={location === "/settings"} onClick={onNavClick} />
+        <NavItem href="/settings" icon={<Settings size={18} />} label="Settings" active={location === "/settings"} onClick={onNavClick} />
       </div>
     </>
   );
@@ -183,7 +185,7 @@ export function Layout({ children }: LayoutProps) {
               className="md:hidden"
               onClick={() => setMobileMenuOpen(true)}
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </Button>
             <div className="hidden sm:block">
               <SearchTrigger onClick={() => setSearchOpen(true)} />
@@ -195,7 +197,7 @@ export function Layout({ children }: LayoutProps) {
               className="sm:hidden"
               onClick={() => setSearchOpen(true)}
             >
-              <Search size={20} />
+              <Search size={18} />
             </Button>
           </div>
 

@@ -194,7 +194,8 @@ export class DrizzleStorage implements IStorage {
   }
 
   async createInvitation(invitation: InsertInvitation): Promise<Invitation> {
-    const results = await db.insert(schema.invitations).values(invitation).returning();
+    // Cast to any to work around Drizzle type inference issues with jsonb fields
+    const results = await db.insert(schema.invitations).values(invitation as any).returning();
     return results[0];
   }
 
@@ -348,14 +349,16 @@ export class DrizzleStorage implements IStorage {
   }
 
   async createDealModel(model: InsertDealModel): Promise<DealModel> {
-    const results = await db.insert(schema.dealModels).values(model).returning();
+    // Cast to any to work around Drizzle type inference issues with jsonb fields
+    const results = await db.insert(schema.dealModels).values(model as any).returning();
     return results[0];
   }
 
   async updateDealModel(id: string, model: Partial<InsertDealModel>): Promise<DealModel | undefined> {
+    // Cast to any to work around Drizzle type inference issues with jsonb fields
     const results = await db
       .update(schema.dealModels)
-      .set({ ...model, updatedAt: new Date() })
+      .set({ ...model, updatedAt: new Date() } as any)
       .where(eq(schema.dealModels.id, id))
       .returning();
     return results[0];

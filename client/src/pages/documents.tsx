@@ -798,12 +798,20 @@ function FolderGroup({ title, docs, selectedId, onSelect }: { title: string, doc
               onClick={() => onSelect(doc.id)}
               className={cn(
                 "flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors text-sm group",
-                selectedId === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50"
+                selectedId === doc.id ? "bg-primary/10 text-primary" : "hover:bg-secondary/50",
+                doc.isAutomated && "bg-blue-50 border-l-2 border-l-blue-400"
               )}
             >
               <FileText className={cn("h-4 w-4 mt-0.5 shrink-0", selectedId === doc.id ? "text-primary" : "text-muted-foreground")} />
               <div className="flex-1 overflow-hidden">
-                <div className="truncate font-medium">{doc.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium">{doc.name}</span>
+                  {doc.isAutomated && (
+                    <Badge variant="outline" className="h-4 px-1 text-[10px] text-blue-600 border-blue-300 shrink-0">
+                      Auto
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex items-center justify-between mt-1">
                   <DocumentVersionBadge
                     currentVersion={currentVersionNum}

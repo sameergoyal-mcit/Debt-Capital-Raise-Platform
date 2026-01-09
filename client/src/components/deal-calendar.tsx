@@ -29,11 +29,13 @@ export interface CalendarEvent {
 }
 
 interface DealCalendarProps {
-  isOpen: boolean;
-  onClose: () => void;
-  events: CalendarEvent[];
-  dealName: string;
-  role: "Investor" | "Issuer" | "Bookrunner";
+  isOpen?: boolean;
+  onClose?: () => void;
+  events?: CalendarEvent[];
+  dealName?: string;
+  role?: "Investor" | "Issuer" | "Bookrunner";
+  inline?: boolean;
+  dealId?: string;
 }
 
 const eventTypeColors: Record<CalendarEvent["type"], { bg: string; text: string; label: string }> = {
@@ -46,9 +48,20 @@ const eventTypeColors: Record<CalendarEvent["type"], { bg: string; text: string;
   other: { bg: "bg-slate-100", text: "text-slate-800", label: "Event" }
 };
 
-export function DealCalendar({ isOpen, onClose, events, dealName, role }: DealCalendarProps) {
+export function DealCalendar({ isOpen, onClose, events: providedEvents, dealName = "Deal", role, inline, dealId }: DealCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+
+  // Generate default events for inline mode if not provided
+  const events = providedEvents || generateDealEvents({
+    id: dealId || "default",
+    name: dealName,
+    launchDate: new Date().toISOString(),
+    ndaDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    ioiDeadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    commitmentDeadline: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+    expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  });
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -76,6 +89,186 @@ export function DealCalendar({ isOpen, onClose, events, dealName, role }: DealCa
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(0, 5);
 
+  // Calendar content to be rendered both inline and in modal
+  const calendarContent = (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Calendar Grid */}
+      <div className="md:col-span-2">
+        {/* Month Navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h3 className="font-semibold">{format(currentMonth, "MMMM yyyy")}</h3>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Day Headers */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+            <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Days */}
+        <div className="grid grid-cols-7 gap-1">
+          {paddedDays.map((day, i) => {
+            if (!day) {
+              return <div key={`empty-${i}`} className="h-16" />;
+            }
+
+            const dayEvents = getEventsForDay(day);
+            const isToday = isSameDay(day, new Date());
+
+            return (
+              <div
+                key={day.toISOString()}
+                className={cn(
+                  "h-16 p-1 border rounded-md text-sm",
+                  isToday && "border-primary bg-primary/5",
+                  !isSameMonth(day, currentMonth) && "opacity-50"
+                )}
+              >
+                <div className={cn(
+                  "text-xs font-medium mb-1",
+                  isToday && "text-primary"
+                )}>
+                  {format(day, "d")}
+                </div>
+                <div className="space-y-0.5">
+                  {dayEvents.slice(0, 2).map(event => (
+                    <div
+                      key={event.id}
+                      className={cn(
+                        "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer",
+                        eventTypeColors[event.type].bg,
+                        eventTypeColors[event.type].text
+                      )}
+                      onClick={() => setSelectedEvent(event)}
+                      title={event.title}
+                    >
+                      {event.title}
+                    </div>
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <div className="text-[9px] text-muted-foreground pl-1">
+                      +{dayEvents.length - 2} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Agenda / Details Panel */}
+      <div className="space-y-4">
+        {selectedEvent ? (
+          <Card>
+            <CardContent className="p-4">
+              <Badge className={cn(
+                "mb-2",
+                eventTypeColors[selectedEvent.type].bg,
+                eventTypeColors[selectedEvent.type].text
+              )}>
+                {eventTypeColors[selectedEvent.type].label}
+              </Badge>
+              <h4 className="font-semibold mb-1">{selectedEvent.title}</h4>
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+                <Clock className="h-3 w-3" />
+                {format(selectedEvent.date, "EEEE, MMMM d, yyyy")}
+              </p>
+              {selectedEvent.description && (
+                <p className="text-sm text-muted-foreground">{selectedEvent.description}</p>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-xs"
+                onClick={() => setSelectedEvent(null)}
+              >
+                Close
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-4">
+              <h4 className="font-semibold mb-3 text-sm">Upcoming Events</h4>
+              <ScrollArea className="h-[300px]">
+                <div className="space-y-3">
+                  {upcomingEvents.map(event => (
+                    <div
+                      key={event.id}
+                      className="flex items-start gap-2 cursor-pointer hover:bg-secondary/50 p-2 rounded-md transition-colors"
+                      onClick={() => setSelectedEvent(event)}
+                    >
+                      <div className={cn(
+                        "w-2 h-2 rounded-full mt-1.5 shrink-0",
+                        eventTypeColors[event.type].bg.replace("100", "500")
+                      )} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{event.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(event.date, "MMM d, yyyy")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {upcomingEvents.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No upcoming events
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Legend */}
+        <Card>
+          <CardContent className="p-4">
+            <h4 className="font-semibold mb-2 text-sm">Event Types</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(eventTypeColors).map(([type, config]) => (
+                <div key={type} className="flex items-center gap-1.5">
+                  <div className={cn("w-3 h-3 rounded", config.bg)} />
+                  <span className="text-xs">{config.label}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
+  // Inline mode: render content directly without Dialog wrapper
+  if (inline) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5 text-primary" />
+            <span className="font-semibold">Deal Calendar</span>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadICS}>
+            <Download className="h-4 w-4" />
+            Download .ics
+          </Button>
+        </div>
+        {calendarContent}
+      </div>
+    );
+  }
+
+  // Modal mode: wrap content in Dialog
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden">
@@ -92,161 +285,8 @@ export function DealCalendar({ isOpen, onClose, events, dealName, role }: DealCa
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          {/* Calendar Grid */}
-          <div className="md:col-span-2">
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-4">
-              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <h3 className="font-semibold">{format(currentMonth, "MMMM yyyy")}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Day Headers */}
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Days */}
-            <div className="grid grid-cols-7 gap-1">
-              {paddedDays.map((day, i) => {
-                if (!day) {
-                  return <div key={`empty-${i}`} className="h-16" />;
-                }
-                
-                const dayEvents = getEventsForDay(day);
-                const isToday = isSameDay(day, new Date());
-
-                return (
-                  <div
-                    key={day.toISOString()}
-                    className={cn(
-                      "h-16 p-1 border rounded-md text-sm",
-                      isToday && "border-primary bg-primary/5",
-                      !isSameMonth(day, currentMonth) && "opacity-50"
-                    )}
-                  >
-                    <div className={cn(
-                      "text-xs font-medium mb-1",
-                      isToday && "text-primary"
-                    )}>
-                      {format(day, "d")}
-                    </div>
-                    <div className="space-y-0.5">
-                      {dayEvents.slice(0, 2).map(event => (
-                        <div
-                          key={event.id}
-                          className={cn(
-                            "text-[9px] px-1 py-0.5 rounded truncate cursor-pointer",
-                            eventTypeColors[event.type].bg,
-                            eventTypeColors[event.type].text
-                          )}
-                          onClick={() => setSelectedEvent(event)}
-                          title={event.title}
-                        >
-                          {event.title}
-                        </div>
-                      ))}
-                      {dayEvents.length > 2 && (
-                        <div className="text-[9px] text-muted-foreground pl-1">
-                          +{dayEvents.length - 2} more
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Agenda / Details Panel */}
-          <div className="space-y-4">
-            {selectedEvent ? (
-              <Card>
-                <CardContent className="p-4">
-                  <Badge className={cn(
-                    "mb-2",
-                    eventTypeColors[selectedEvent.type].bg,
-                    eventTypeColors[selectedEvent.type].text
-                  )}>
-                    {eventTypeColors[selectedEvent.type].label}
-                  </Badge>
-                  <h4 className="font-semibold mb-1">{selectedEvent.title}</h4>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
-                    <Clock className="h-3 w-3" />
-                    {format(selectedEvent.date, "EEEE, MMMM d, yyyy")}
-                  </p>
-                  {selectedEvent.description && (
-                    <p className="text-sm text-muted-foreground">{selectedEvent.description}</p>
-                  )}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="mt-2 text-xs"
-                    onClick={() => setSelectedEvent(null)}
-                  >
-                    Close
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-semibold mb-3 text-sm">Upcoming Events</h4>
-                  <ScrollArea className="h-[300px]">
-                    <div className="space-y-3">
-                      {upcomingEvents.map(event => (
-                        <div 
-                          key={event.id}
-                          className="flex items-start gap-2 cursor-pointer hover:bg-secondary/50 p-2 rounded-md transition-colors"
-                          onClick={() => setSelectedEvent(event)}
-                        >
-                          <div className={cn(
-                            "w-2 h-2 rounded-full mt-1.5 shrink-0",
-                            eventTypeColors[event.type].bg.replace("100", "500")
-                          )} />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{event.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(event.date, "MMM d, yyyy")}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      {upcomingEvents.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No upcoming events
-                        </p>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Legend */}
-            <Card>
-              <CardContent className="p-4">
-                <h4 className="font-semibold mb-2 text-sm">Event Types</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(eventTypeColors).map(([type, config]) => (
-                    <div key={type} className="flex items-center gap-1.5">
-                      <div className={cn("w-3 h-3 rounded", config.bg)} />
-                      <span className="text-xs">{config.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="mt-4">
+          {calendarContent}
         </div>
       </DialogContent>
     </Dialog>
@@ -265,7 +305,7 @@ export function generateDealEvents(deal: {
   expectedCloseDate?: string;
 }): CalendarEvent[] {
   const events: CalendarEvent[] = [];
-  
+
   if (deal.launchDate) {
     events.push({
       id: `${deal.id}-launch`,
@@ -275,7 +315,7 @@ export function generateDealEvents(deal: {
       description: `${deal.name} launch date`
     });
   }
-  
+
   if (deal.ndaDeadline) {
     events.push({
       id: `${deal.id}-nda`,
@@ -285,7 +325,7 @@ export function generateDealEvents(deal: {
       description: "Deadline for NDA execution"
     });
   }
-  
+
   if (deal.ioiDeadline) {
     events.push({
       id: `${deal.id}-ioi`,
@@ -295,7 +335,7 @@ export function generateDealEvents(deal: {
       description: "Indication of Interest deadline"
     });
   }
-  
+
   if (deal.commitmentDeadline) {
     events.push({
       id: `${deal.id}-commitment`,
@@ -305,7 +345,7 @@ export function generateDealEvents(deal: {
       description: "Final commitment deadline"
     });
   }
-  
+
   if (deal.allocationDate) {
     events.push({
       id: `${deal.id}-allocation`,
@@ -315,7 +355,7 @@ export function generateDealEvents(deal: {
       description: "Allocation announcement"
     });
   }
-  
+
   if (deal.expectedCloseDate) {
     events.push({
       id: `${deal.id}-close`,
@@ -325,6 +365,6 @@ export function generateDealEvents(deal: {
       description: "Expected closing date"
     });
   }
-  
+
   return events;
 }

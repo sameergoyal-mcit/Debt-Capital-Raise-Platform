@@ -73,24 +73,46 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { useRole } from "@/context/role";
 import { mockLenders, Lender, LenderStatus, LenderType, computeSeriousnessScore } from "@/data/lenders";
+import { getDealInvitations, Invitation } from "@/data/invitations";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { emailService } from "@/lib/email-service";
+import { InviteLenderModal } from "@/components/invite-lender-modal";
 
 export default function InvestorBook() {
   const [, params] = useRoute("/deal/:id/book");
-  const dealId = params?.id || "123";
+  const dealId = params?.id || "101";
   const { role } = useRole();
   const { toast } = useToast();
-  const [lenders, setLenders] = useState<Lender[]>(mockLenders);
+
+  // Get invitations for this deal and filter lenders to only show invited ones
+  const [invitations, setInvitations] = useState<Invitation[]>(() => getDealInvitations(dealId));
+  const [lenders, setLenders] = useState<Lender[]>(() => {
+    const dealInvitations = getDealInvitations(dealId);
+    const invitedLenderIds = new Set(dealInvitations.map(inv => inv.lenderId));
+    return mockLenders.filter(l => invitedLenderIds.has(l.id));
+  });
   const [selectedLenderId, setSelectedLenderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+  // Refresh lenders when dealId changes or invitations are updated
+  const refreshLenders = () => {
+    const dealInvitations = getDealInvitations(dealId);
+    setInvitations(dealInvitations);
+    const invitedLenderIds = new Set(dealInvitations.map(inv => inv.lenderId));
+    setLenders(mockLenders.filter(l => invitedLenderIds.has(l.id)));
+  };
+
+  useEffect(() => {
+    refreshLenders();
+  }, [dealId]);
 
   const selectedLender = useMemo(() => 
     lenders.find(l => l.id === selectedLenderId), 
@@ -123,9 +145,9 @@ export default function InvestorBook() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Link href={`/deal/${dealId}/overview`} className="hover:text-primary">Project Titan</Link>
               <span>/</span>
-              <span>Debt Investor Book</span>
+              <span>Investor Book</span>
             </div>
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">Debt Investor Book</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Investor Book</h1>
             <p className="text-muted-foreground mt-1">
               {role === "bookrunner" 
                 ? "Manage investor interest, allocations, and commitments." 
@@ -137,7 +159,7 @@ export default function InvestorBook() {
               <Download className="h-4 w-4" /> Export CSV
             </Button>
             {role === "bookrunner" && (
-              <Button className="gap-2 bg-primary text-primary-foreground">
+              <Button className="gap-2 bg-primary text-primary-foreground" onClick={() => setIsInviteModalOpen(true)}>
                 <Plus className="h-4 w-4" /> Add Investor
               </Button>
             )}
@@ -219,11 +241,26 @@ export default function InvestorBook() {
           </SheetContent>
         </Sheet>
 
-        <SendReminderModal 
-          isOpen={isReminderModalOpen} 
-          onClose={() => setIsReminderModalOpen(false)} 
+        <SendReminderModal
+          isOpen={isReminderModalOpen}
+          onClose={() => setIsReminderModalOpen(false)}
           lenders={lenders}
           dealName="Project Titan" // In real app, get from deal context
+        />
+
+        <InviteLenderModal
+          dealId={dealId}
+          dealName="Project Titan"
+          invitedBy="Deal Team"
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          onInvitationCreated={() => {
+            refreshLenders();
+            toast({
+              title: "Investor Invited",
+              description: "The investor has been added to the deal.",
+            });
+          }}
         />
 
       </div>

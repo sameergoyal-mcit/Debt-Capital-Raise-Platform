@@ -110,7 +110,7 @@ export default function QACenter() {
                 const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "Source"];
                 const rows = qaItems.map(q => [
                   currentDeal?.dealName || dealId,
-                  q.lenderName || "N/A",
+                  q.asker || "Investor",
                   q.topic || "General",
                   q.status,
                   q.question,

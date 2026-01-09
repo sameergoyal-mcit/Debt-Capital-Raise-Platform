@@ -50,10 +50,10 @@ const quickActions: SearchResult[] = [
   },
   {
     id: "financial-model",
-    title: "Open Financial Model Sandbox",
+    title: "Open Financial Model",
     description: "Build debt paydown projections",
     type: "page",
-    href: "/sandbox/financial-model",
+    href: "/deal/101/model",
     icon: <Calculator className="h-4 w-4" />,
   },
   {

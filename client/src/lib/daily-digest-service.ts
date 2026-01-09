@@ -128,7 +128,8 @@ export const dailyDigestService = {
         if (!isAfter(updated, lastDigest)) return false;
 
         // Check tier visibility (mock logic)
-        if (invitation.accessTier === "early" && d.category !== "Other") return false; // Early only sees basic
+        // Early tier only sees Lender Presentation category
+        if (invitation.accessTier === "early" && d.category !== "Lender Presentation") return false;
         // Assume full/legal see everything else for now in this mock
         return true;
     });

@@ -279,7 +279,7 @@ const inputClass = "text-blue-600 dark:text-blue-400";
 const computedClass = "text-foreground";
 
 export default function FinancialModelPage() {
-  const [, params] = useRoute("/deal/:id/sandbox");
+  const [, params] = useRoute("/deal/:id/model");
   const dealId = params?.id || "101";
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const { toast } = useToast();

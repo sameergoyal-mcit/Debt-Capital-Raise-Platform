@@ -98,7 +98,7 @@ export function AutoBreadcrumb() {
   const [matchDealCommitment, commitParams] = useRoute("/deal/:id/commitment");
   const [matchDealClosing, closingParams] = useRoute("/deal/:id/closing");
   const [matchDealAudit, auditParams] = useRoute("/deal/:id/audit-trail");
-  const [matchSandbox] = useRoute("/sandbox/financial-model/:dealId?");
+  const [matchModel] = useRoute("/deal/:id/model");
   const [matchCalendar] = useRoute("/calendar");
   const [matchAnalytics] = useRoute("/analytics");
   const [matchMessages] = useRoute("/messages");
@@ -106,7 +106,7 @@ export function AutoBreadcrumb() {
   // No breadcrumb for home page
   if (!matchDeals && !matchDealOverview && !matchDealDocs && !matchDealQA &&
       !matchDealMessages && !matchDealCommitment && !matchDealClosing &&
-      !matchDealAudit && !matchSandbox && !matchCalendar && !matchAnalytics && !matchMessages) {
+      !matchDealAudit && !matchModel && !matchCalendar && !matchAnalytics && !matchMessages) {
     return null;
   }
 
@@ -128,8 +128,8 @@ export function AutoBreadcrumb() {
     items = [{ label: "Deals", href: "/deals" }, { label: "Closing" }];
   } else if (matchDealAudit) {
     items = [{ label: "Deals", href: "/deals" }, { label: "Audit Trail" }];
-  } else if (matchSandbox) {
-    items = [{ label: "Tools" }, { label: "Financial Model" }];
+  } else if (matchModel) {
+    items = [{ label: "Deals", href: "/deals" }, { label: "Financial Model" }];
   } else if (matchCalendar) {
     items = [{ label: "Calendar" }];
   } else if (matchAnalytics) {

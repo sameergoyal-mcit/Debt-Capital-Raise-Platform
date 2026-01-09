@@ -153,8 +153,8 @@ function Router() {
         <ProtectedRoute component={Publish} allowedRoles={["Bookrunner"]} />
       </Route>
 
-      {/* Financial Model Sandbox */}
-      <Route path="/deal/:id/sandbox">
+      {/* Financial Model */}
+      <Route path="/deal/:id/model">
         <ProtectedRoute component={FinancialModel} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
 

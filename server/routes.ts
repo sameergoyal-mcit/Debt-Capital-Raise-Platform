@@ -290,7 +290,7 @@ export async function registerRoutes(
         action: "SIGN_NDA",
         resourceId: invitation.id,
         resourceType: "invitation",
-        metadata: { ndaVersion, ip: signerIp },
+        metadata: { ndaVersion, ip: signerIp } as Record<string, any>,
       });
 
       res.json(invitation);
@@ -363,7 +363,7 @@ export async function registerRoutes(
         action: "SUBMIT_COMMITMENT",
         resourceId: commitment.id,
         resourceType: "commitment",
-        metadata: { amount: validated.amount, status: validated.status },
+        metadata: { amount: validated.amount, status: validated.status } as Record<string, any>,
       });
 
       res.status(201).json(commitment);
@@ -438,7 +438,7 @@ export async function registerRoutes(
         action: "VIEW_DEAL",
         resourceId: req.params.dealId,
         resourceType: "deal",
-        metadata: { timestamp: new Date().toISOString() },
+        metadata: { timestamp: new Date().toISOString() } as Record<string, any>,
       });
       res.status(201).json({ success: true });
     } catch (error: any) {
@@ -539,7 +539,7 @@ export async function registerRoutes(
           subject,
           recipientCount: recipients.length,
           sentAt: new Date().toISOString(),
-        },
+        } as Record<string, any>,
       });
 
       // In production, this would send actual emails
@@ -589,6 +589,7 @@ export async function registerRoutes(
           name: validated.name || "Financial Model",
           visibilityTier: "full",
           fileKey: `model:${model.id}`,
+          isAutomated: true,
         });
       }
       
@@ -615,6 +616,7 @@ export async function registerRoutes(
         name: model.name || "Financial Model",
         visibilityTier: "full",
         fileKey: `model:${req.params.id}`,
+        isAutomated: true,
       });
       
       res.json(publishedModel);

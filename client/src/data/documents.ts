@@ -32,6 +32,7 @@ export interface Document {
   fileKey?: string;
   isNew?: boolean;
   isUpdated?: boolean;
+  isAutomated?: boolean;
 }
 
 export const mockDocuments: Document[] = [

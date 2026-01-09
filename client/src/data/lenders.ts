@@ -98,8 +98,8 @@ export const mockLenders: Lender[] = [
     owner: "Sarah Jenkins",
     notes: "Strong interest in the recurring revenue base. Confirmed $15M allocation.",
     interactions: [
-      { id: "i1", date: new Date().toISOString(), type: "Call", note: "Confirmed allocation and pricing.", user: "Sarah Jenkins" },
-      { id: "i2", date: new Date(Date.now() - 86400000 * 3).toISOString(), type: "Email", note: "Sent final term sheet.", user: "Michael Ross" }
+      { id: "i1", date: new Date().toISOString(), type: "Call" as const, note: "Confirmed allocation and pricing.", user: "Sarah Jenkins" },
+      { id: "i2", date: new Date(Date.now() - 86400000 * 3).toISOString(), type: "Email" as const, note: "Sent final term sheet.", user: "Michael Ross" }
     ],
     seriousnessScore: 0, // Calculated at runtime
     ioi: {
@@ -123,10 +123,10 @@ export const mockLenders: Lender[] = [
     pricingBps: 650,
     lastContactAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     owner: "Sarah Jenkins",
-    nextAction: { type: "Schedule Call", dueDate: new Date(Date.now() + 86400000).toISOString() },
+    nextAction: { type: "Schedule Call" as const, dueDate: new Date(Date.now() + 86400000).toISOString() },
     notes: "Reviewing legal structure. Questions on IP security.",
     interactions: [
-      { id: "i3", date: new Date(Date.now() - 86400000 * 2).toISOString(), type: "Email", note: "Received questions list.", user: "Sarah Jenkins" }
+      { id: "i3", date: new Date(Date.now() - 86400000 * 2).toISOString(), type: "Email" as const, note: "Received questions list.", user: "Sarah Jenkins" }
     ],
     seriousnessScore: 0,
     ioi: {
@@ -150,14 +150,14 @@ export const mockLenders: Lender[] = [
     owner: "Michael Ross",
     notes: "Downloaded LP yesterday. Follow up tomorrow.",
     interactions: [
-      { id: "i4", date: new Date(Date.now() - 86400000 * 5).toISOString(), type: "VDR Access", note: "User accessed Lender Presentation.", user: "System" }
+      { id: "i4", date: new Date(Date.now() - 86400000 * 5).toISOString(), type: "VDR Access" as const, note: "User accessed Lender Presentation.", user: "System" }
     ],
     seriousnessScore: 0,
   },
   {
     id: "4",
     name: "Barings",
-    type: "Asset Manager" as any, // Mapping to Credit Fund/Direct for now or keeping flexible
+    type: "Credit Fund" as LenderType, // Asset managers mapped to Credit Fund
     status: "NDA Signed" as LenderStatus,
     ticketMin: 5000000,
     ticketMax: 10000000,
@@ -165,7 +165,7 @@ export const mockLenders: Lender[] = [
     owner: "Michael Ross",
     notes: "Signed NDA, waiting for data room access.",
     interactions: [
-      { id: "i5", date: new Date(Date.now() - 86400000 * 8).toISOString(), type: "Email", note: "NDA Signed returned.", user: "Michael Ross" }
+      { id: "i5", date: new Date(Date.now() - 86400000 * 8).toISOString(), type: "Email" as const, note: "NDA Signed returned.", user: "Michael Ross" }
     ],
     seriousnessScore: 0,
   },

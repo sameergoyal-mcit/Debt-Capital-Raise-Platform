@@ -5,6 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Save, Upload, RefreshCw } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useToast } from "@/hooks/use-toast";
@@ -166,6 +176,7 @@ export function DealSandbox({ dealId, dealName, initialAssumptions, readOnly = f
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
 
   const defaultAssumptions: GranularAssumptions = {
     ltmRevenue: 500000000,
@@ -285,10 +296,26 @@ export function DealSandbox({ dealId, dealName, initialAssumptions, readOnly = f
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? "Saving..." : "Save Draft"}
             </Button>
-            <Button size="sm" onClick={handlePublish} disabled={isPublishing} data-testid="button-publish-model">
+            <Button size="sm" onClick={() => setShowPublishDialog(true)} disabled={isPublishing} data-testid="button-publish-model">
               <Upload className="h-4 w-4 mr-2" />
               {isPublishing ? "Publishing..." : "Publish to Data Room"}
             </Button>
+            <AlertDialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Publish Financial Model</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will upload the Financial Model to the "Lender Paydown Model" section in Dataroom & Docs. All parties with access will be able to view it.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { setShowPublishDialog(false); handlePublish(); }}>
+                    Publish
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       )}

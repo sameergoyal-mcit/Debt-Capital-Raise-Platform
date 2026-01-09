@@ -55,8 +55,8 @@ function computeDealStats(deal: Deal, invite: Invitation, lenderId: string) {
   const newDocsCount = mockDocuments.filter(d => {
     if (d.dealId !== deal.id) return false;
     
-    // Tier check (mock)
-    if (invite.accessTier === "early" && d.category !== "Lender Presentation" && d.category !== "Other") return false;
+    // Tier check (mock) - early tier only sees Lender Presentation
+    if (invite.accessTier === "early" && d.category !== "Lender Presentation") return false;
 
     const updated = parseISO(d.lastUpdatedAt);
     return differenceInDays(now, updated) < 7;

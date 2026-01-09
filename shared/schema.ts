@@ -130,6 +130,7 @@ export const documents = pgTable("documents", {
   fileUrl: text("file_url"),
   fileKey: text("file_key"),
   changeSummary: text("change_summary"),
+  isAutomated: boolean("is_automated").default(false),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

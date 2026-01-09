@@ -23,7 +23,7 @@ export default function CalendarPage() {
         <h1 className="text-2xl font-serif font-bold text-primary">Deal Calendar</h1>
       </div>
       
-      <DealCalendar dealId={dealId} />
+      <DealCalendar dealId={dealId} inline />
     </div>
   );
 

@@ -24,15 +24,13 @@ import {
   Mail,
   Lock,
   Unlock,
-  MoreHorizontal,
-  Calculator
+  MoreHorizontal
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, Legend } from "recharts";
 import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
@@ -60,8 +58,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
-import { PaydownModel } from "@/components/paydown-model";
-import { DealSandbox } from "@/components/deal-sandbox";
 import { SendRemindersModal } from "@/components/send-reminders-modal";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
@@ -238,24 +234,8 @@ export default function DealOverview() {
           </div>
         </div>
 
-        {/* Main Content with Tabs */}
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="financial-model" data-testid="tab-financial-model">
-              <Calculator className="h-4 w-4 mr-2" />
-              Financial Model
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="financial-model" className="mt-0">
-            <DealSandbox 
-              dealId={dealId} 
-              dealName={deal.dealName}
-            />
-          </TabsContent>
-
-          <TabsContent value="overview" className="mt-0">
+        {/* Main Content */}
+        <div className="w-full">
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
           
           {/* Left Column (2/3) */}
@@ -625,22 +605,6 @@ export default function DealOverview() {
               </CardContent>
             </Card>
 
-            {/* Interactive Paydown Model */}
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="pb-3 border-b border-border/40">
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5 text-primary" /> Financial Model
-                </CardTitle>
-                <CardDescription>Interactive debt paydown projections and scenario analysis.</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <PaydownModel 
-                  dealAmount={deal.facilitySize} 
-                  dealName={deal.dealName} 
-                />
-              </CardContent>
-            </Card>
-
           </div>
 
           {/* Right Column (1/3) */}
@@ -748,8 +712,7 @@ export default function DealOverview() {
 
           </div>
         </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
       
       <InviteLenderModal

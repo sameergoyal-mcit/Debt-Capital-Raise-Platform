@@ -332,7 +332,7 @@ export async function seedIfEmpty() {
       amount: "75000000",
       spread: 625,
       oid: "98.0",
-      payloadJson: { conditions: "Credit committee approved" },
+      payloadJson: { conditions: "Credit committee approved" } as Record<string, any>,
     },
     {
       dealId: createdDeal1.id,
@@ -341,7 +341,7 @@ export async function seedIfEmpty() {
       amount: "100000000",
       spread: 637,
       oid: "98.0",
-      payloadJson: { conditions: "Pending final IC approval" },
+      payloadJson: { conditions: "Pending final IC approval" } as Record<string, any>,
     },
     {
       dealId: createdDeal1.id,
@@ -350,7 +350,7 @@ export async function seedIfEmpty() {
       amount: "150000000",
       spread: 625,
       oid: "98.0",
-      payloadJson: { conditions: "None" },
+      payloadJson: { conditions: "None" } as Record<string, any>,
     },
   ];
 
@@ -364,7 +364,7 @@ export async function seedIfEmpty() {
     actorEmail: createdLenders[0].email,
     action: "SIGN_NDA",
     resourceType: "invitation",
-    metadata: { ndaVersion: "1.0", ip: "192.168.1.10" },
+    metadata: { ndaVersion: "1.0", ip: "192.168.1.10" } as Record<string, any>,
   });
 
   await storage.createLog({
@@ -375,7 +375,7 @@ export async function seedIfEmpty() {
     action: "VIEW_DEAL",
     resourceId: createdDeal1.id,
     resourceType: "deal",
-    metadata: { timestamp: threeDaysAgo.toISOString() },
+    metadata: { timestamp: threeDaysAgo.toISOString() } as Record<string, any>,
   });
 
   await storage.createLog({
@@ -385,7 +385,7 @@ export async function seedIfEmpty() {
     actorEmail: createdLenders[1].email,
     action: "DOWNLOAD_DOC",
     resourceType: "document",
-    metadata: { documentName: "Lender Presentation - Titan Software" },
+    metadata: { documentName: "Lender Presentation - Titan Software" } as Record<string, any>,
   });
 
   await storage.createLog({
@@ -395,7 +395,7 @@ export async function seedIfEmpty() {
     actorEmail: createdLenders[0].email,
     action: "SUBMIT_COMMITMENT",
     resourceType: "commitment",
-    metadata: { amount: "75000000", status: "firm" },
+    metadata: { amount: "75000000", status: "firm" } as Record<string, any>,
   });
 
   console.log("Database seeded successfully!");
