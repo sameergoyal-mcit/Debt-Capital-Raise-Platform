@@ -1,17 +1,19 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, useRoute, useLocation } from "wouter";
-import { 
-  Search, 
-  Filter, 
-  MessageCircle, 
-  CheckCircle2, 
-  Clock, 
-  ChevronDown,
+import {
+  Search,
+  Filter,
+  MessageCircle,
+  CheckCircle2,
+  Clock,
   User,
   Send,
   Download,
   ExternalLink,
-  ArrowUpDown
+  RefreshCw,
+  Save,
+  FileText,
+  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
@@ -21,9 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import {
   Accordion,
@@ -38,10 +37,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/auth-context";
-import { getQAs, updateQA, QAItem } from "@/data/qa";
+import {
+  getQAs,
+  updateQA,
+  QAItem,
+  MaterialSource,
+  MaterialSources,
+  MaterialSourceLabels,
+  updateDraftAnswer,
+  setDraftSource,
+  generateDraftAnswer,
+  submitAnswer
+} from "@/data/qa";
 import { mockMessages, Message } from "@/data/messages";
 import { mockDeals } from "@/data/deals";
 import { formatDistanceToNow, parseISO, format } from "date-fns";
@@ -103,11 +112,11 @@ export default function QACenter() {
                 </SelectContent>
               </Select>
             )}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="gap-2"
               onClick={() => {
-                const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "Source"];
+                const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "MaterialSource", "OriginSource"];
                 const rows = qaItems.map(q => [
                   currentDeal?.dealName || dealId,
                   q.asker || "Investor",
@@ -115,9 +124,10 @@ export default function QACenter() {
                   q.status,
                   q.question,
                   q.questionCreatedAt ? format(parseISO(q.questionCreatedAt), "yyyy-MM-dd HH:mm") : "",
-                  q.answer || "",
-                  q.answerUpdatedAt ? format(parseISO(q.answerUpdatedAt), "yyyy-MM-dd HH:mm") : "",
-                  q.source || "direct"
+                  q.submittedAnswer || q.answer || "",
+                  q.submittedAt || q.answerUpdatedAt ? format(parseISO(q.submittedAt || q.answerUpdatedAt || ""), "yyyy-MM-dd HH:mm") : "",
+                  MaterialSourceLabels[q.materialSource] || q.materialSource,
+                  q.originSource || "direct"
                 ]);
                 downloadCSV(`${currentDeal?.dealName || "deal"}_qa_export.csv`, headers, rows);
                 toast({ title: "Export Complete", description: `Exported ${qaItems.length} Q&A items to CSV.` });
@@ -146,17 +156,33 @@ export default function QACenter() {
                   <div className="space-y-1">
                     <FilterItem label="All Questions" count={qaItems.length} active />
                     <FilterItem label="Open" count={qaItems.filter(q => q.status === 'open').length} dot="bg-red-500" />
-                    {!isInvestor && <FilterItem label="Draft Answers" count={qaItems.filter(q => q.status === 'draft').length} dot="bg-amber-500" />}
-                    <FilterItem label="Closed/Answered" count={qaItems.filter(q => q.status === 'answered' || q.status === 'closed').length} dot="bg-green-500" />
+                    {!isInvestor && <FilterItem label="Draft Ready" count={qaItems.filter(q => q.draftStatus === 'ready' && q.status !== 'answered').length} dot="bg-amber-500" />}
+                    {!isInvestor && <FilterItem label="Awaiting Draft" count={qaItems.filter(q => q.draftStatus === 'none' || q.draftStatus === 'generating').length} dot="bg-gray-400" />}
+                    <FilterItem label="Submitted/Answered" count={qaItems.filter(q => q.status === 'answered' || q.status === 'closed').length} dot="bg-green-500" />
                   </div>
                 </div>
-                
+
+                {isInternal && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Source</h3>
+                    <div className="space-y-1">
+                      {MaterialSources.map(src => (
+                        <FilterItem
+                          key={src}
+                          label={MaterialSourceLabels[src]}
+                          count={qaItems.filter(q => q.materialSource === src).length}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2 pt-4 border-t border-border">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Topics</h3>
                    <div className="space-y-1">
-                    <FilterItem label="Financials" count={qaItems.filter(q => q.topic === 'Financials').length} />
-                    <FilterItem label="Legal" count={qaItems.filter(q => q.topic === 'Legal').length} />
-                    <FilterItem label="Commercial" count={qaItems.filter(q => q.topic === 'Commercial').length} />
+                    <FilterItem label="Financials" count={qaItems.filter(q => q.topic === 'Financials' || q.category === 'Financials').length} />
+                    <FilterItem label="Legal" count={qaItems.filter(q => q.topic === 'Legal' || q.category === 'Legal / Documentation').length} />
+                    <FilterItem label="Commercial" count={qaItems.filter(q => q.topic === 'Commercial' || q.category === 'Commercial').length} />
                   </div>
                 </div>
               </CardContent>
@@ -225,58 +251,117 @@ function FilterItem({ label, count, active, dot }: { label: string; count: numbe
 }
 
 function QAItemRow({ item, isInternal, onUpdate }: { item: QAItem; isInternal: boolean; onUpdate: () => void }) {
-  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
-  const [draft, setDraft] = useState(item.answer || "");
+  const { user } = useAuth();
+  const [draft, setDraft] = useState(item.draftAnswer || "");
+  const [selectedSource, setSelectedSource] = useState<MaterialSource>(item.materialSource);
+  const [sourceNotes, setSourceNotes] = useState(item.sourceNotes || "");
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const handleSubmitAnswer = (status: "draft" | "answered") => {
-    updateQA(item.id, {
-        answer: draft,
-        answerUpdatedAt: new Date().toISOString(),
-        status: status
-    });
+  // Can submit only if:
+  // - role is issuer or bookrunner (isInternal)
+  // - draftAnswer has content
+  // - if source is "other", sourceNotes must be provided
+  const canSubmit = isInternal &&
+    draft.trim().length > 0 &&
+    (selectedSource !== "other" || sourceNotes.trim().length > 0);
 
-    // Bidirectional Sync: If answered, post to message thread
-    if (status === "answered" && item.threadId && item.source === "messages") {
-        const newMessage: Message = {
-            id: `m-qa-reply-${Date.now()}`,
-            threadId: item.threadId,
-            senderId: "u1", // Mock Bookrunner
-            body: draft,
-            createdAt: new Date().toISOString(),
-            readBy: [],
-            category: "due_diligence", // Keep context
-            dealId: item.dealId,
-            qaId: item.id
-        };
-        
-        if (mockMessages[item.threadId]) {
-            mockMessages[item.threadId].push(newMessage);
-        }
-    }
+  const handleSourceChange = (newSource: MaterialSource) => {
+    setSelectedSource(newSource);
+    setDraftSource(item.id, newSource, newSource === "other" ? sourceNotes : undefined);
+    // Refresh the draft from the store
+    const updatedItem = { ...item };
+    setDraft(updatedItem.draftAnswer || "");
+    onUpdate();
+  };
 
+  const handleRegenerateDraft = () => {
+    setIsRegenerating(true);
+    generateDraftAnswer(item.id);
+    setTimeout(() => {
+      setIsRegenerating(false);
+      // Refresh draft from store
+      onUpdate();
+    }, 500);
     toast({
-        title: status === "answered" ? "Answer Published" : "Draft Saved",
-        description: status === "answered" ? "The investor has been notified and message sent." : "Response saved as draft."
+      title: "Draft Regenerated",
+      description: "A new draft has been generated based on the selected source."
+    });
+  };
+
+  const handleSaveDraft = () => {
+    updateDraftAnswer(item.id, draft);
+    if (selectedSource === "other") {
+      setDraftSource(item.id, selectedSource, sourceNotes);
+    }
+    toast({
+      title: "Draft Saved",
+      description: "Your draft has been saved. It is not visible to investors."
     });
     onUpdate();
   };
 
+  const handleSubmitToInvestor = () => {
+    if (!canSubmit) {
+      if (selectedSource === "other" && sourceNotes.trim().length === 0) {
+        toast({
+          title: "Source Notes Required",
+          description: "Please provide source notes when 'Other' is selected as the source.",
+          variant: "destructive"
+        });
+        return;
+      }
+      return;
+    }
+
+    // Make sure draft is saved first
+    updateDraftAnswer(item.id, draft);
+    if (selectedSource === "other") {
+      setDraftSource(item.id, selectedSource, sourceNotes);
+    }
+
+    const success = submitAnswer(item.id, user?.email || "bookrunner@bank.com");
+    if (success) {
+      toast({
+        title: "Response Submitted",
+        description: "The investor can now see your response."
+      });
+      onUpdate();
+    } else {
+      toast({
+        title: "Submission Failed",
+        description: "Please ensure draft answer is not empty and source notes are provided if required.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Sync local state when item changes
+  React.useEffect(() => {
+    setDraft(item.draftAnswer || "");
+    setSelectedSource(item.materialSource);
+    setSourceNotes(item.sourceNotes || "");
+  }, [item.draftAnswer, item.materialSource, item.sourceNotes]);
+
   return (
     <Card className="border-border/60 shadow-sm overflow-hidden">
       <AccordionItem value={item.id} className="border-none">
-        <AccordionTrigger className="px-6 py-4 hover:bg-secondary/20 hover:no-underline" onClick={() => setIsOpen(!isOpen)}>
+        <AccordionTrigger className="px-6 py-4 hover:bg-secondary/20 hover:no-underline">
           <div className="flex flex-col gap-2 text-left w-full">
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <StatusBadge status={item.status} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatusBadge status={item.status} draftStatus={item.draftStatus} isInternal={isInternal} />
                 <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                  {item.topic || "General"}
+                  {item.category || item.topic || "General"}
                 </Badge>
-                {item.source === "messages" && (
-                     <Badge variant="secondary" className="text-[10px] gap-1 h-5 px-1.5">
-                        <MessageCircle className="h-3 w-3" /> From Messages
-                     </Badge>
+                {/* Source badge - shown to both but labeled differently */}
+                <Badge variant="secondary" className="text-[10px] gap-1 h-5 px-1.5">
+                  <FileText className="h-3 w-3" /> {MaterialSourceLabels[item.materialSource]}
+                </Badge>
+                {item.originSource === "messages" && (
+                  <Badge variant="secondary" className="text-[10px] gap-1 h-5 px-1.5">
+                    <MessageCircle className="h-3 w-3" /> From Messages
+                  </Badge>
                 )}
               </div>
               <span className="text-xs text-muted-foreground font-normal">
@@ -286,93 +371,270 @@ function QAItemRow({ item, isInternal, onUpdate }: { item: QAItem; isInternal: b
             <p className="font-medium text-foreground pr-4">{item.question}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <User className="h-3 w-3" /> Asked by <span className="font-medium text-foreground">{item.asker || "Investor"}</span>
+              {isInternal && item.lenderId && (
+                <span className="text-muted-foreground">• Lender ID: {item.lenderId}</span>
+              )}
             </div>
           </div>
         </AccordionTrigger>
         <AccordionContent className="px-6 pb-6 bg-secondary/10 border-t border-border/40">
-           <div className="pt-4 space-y-4">
-             {/* If answered/closed, show the answer */}
-             {(item.status === 'answered' || item.status === 'closed') && (
-               <div className="bg-green-50/50 border border-green-100 p-4 rounded-md">
-                 <div className="text-xs font-semibold text-green-800 mb-1 flex items-center gap-1">
-                   <CheckCircle2 className="h-3 w-3" /> Answered
-                   <span className="text-green-600/70 font-normal ml-1">
-                     • {item.answerUpdatedAt && formatDistanceToNow(parseISO(item.answerUpdatedAt), { addSuffix: true })}
-                   </span>
-                 </div>
-                 <p className="text-sm text-foreground">{item.answer}</p>
-               </div>
-             )}
-
-             {/* If internal user, show edit controls for draft/open */}
-             {isInternal && (item.status === 'draft' || item.status === 'open') && (
-                <div className="space-y-3">
-                  <div className={cn(
-                      "p-4 rounded-md border",
-                      item.status === 'draft' ? "bg-amber-50/50 border-amber-100" : "bg-white border-border"
-                  )}>
-                    <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
-                      {item.status === 'draft' ? <Clock className="h-3 w-3 text-amber-600" /> : <MessageCircle className="h-3 w-3" />}
-                      {item.status === 'draft' ? "Draft Answer" : "Your Answer"}
+          <div className="pt-4 space-y-4">
+            {/* INVESTOR VIEW: Show submitted answer or awaiting response */}
+            {!isInternal && (
+              <>
+                {item.submittedAnswer ? (
+                  <div className="bg-green-50/50 border border-green-100 p-4 rounded-md">
+                    <div className="text-xs font-semibold text-green-800 mb-1 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Response
+                      {item.submittedAt && (
+                        <span className="text-green-600/70 font-normal ml-1">
+                          • {formatDistanceToNow(parseISO(item.submittedAt), { addSuffix: true })}
+                        </span>
+                      )}
                     </div>
-                    <Textarea 
-                      className="mt-2 bg-transparent border-none focus-visible:ring-0 p-0 shadow-none min-h-[80px]" 
-                      placeholder="Type your answer here..."
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                    />
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{item.submittedAnswer}</p>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm">Discard</Button>
-                    <Button variant="outline" size="sm" onClick={() => handleSubmitAnswer('draft')}>Save Draft</Button>
-                    <Button size="sm" className="gap-2" onClick={() => handleSubmitAnswer('answered')}>
-                      <Send className="h-3 w-3" /> Submit Answer
-                    </Button>
+                ) : (
+                  <div className="text-sm text-muted-foreground italic bg-secondary/20 p-4 rounded text-center flex items-center justify-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Awaiting response from deal team...
                   </div>
-                </div>
-             )}
-             
-             {/* If investor and not answered, show pending state */}
-             {!isInternal && item.status !== 'answered' && item.status !== 'closed' && (
-               <div className="text-sm text-muted-foreground italic bg-secondary/20 p-3 rounded text-center">
-                 Awaiting response from deal team...
-               </div>
-             )}
-             
-             {/* Link back to thread if it exists */}
-             {item.threadId && item.source === "messages" && (
-                 <div className="flex justify-end pt-2">
-                     <Link href={`/deal/${item.dealId}/messages?threadId=${item.threadId}&qaId=${item.id}`}>
-                         <Button variant="link" size="sm" className="text-xs text-muted-foreground gap-1 h-auto p-0" data-testid={`link-messages-${item.id}`}>
-                             View in Messages <ExternalLink className="h-3 w-3" />
-                         </Button>
-                     </Link>
-                 </div>
-             )}
-           </div>
+                )}
+              </>
+            )}
+
+            {/* ISSUER/BOOKRUNNER VIEW: Show draft editor and controls */}
+            {isInternal && (
+              <>
+                {/* If already submitted, show the submitted answer */}
+                {item.draftStatus === "submitted" && item.submittedAnswer && (
+                  <div className="bg-green-50/50 border border-green-100 p-4 rounded-md">
+                    <div className="text-xs font-semibold text-green-800 mb-1 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Submitted to Investor
+                      {item.submittedAt && (
+                        <span className="text-green-600/70 font-normal ml-1">
+                          • {formatDistanceToNow(parseISO(item.submittedAt), { addSuffix: true })}
+                        </span>
+                      )}
+                      {item.submittedBy && (
+                        <span className="text-green-600/70 font-normal ml-1">
+                          by {item.submittedBy}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{item.submittedAnswer}</p>
+                  </div>
+                )}
+
+                {/* Draft Answer Panel - only if not yet submitted */}
+                {item.draftStatus !== "submitted" && (
+                  <Card className="border-amber-200 bg-amber-50/30">
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Draft Answer
+                          <DraftStatusBadge status={item.draftStatus} />
+                        </div>
+                        <p className="text-xs text-muted-foreground italic">
+                          Draft is internal. Investor sees only submitted responses.
+                        </p>
+                      </div>
+
+                      {/* Source Selector */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Answer Source
+                        </label>
+                        <Select value={selectedSource} onValueChange={(val) => handleSourceChange(val as MaterialSource)}>
+                          <SelectTrigger className="w-full bg-white">
+                            <SelectValue placeholder="Select source..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MaterialSources.map(src => (
+                              <SelectItem key={src} value={src}>
+                                {MaterialSourceLabels[src]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Source Notes - required if source is "other" */}
+                      {selectedSource === "other" && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            Source Notes <span className="text-red-500">*</span>
+                            <AlertCircle className="h-3 w-3 text-amber-600" />
+                          </label>
+                          <Input
+                            placeholder="Describe where this information comes from..."
+                            value={sourceNotes}
+                            onChange={(e) => setSourceNotes(e.target.value)}
+                            className="bg-white"
+                          />
+                          {sourceNotes.trim().length === 0 && (
+                            <p className="text-xs text-red-500">Required when source is "Other"</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Draft Editor */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Response Draft
+                        </label>
+                        <Textarea
+                          className="bg-white min-h-[120px]"
+                          placeholder="Type your response here..."
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex justify-between items-center pt-2 border-t border-amber-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={handleRegenerateDraft}
+                          disabled={isRegenerating}
+                        >
+                          <RefreshCw className={cn("h-3 w-3", isRegenerating && "animate-spin")} />
+                          Regenerate Draft
+                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={handleSaveDraft}
+                          >
+                            <Save className="h-3 w-3" /> Save Draft
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-2"
+                            onClick={handleSubmitToInvestor}
+                            disabled={!canSubmit}
+                          >
+                            <Send className="h-3 w-3" /> Submit to Investor
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* Link back to thread if it exists */}
+            {item.threadId && item.originSource === "messages" && (
+              <div className="flex justify-end pt-2">
+                <Link href={`/deal/${item.dealId}/messages?threadId=${item.threadId}&qaId=${item.id}`}>
+                  <Button variant="link" size="sm" className="text-xs text-muted-foreground gap-1 h-auto p-0" data-testid={`link-messages-${item.id}`}>
+                    View in Messages <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </AccordionContent>
       </AccordionItem>
     </Card>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: any = {
+function StatusBadge({ status, draftStatus, isInternal }: { status: string; draftStatus?: string; isInternal?: boolean }) {
+  // For investors, show simpler status
+  if (!isInternal) {
+    if (status === "answered" || status === "closed") {
+      return (
+        <Badge variant="outline" className="font-medium border bg-green-100 text-green-700 border-green-200">
+          Answered
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="font-medium border bg-amber-100 text-amber-700 border-amber-200">
+        Pending
+      </Badge>
+    );
+  }
+
+  // For internal users, show detailed status
+  const styles: Record<string, string> = {
     open: "bg-red-100 text-red-700 border-red-200",
     draft: "bg-amber-100 text-amber-700 border-amber-200",
     answered: "bg-green-100 text-green-700 border-green-200",
     closed: "bg-gray-100 text-gray-700 border-gray-200"
   };
 
-  const labels: any = {
+  const labels: Record<string, string> = {
     open: "Open Question",
     draft: "Draft Pending",
-    answered: "Answered",
+    answered: "Submitted",
     closed: "Closed"
   };
 
+  // Override based on draftStatus for more granular view
+  if (draftStatus === "submitted") {
+    return (
+      <Badge variant="outline" className="font-medium border bg-green-100 text-green-700 border-green-200">
+        Submitted
+      </Badge>
+    );
+  }
+
+  if (draftStatus === "ready" && status !== "answered") {
+    return (
+      <Badge variant="outline" className="font-medium border bg-amber-100 text-amber-700 border-amber-200">
+        Draft Ready
+      </Badge>
+    );
+  }
+
+  if (draftStatus === "generating") {
+    return (
+      <Badge variant="outline" className="font-medium border bg-blue-100 text-blue-700 border-blue-200">
+        Generating Draft
+      </Badge>
+    );
+  }
+
+  if (draftStatus === "none" || !draftStatus) {
+    return (
+      <Badge variant="outline" className="font-medium border bg-gray-100 text-gray-700 border-gray-200">
+        Awaiting Draft
+      </Badge>
+    );
+  }
+
   return (
-    <Badge variant="outline" className={cn("font-medium border", styles[status] || styles.closed)}>
+    <Badge variant="outline" className={cn("font-medium border", styles[status] || styles.open)}>
+      {labels[status] || status}
+    </Badge>
+  );
+}
+
+function DraftStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    none: "bg-gray-100 text-gray-600",
+    generating: "bg-blue-100 text-blue-700",
+    ready: "bg-amber-100 text-amber-700",
+    submitted: "bg-green-100 text-green-700"
+  };
+
+  const labels: Record<string, string> = {
+    none: "No Draft",
+    generating: "Generating...",
+    ready: "Ready",
+    submitted: "Submitted"
+  };
+
+  return (
+    <Badge variant="secondary" className={cn("text-[10px] h-5 px-1.5", styles[status] || styles.none)}>
       {labels[status] || status}
     </Badge>
   );

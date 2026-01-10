@@ -679,9 +679,11 @@ export default function DealOverview() {
                   </div>
                 </div>
 
-                <Button variant="outline" className="w-full text-xs h-8">
-                  Go to Data Room
-                </Button>
+                <Link href={`/deal/${dealId}/documents`}>
+                  <Button variant="outline" className="w-full text-xs h-8">
+                    Go to Data Room
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 

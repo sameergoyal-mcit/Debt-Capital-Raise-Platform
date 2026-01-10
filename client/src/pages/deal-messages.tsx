@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/context/auth-context";
 import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages } from "@/data/messages";
-import { createQA, updateQA, findOpenQAForThread } from "@/data/qa";
+import { addQuestion, updateQA, findOpenQAForThread } from "@/data/qa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -128,23 +128,19 @@ export default function DealMessagesPage() {
     let newQaId: string | undefined;
 
     if (isInvestor && messageType === "due_diligence") {
-        const qaItem = createQA({
-            id: `qa-${Date.now()}`,
+        const qaItem = addQuestion({
             dealId: dealId,
             lenderId: user.lenderId || "unknown",
             question: newMessage,
-            questionCreatedAt: new Date().toISOString(),
-            status: "open",
-            source: "messages",
+            asker: user.name,
             threadId: activeThreadId,
-            topic: "General",
-            asker: user.name
+            originSource: "messages"
         });
         newQaId = qaItem.id;
-        
+
         toast({
             title: "Q&A Item Created",
-            description: "Your question has been added to the Due Diligence log."
+            description: "Your question has been added to the Due Diligence log with an auto-generated draft."
         });
     }
 
