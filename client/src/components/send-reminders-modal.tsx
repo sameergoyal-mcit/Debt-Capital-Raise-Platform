@@ -44,9 +44,9 @@ export function SendRemindersModal({ isOpen, onClose, dealId, dealName }: SendRe
   const [audience, setAudience] = useState<AudienceFilter>("all");
   const [subject, setSubject] = useState(`Action Required: ${dealName} - Deadline Approaching`);
   const [body, setBody] = useState(
-`Dear Investor,
+`Dear Lender,
 
-This is a reminder regarding the ${dealName} transaction currently in syndication.
+This is a reminder regarding the ${dealName} facility currently in syndication.
 
 Please ensure you have completed the following before the deadline:
 • Signed the Confidentiality Agreement (NDA)
@@ -105,7 +105,7 @@ The Deal Team`
             Send Reminders
           </DialogTitle>
           <DialogDescription>
-            Send deadline reminders to investors on {dealName}.
+            Send deadline reminders to lenders on {dealName}.
           </DialogDescription>
         </DialogHeader>
 

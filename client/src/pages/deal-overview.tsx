@@ -24,7 +24,8 @@ import {
   Mail,
   Lock,
   Unlock,
-  MoreHorizontal
+  MoreHorizontal,
+  BarChart3
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ import { emailService } from "@/lib/email-service";
 import { emailTemplates } from "@/lib/email-templates";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
 import { SendRemindersModal } from "@/components/send-reminders-modal";
+import { EngagementAnalytics } from "@/components/engagement-analytics";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
 import { format as formatDate } from "date-fns";
@@ -505,11 +507,11 @@ export default function DealOverview() {
               </CardContent>
             </Card>
 
-            {/* Investor Engagement */}
+            {/* Lender Engagement */}
             <Card className="border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-primary" /> Investor Engagement
+                  <Activity className="h-5 w-5 text-primary" /> Lender Engagement
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -555,6 +557,15 @@ export default function DealOverview() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Engagement Analytics */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Engagement Analytics
+              </h3>
+              <EngagementAnalytics dealId={dealId} />
+            </div>
 
             <Card className="border-border/60 shadow-sm">
               <CardHeader className="pb-3 border-b border-border/40">

@@ -30,6 +30,7 @@ import DealMessagesPage from "@/pages/deal-messages";
 import AuditTrail from "@/pages/audit-trail";
 import DealPrint from "@/pages/deal-print";
 import FinancialModel from "@/pages/financial-model";
+import SyndicateBookPage from "@/pages/syndicate-book";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Protected Route Wrapper
@@ -156,6 +157,11 @@ function Router() {
       {/* Financial Model */}
       <Route path="/deal/:id/model">
         <ProtectedRoute component={FinancialModel} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* Syndicate Book - Internal Only */}
+      <Route path="/deal/:id/syndicate-book">
+        <ProtectedRoute component={SyndicateBookPage} allowedRoles={["Issuer", "Bookrunner"]} />
       </Route>
 
       <Route path="/deal/:id/audit">

@@ -96,7 +96,7 @@ interface CreateDealWizardProps {
 const STEPS = [
   { id: 1, name: "Deal Details", icon: FileText },
   { id: 2, name: "Bookrunners", icon: Building2 },
-  { id: 3, name: "Investors", icon: Users },
+  { id: 3, name: "Prospective Lenders", icon: Users },
 ];
 
 const sectors = [
@@ -276,7 +276,7 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
       const investor = mockLenders.find((l) => l.id === value);
       if (investor) {
         if (selectedInvestors.some((i) => i.id === investor.id)) {
-          toast({ title: "Already Added", description: "This investor is already in the list.", variant: "destructive" });
+          toast({ title: "Already Added", description: "This lender is already in the list.", variant: "destructive" });
           return;
         }
         const nameParts = investor.name.split(" ");
@@ -301,7 +301,7 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
   // Add new investor
   const handleAddNewInvestor = () => {
     if (!newInvestorFirstName.trim() || !newInvestorLastName.trim() || !newInvestorEmail.trim() || !newInvestorOrg.trim()) {
-      toast({ title: "Missing Fields", description: "Please fill in all investor fields.", variant: "destructive" });
+      toast({ title: "Missing Fields", description: "Please fill in all lender fields.", variant: "destructive" });
       return;
     }
     setSelectedInvestors([
@@ -407,7 +407,7 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
             id: lenderId,
             name: `${investor.firstName} ${investor.lastName}`,
             type: "Direct Lender",
-            status: "NDA Sent",
+            status: "invited",
             ticketMin: 0,
             ticketMax: 0,
             lastContactAt: new Date().toISOString(),
@@ -792,13 +792,13 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
           onClick={handleAddNewInvestor}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-1" /> Add Investor
+          <Plus className="h-4 w-4 mr-1" /> Add Lender
         </Button>
       </div>
 
       {selectedInvestors.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Selected Investors</Label>
+          <Label className="text-xs text-muted-foreground">Selected Lenders</Label>
           <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
             {selectedInvestors.map((investor, index) => (
               <div key={index} className="flex items-center justify-between p-3">

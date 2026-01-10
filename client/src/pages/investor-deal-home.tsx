@@ -10,11 +10,11 @@ import { Separator } from "@/components/ui/separator";
 import { NDAGate } from "@/components/nda-gate";
 import { DealPageHeader } from "@/components/deal-page-header";
 import { ActionRequiredBar, computeInvestorActions } from "@/components/action-required-bar";
-import { 
-  ArrowRight, 
-  Clock, 
-  FileText, 
-  MessageSquare, 
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  MessageSquare,
   AlertCircle,
   Briefcase,
   CheckCircle,
@@ -24,13 +24,15 @@ import {
   HelpCircle,
   ExternalLink,
   Calendar,
-  History
+  History,
+  FileDown
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
 import { dealDeadlines } from "@/lib/deal-deadlines";
 import { useToast } from "@/hooks/use-toast";
 import { AccessNotice } from "@/components/access-notice";
+import { generateCreditMemo, downloadCreditMemo } from "@/lib/credit-memo-generator";
 
 export default function InvestorDealHome() {
   const { user } = useAuth();
@@ -81,6 +83,32 @@ export default function InvestorDealHome() {
     toast({
       title: "Calendar Exported",
       description: `${events.length} deadlines downloaded to .ics file.`,
+    });
+  };
+
+  const handleDownloadCreditMemo = () => {
+    if (!isNdaSigned) {
+      toast({
+        title: "NDA Required",
+        description: "Please sign the NDA to download the credit memo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const memoContent = generateCreditMemo({
+      deal: deal as any,
+      invitation,
+      accessTier: invitation.accessTier || "early",
+      ndaSigned: isNdaSigned,
+      lenderName: user?.name,
+    });
+
+    downloadCreditMemo(memoContent, deal.dealName);
+
+    toast({
+      title: "Credit Memo Downloaded",
+      description: `Memo for ${deal.dealName} has been downloaded.`,
     });
   };
 
@@ -138,6 +166,13 @@ export default function InvestorDealHome() {
                         <MessageSquare className="h-4 w-4" /> Messages
                     </Button>
                  </Link>
+                 <Button
+                    variant="outline"
+                    className="gap-2 h-12"
+                    onClick={handleDownloadCreditMemo}
+                 >
+                    <FileDown className="h-4 w-4" /> Credit Memo
+                 </Button>
                  <Link href={`/deal/${dealId}/commitment`}>
                     <Button className="gap-2 h-12 shadow-md">
                         <PenTool className="h-4 w-4" /> Submit Commitment
@@ -313,6 +348,15 @@ export default function InvestorDealHome() {
                                  Commitment Form
                              </Button>
                          </Link>
+                         <Button
+                             variant="ghost"
+                             className="w-full justify-start gap-3 h-10 border border-transparent hover:border-border hover:bg-secondary/50"
+                             onClick={handleDownloadCreditMemo}
+                             disabled={!isNdaSigned}
+                         >
+                             <FileDown className="h-4 w-4 text-muted-foreground" />
+                             Download Credit Memo
+                         </Button>
                      </CardContent>
                  </Card>
 

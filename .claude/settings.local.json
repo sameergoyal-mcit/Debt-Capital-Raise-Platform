@@ -10,7 +10,14 @@
       "Bash(npm run check:*)",
       "Bash(tree:*)",
       "Bash(find:*)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(fuser:*)",
+      "Bash(ss:*)",
+      "Bash(netstat:*)"
     ]
   }
 }

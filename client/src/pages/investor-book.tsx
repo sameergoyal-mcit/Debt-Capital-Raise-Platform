@@ -145,12 +145,12 @@ export default function InvestorBook() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Link href={`/deal/${dealId}/overview`} className="hover:text-primary">Project Titan</Link>
               <span>/</span>
-              <span>Investor Book</span>
+              <span>Lender Book</span>
             </div>
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">Investor Book</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Lender Book</h1>
             <p className="text-muted-foreground mt-1">
-              {role === "bookrunner" 
-                ? "Manage investor interest, allocations, and commitments." 
+              {role === "bookrunner"
+                ? "Manage lender interest, allocations, and commitments."
                 : "Overview of current market demand and lender status."}
             </p>
           </div>
@@ -160,7 +160,7 @@ export default function InvestorBook() {
             </Button>
             {role === "bookrunner" && (
               <Button className="gap-2 bg-primary text-primary-foreground" onClick={() => setIsInviteModalOpen(true)}>
-                <Plus className="h-4 w-4" /> Add Investor
+                <Plus className="h-4 w-4" /> Add Lender
               </Button>
             )}
             {(role === "issuer" || role === "bookrunner") && (
@@ -180,8 +180,8 @@ export default function InvestorBook() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search investors, bankers..." 
+                  <Input
+                    placeholder="Search lenders, bankers..."
                     className="pl-9 bg-secondary/30"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -194,11 +194,13 @@ export default function InvestorBook() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="Firm">Firm</SelectItem>
-                      <SelectItem value="IOI">IOI</SelectItem>
-                      <SelectItem value="LP Viewed">LP Viewed</SelectItem>
-                      <SelectItem value="NDA Signed">NDA Signed</SelectItem>
-                      <SelectItem value="Not Contacted">Not Contacted</SelectItem>
+                      <SelectItem value="allocated">Allocated</SelectItem>
+                      <SelectItem value="firm_committed">Firm Committed</SelectItem>
+                      <SelectItem value="soft_circled">Soft Circled</SelectItem>
+                      <SelectItem value="ioi_submitted">IOI Submitted</SelectItem>
+                      <SelectItem value="interested">Interested</SelectItem>
+                      <SelectItem value="invited">Invited</SelectItem>
+                      <SelectItem value="declined">Declined</SelectItem>
                     </SelectContent>
                   </Select>
                    <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -257,8 +259,8 @@ export default function InvestorBook() {
           onInvitationCreated={() => {
             refreshLenders();
             toast({
-              title: "Investor Invited",
-              description: "The investor has been added to the deal.",
+              title: "Lender Invited",
+              description: "The lender has been added to the deal.",
             });
           }}
         />
@@ -291,8 +293,8 @@ function SendReminderModal({
   useEffect(() => {
     if (isOpen) {
       // Logic to pre-select relevant lenders
-      // For this mock, let's select those who haven't signed NDA or are just generally active but not "Declined"
-      const relevant = lenders.filter(l => l.status !== "Declined" && l.status !== "Not Contacted");
+      // For this mock, let's select those who are active but not declined or just invited
+      const relevant = lenders.filter(l => l.status !== "declined" && l.status !== "invited");
       setSelectedIds(new Set(relevant.map(l => l.id)));
       
       // Default Draft
@@ -375,7 +377,7 @@ CapitalFlow Team`);
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>Send Reminders</DialogTitle>
           <DialogDescription>
-            Send email updates or reminders to selected investors.
+            Send email updates or reminders to selected lenders.
           </DialogDescription>
         </DialogHeader>
 
@@ -461,7 +463,7 @@ function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdate
     
     const updatedLender = {
       ...myLender,
-      status: "IOI" as LenderStatus,
+      status: "ioi_submitted" as LenderStatus,
       ticketMin: ioiTicketMin,
       ticketMax: ioiTicketMax,
       pricingBps: ioiPricing,
@@ -623,7 +625,7 @@ function BookrunnerTable({ lenders, onSelectLender }: { lenders: Lender[], onSel
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[200px]">Investor Name</TableHead>
+          <TableHead className="w-[200px]">Lender Name</TableHead>
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Ticket Range</TableHead>
@@ -705,7 +707,7 @@ function IssuerTable({ lenders }: { lenders: Lender[] }) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Investor Name</TableHead>
+          <TableHead>Lender Name</TableHead>
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Ticket Indication</TableHead>
@@ -889,10 +891,10 @@ function LenderDetailDrawer({ lender, onUpdateLender }: { lender: Lender, onUpda
 }
 
 function BookStats({ lenders }: { lenders: Lender[] }) {
-  const totalCommitted = lenders.reduce((acc, l) => acc + (l.status === "Firm" ? (l.ticketMin || 0) : 0), 0);
-  const softCircle = lenders.reduce((acc, l) => acc + (l.status === "IOI" ? (l.ticketMin || 0) : 0), 0);
-  const activeCount = lenders.filter(l => ["NDA Signed", "IOI", "LP Viewed"].includes(l.status)).length;
-  const declinedCount = lenders.filter(l => l.status === "Declined").length;
+  const totalCommitted = lenders.reduce((acc, l) => acc + (["firm_committed", "allocated"].includes(l.status) ? (l.ticketMin || 0) : 0), 0);
+  const softCircle = lenders.reduce((acc, l) => acc + (["soft_circled", "ioi_submitted"].includes(l.status) ? (l.ticketMin || 0) : 0), 0);
+  const activeCount = lenders.filter(l => ["interested", "ioi_submitted", "soft_circled"].includes(l.status)).length;
+  const declinedCount = lenders.filter(l => l.status === "declined").length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -902,7 +904,7 @@ function BookStats({ lenders }: { lenders: Lender[] }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold font-serif">${(totalCommitted / 1000000).toFixed(1)}M</div>
-          <div className="text-xs text-primary-foreground/70 mt-1">From {lenders.filter(l => l.status === "Firm").length} Lenders</div>
+          <div className="text-xs text-primary-foreground/70 mt-1">From {lenders.filter(l => ["firm_committed", "allocated"].includes(l.status)).length} Lenders</div>
         </CardContent>
       </Card>
       <Card>
@@ -911,7 +913,7 @@ function BookStats({ lenders }: { lenders: Lender[] }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-foreground">${(softCircle / 1000000).toFixed(1)}M</div>
-          <div className="text-xs text-muted-foreground mt-1">{lenders.filter(l => l.status === "IOI").length} Lenders</div>
+          <div className="text-xs text-muted-foreground mt-1">{lenders.filter(l => ["soft_circled", "ioi_submitted"].includes(l.status)).length} Lenders</div>
         </CardContent>
       </Card>
       <Card>
@@ -939,38 +941,52 @@ function BookStats({ lenders }: { lenders: Lender[] }) {
 function StatusBadge({ status }: { status: LenderStatus }) {
   let className = "";
   let icon = null;
-  
+  let label = "";
+
   switch (status) {
-    case "Firm":
+    case "allocated":
+      className = "bg-emerald-100 text-emerald-700 border-emerald-200";
+      icon = <CheckCircle2 className="h-3 w-3 mr-1" />;
+      label = "Allocated";
+      break;
+    case "firm_committed":
       className = "bg-green-100 text-green-700 border-green-200";
       icon = <CheckCircle2 className="h-3 w-3 mr-1" />;
+      label = "Firm Committed";
       break;
-    case "IOI":
+    case "soft_circled":
       className = "bg-blue-100 text-blue-700 border-blue-200";
       icon = <TrendingUp className="h-3 w-3 mr-1" />;
+      label = "Soft Circled";
       break;
-    case "LP Viewed":
+    case "ioi_submitted":
+      className = "bg-cyan-100 text-cyan-700 border-cyan-200";
+      icon = <TrendingUp className="h-3 w-3 mr-1" />;
+      label = "IOI Submitted";
+      break;
+    case "interested":
       className = "bg-amber-100 text-amber-700 border-amber-200";
       icon = <Clock className="h-3 w-3 mr-1" />;
+      label = "Interested";
       break;
-    case "NDA Signed":
-      className = "bg-purple-100 text-purple-700 border-purple-200";
-      break;
-    case "NDA Sent":
+    case "invited":
       className = "bg-slate-100 text-slate-700 border-slate-200";
+      label = "Invited";
       break;
-    case "Declined":
+    case "declined":
       className = "bg-red-50 text-red-700 border-red-200";
       icon = <XCircle className="h-3 w-3 mr-1" />;
+      label = "Declined";
       break;
     default:
       className = "bg-secondary text-muted-foreground border-border";
+      label = status;
   }
 
   return (
     <Badge variant="outline" className={`font-normal ${className} flex items-center w-fit`}>
       {icon}
-      {status}
+      {label}
     </Badge>
   );
 }

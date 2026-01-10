@@ -101,7 +101,7 @@ export function InviteLenderModal({
         id: lenderId,
         name: `${firstName} ${lastName}`,
         type: "Direct Lender",
-        status: "NDA Sent",
+        status: "invited",
         ticketMin: 0,
         ticketMax: 0,
         lastContactAt: new Date().toISOString(),

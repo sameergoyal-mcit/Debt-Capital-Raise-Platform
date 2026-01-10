@@ -14,20 +14,22 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { 
-  ArrowRight, 
-  Clock, 
-  FileText, 
-  MessageSquare, 
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  MessageSquare,
   AlertCircle,
   Briefcase,
-  Calendar
+  Calendar,
+  FileDown
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { downloadICS, ICSEvent } from "@/lib/ics-generator";
 import { dealDeadlines } from "@/lib/deal-deadlines";
 import { useToast } from "@/hooks/use-toast";
 import { AccessNotice } from "@/components/access-notice";
+import { generateCreditMemo, downloadCreditMemo } from "@/lib/credit-memo-generator";
 
 export default function InvestorDashboard() {
   const { user } = useAuth();
@@ -76,6 +78,35 @@ export default function InvestorDashboard() {
     });
   };
 
+  const handleDownloadCreditMemo = (dealData: InvestorDealSummary) => {
+    const { deal, invitation } = dealData;
+    const isNdaSigned = !invitation.ndaRequired || !!invitation.ndaSignedAt;
+
+    if (!isNdaSigned) {
+      toast({
+        title: "NDA Required",
+        description: "Please sign the NDA to download the credit memo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const memoContent = generateCreditMemo({
+      deal: deal as any,
+      invitation,
+      accessTier: invitation.accessTier || "early",
+      ndaSigned: isNdaSigned,
+      lenderName: user?.name,
+    });
+
+    downloadCreditMemo(memoContent, deal.dealName);
+
+    toast({
+      title: "Credit Memo Downloaded",
+      description: `Memo for ${deal.dealName} has been downloaded.`,
+    });
+  };
+
   if (!user || user.role !== "Investor") {
     return (
         <Layout>
@@ -83,7 +114,7 @@ export default function InvestorDashboard() {
                 <Card className="max-w-md">
                     <CardHeader>
                         <CardTitle className="text-destructive">Access Restricted</CardTitle>
-                        <CardDescription>This dashboard is for accredited investors only.</CardDescription>
+                        <CardDescription>This dashboard is for accredited lenders only.</CardDescription>
                     </CardHeader>
                 </Card>
             </div>
@@ -97,7 +128,7 @@ export default function InvestorDashboard() {
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">Investor Dashboard</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Lender Dashboard</h1>
             <p className="text-muted-foreground mt-1">
               Welcome back, {user.name}. You have {deals.length} active opportunities.
             </p>
@@ -198,6 +229,7 @@ export default function InvestorDashboard() {
                             <TableHead>Next Deadline</TableHead>
                             <TableHead>Docs</TableHead>
                             <TableHead>Action</TableHead>
+                            <TableHead>Memo</TableHead>
                             <TableHead></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -243,6 +275,18 @@ export default function InvestorDashboard() {
                                             {stats.actionRequired}
                                         </Badge>
                                     )}
+                                </TableCell>
+                                <TableCell>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-1 text-xs"
+                                        onClick={() => handleDownloadCreditMemo({ deal, invitation, stats })}
+                                        disabled={invitation.ndaRequired && !invitation.ndaSignedAt}
+                                        title={invitation.ndaRequired && !invitation.ndaSignedAt ? "Sign NDA first" : "Download Credit Memo"}
+                                    >
+                                        <FileDown className="h-3 w-3" />
+                                    </Button>
                                 </TableCell>
                                 <TableCell>
                                     <Link href={`/investor/deal/${deal.id}`}>

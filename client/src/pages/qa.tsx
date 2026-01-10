@@ -96,8 +96,8 @@ export default function QACenter() {
               <span>/</span>
               <span>Q&A</span>
             </div>
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">Due Diligence Q&A</h1>
-            <p className="text-muted-foreground mt-1">Manage investor inquiries and diligence questions.</p>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">Lender Q&A</h1>
+            <p className="text-muted-foreground mt-1">Manage lender inquiries and diligence questions.</p>
           </div>
           <div className="flex gap-3 items-center">
             {isInternal && (
@@ -207,11 +207,11 @@ export default function QACenter() {
             {qaItems.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg bg-secondary/5">
                 <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                <h3 className="text-lg font-medium">No Due Diligence Questions Yet</h3>
+                <h3 className="text-lg font-medium">No Lender Q&A Questions Yet</h3>
                 <p className="text-sm mt-1">
-                  {isInvestor 
-                    ? "Use Messages to ask due diligence questions." 
-                    : "Questions from investors will appear here."}
+                  {isInvestor
+                    ? "Use Messages to ask diligence questions."
+                    : "Questions from lenders will appear here."}
                 </p>
                 {isInvestor && (
                   <Link href={`/deal/${dealId}/messages`}>

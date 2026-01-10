@@ -20,7 +20,8 @@ import {
   PenTool,
   FlaskConical,
   Calculator,
-  X
+  X,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ export function Layout({ children }: LayoutProps) {
         )}
 
         {isInvestor && !isDealWorkspace && (
-          <NavItem href="/investor" icon={<LayoutDashboard size={18} />} label="Investor Dashboard" active={location === "/investor"} onClick={onNavClick} />
+          <NavItem href="/investor" icon={<LayoutDashboard size={18} />} label="Lender Dashboard" active={location === "/investor"} onClick={onNavClick} />
         )}
 
         {isDealWorkspace && dealId && (
@@ -91,7 +92,7 @@ export function Layout({ children }: LayoutProps) {
               <h4 className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-1">
                 {currentDeal ? currentDeal.dealName : "Deal Workspace"}
               </h4>
-              {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Investor Portal</Badge>}
+              {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Lender Portal</Badge>}
             </div>
 
             {isInvestor && (
@@ -105,15 +106,18 @@ export function Layout({ children }: LayoutProps) {
             <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={18} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} onClick={onNavClick} />
 
             {isInternal && (
-              <NavItem href={`/deal/${dealId}/book`} icon={<Users size={18} />} label="Investor Book" active={isActive(`/deal/${dealId}/book`)} onClick={onNavClick} />
+              <>
+                <NavItem href={`/deal/${dealId}/book`} icon={<Users size={18} />} label="Lender Book" active={isActive(`/deal/${dealId}/book`)} onClick={onNavClick} />
+                <NavItem href={`/deal/${dealId}/syndicate-book`} icon={<BookOpen size={18} />} label="Syndicate Book" active={isActive(`/deal/${dealId}/syndicate-book`)} onClick={onNavClick} />
+              </>
             )}
 
-            <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={18} />} label="Due Diligence Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
+            <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={18} />} label="Lender Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
             <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={18} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} onClick={onNavClick} />
             <NavItem href={`/deal/${dealId}/messages`} icon={<MessageSquare size={18} />} label="Messages" active={isActive(`/deal/${dealId}/messages`)} onClick={onNavClick} />
 
             {isInvestor && (
-              <NavItem href={`/deal/${dealId}/commitment`} icon={<PenTool size={18} />} label="Submit Commitment" active={isActive(`/deal/${dealId}/commitment`)} onClick={onNavClick} />
+              <NavItem href={`/deal/${dealId}/commitment`} icon={<PenTool size={18} />} label="Submit Indication" active={isActive(`/deal/${dealId}/commitment`)} onClick={onNavClick} />
             )}
 
             {isInternal && (

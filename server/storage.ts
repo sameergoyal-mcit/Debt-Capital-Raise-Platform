@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import pg from "pg";
 import * as schema from "@shared/schema";
 import type {
@@ -21,6 +21,10 @@ import type {
   InsertLog,
   DealModel,
   InsertDealModel,
+  ClosingItem,
+  InsertClosingItem,
+  SyndicateBookEntry,
+  InsertSyndicateBook,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -82,6 +86,13 @@ export interface IStorage {
   // Audit Logs
   createLog(log: InsertLog): Promise<Log>;
   listLogsByDeal(dealId: string, limit?: number): Promise<Log[]>;
+  getEngagementAnalytics(dealId: string, days?: number): Promise<{
+    documentViews: { documentId: string; documentName: string; viewCount: number }[];
+    engagementByTier: { tier: string; count: number }[];
+    activityTrend: { date: string; count: number }[];
+    topLenders: { lenderId: string; lenderName: string; activityCount: number }[];
+    recentActivity: Log[];
+  }>;
 
   // Deal Models
   listDealModelsByDeal(dealId: string): Promise<DealModel[]>;
@@ -89,6 +100,21 @@ export interface IStorage {
   createDealModel(model: InsertDealModel): Promise<DealModel>;
   updateDealModel(id: string, model: Partial<InsertDealModel>): Promise<DealModel | undefined>;
   publishDealModel(id: string, userId: string): Promise<DealModel | undefined>;
+
+  // Closing Items
+  listClosingItemsByDeal(dealId: string): Promise<ClosingItem[]>;
+  getClosingItem(id: string): Promise<ClosingItem | undefined>;
+  createClosingItem(item: InsertClosingItem): Promise<ClosingItem>;
+  updateClosingItem(id: string, item: Partial<InsertClosingItem>): Promise<ClosingItem | undefined>;
+  deleteClosingItem(id: string): Promise<boolean>;
+
+  // Syndicate Book
+  listSyndicateBookByDeal(dealId: string): Promise<SyndicateBookEntry[]>;
+  getSyndicateBookEntry(id: string): Promise<SyndicateBookEntry | undefined>;
+  getSyndicateBookEntryByDealAndLender(dealId: string, lenderId: string): Promise<SyndicateBookEntry | undefined>;
+  createSyndicateBookEntry(entry: InsertSyndicateBook): Promise<SyndicateBookEntry>;
+  updateSyndicateBookEntry(id: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry | undefined>;
+  upsertSyndicateBookEntry(dealId: string, lenderId: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -334,6 +360,103 @@ export class DrizzleStorage implements IStorage {
       .limit(limit);
   }
 
+  async getEngagementAnalytics(dealId: string, days: number = 7): Promise<{
+    documentViews: { documentId: string; documentName: string; viewCount: number }[];
+    engagementByTier: { tier: string; count: number }[];
+    activityTrend: { date: string; count: number }[];
+    topLenders: { lenderId: string; lenderName: string; activityCount: number }[];
+    recentActivity: Log[];
+  }> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    // Get all logs for the deal within the time range
+    const logs = await db
+      .select()
+      .from(schema.logs)
+      .where(
+        and(
+          eq(schema.logs.dealId, dealId),
+          gte(schema.logs.createdAt, cutoffDate)
+        )
+      )
+      .orderBy(desc(schema.logs.createdAt));
+
+    // Document views aggregation
+    const docViewsMap = new Map<string, { documentId: string; documentName: string; viewCount: number }>();
+    logs.filter(l => l.action === 'view_document' || l.action === 'download_doc').forEach(log => {
+      const docId = log.resourceId || 'unknown';
+      const docName = (log.metadata as any)?.documentName || docId;
+      const existing = docViewsMap.get(docId);
+      if (existing) {
+        existing.viewCount++;
+      } else {
+        docViewsMap.set(docId, { documentId: docId, documentName: docName, viewCount: 1 });
+      }
+    });
+    const documentViews = Array.from(docViewsMap.values())
+      .sort((a, b) => b.viewCount - a.viewCount)
+      .slice(0, 5);
+
+    // Engagement by tier
+    const tierMap = new Map<string, number>();
+    for (const log of logs) {
+      const tier = (log.metadata as any)?.accessTier || 'unknown';
+      tierMap.set(tier, (tierMap.get(tier) || 0) + 1);
+    }
+    const engagementByTier = Array.from(tierMap.entries()).map(([tier, count]) => ({ tier, count }));
+
+    // Activity trend (group by date)
+    const trendMap = new Map<string, number>();
+    for (let i = 0; i < days; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      trendMap.set(dateStr, 0);
+    }
+    logs.forEach(log => {
+      const dateStr = log.createdAt.toISOString().split('T')[0];
+      if (trendMap.has(dateStr)) {
+        trendMap.set(dateStr, (trendMap.get(dateStr) || 0) + 1);
+      }
+    });
+    const activityTrend = Array.from(trendMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Top lenders by activity (limit to 3)
+    const lenderActivityMap = new Map<string, number>();
+    logs.filter(l => l.lenderId).forEach(log => {
+      const lenderId = log.lenderId!;
+      lenderActivityMap.set(lenderId, (lenderActivityMap.get(lenderId) || 0) + 1);
+    });
+
+    const topLenderIds = Array.from(lenderActivityMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    const topLenders: { lenderId: string; lenderName: string; activityCount: number }[] = [];
+    for (const [lenderId, count] of topLenderIds) {
+      const lender = await this.getLender(lenderId);
+      topLenders.push({
+        lenderId,
+        lenderName: lender ? `${lender.firstName} ${lender.lastName}` : 'Unknown',
+        activityCount: count
+      });
+    }
+
+    // Recent activity (last 10)
+    const recentActivity = logs.slice(0, 10);
+
+    return {
+      documentViews,
+      engagementByTier,
+      activityTrend,
+      topLenders,
+      recentActivity
+    };
+  }
+
   // Deal Models
   async listDealModelsByDeal(dealId: string): Promise<DealModel[]> {
     return db
@@ -371,6 +494,93 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.dealModels.id, id))
       .returning();
     return results[0];
+  }
+
+  // Closing Items
+  async listClosingItemsByDeal(dealId: string): Promise<ClosingItem[]> {
+    return db
+      .select()
+      .from(schema.closingItems)
+      .where(eq(schema.closingItems.dealId, dealId))
+      .orderBy(schema.closingItems.createdAt);
+  }
+
+  async getClosingItem(id: string): Promise<ClosingItem | undefined> {
+    const results = await db.select().from(schema.closingItems).where(eq(schema.closingItems.id, id));
+    return results[0];
+  }
+
+  async createClosingItem(item: InsertClosingItem): Promise<ClosingItem> {
+    const results = await db.insert(schema.closingItems).values(item).returning();
+    return results[0];
+  }
+
+  async updateClosingItem(id: string, item: Partial<InsertClosingItem>): Promise<ClosingItem | undefined> {
+    const results = await db
+      .update(schema.closingItems)
+      .set({ ...item, updatedAt: new Date() })
+      .where(eq(schema.closingItems.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteClosingItem(id: string): Promise<boolean> {
+    const results = await db
+      .delete(schema.closingItems)
+      .where(eq(schema.closingItems.id, id))
+      .returning();
+    return results.length > 0;
+  }
+
+  // Syndicate Book
+  async listSyndicateBookByDeal(dealId: string): Promise<SyndicateBookEntry[]> {
+    return db
+      .select()
+      .from(schema.syndicateBook)
+      .where(eq(schema.syndicateBook.dealId, dealId))
+      .orderBy(desc(schema.syndicateBook.lastUpdatedAt));
+  }
+
+  async getSyndicateBookEntry(id: string): Promise<SyndicateBookEntry | undefined> {
+    const results = await db.select().from(schema.syndicateBook).where(eq(schema.syndicateBook.id, id));
+    return results[0];
+  }
+
+  async getSyndicateBookEntryByDealAndLender(dealId: string, lenderId: string): Promise<SyndicateBookEntry | undefined> {
+    const results = await db
+      .select()
+      .from(schema.syndicateBook)
+      .where(and(eq(schema.syndicateBook.dealId, dealId), eq(schema.syndicateBook.lenderId, lenderId)));
+    return results[0];
+  }
+
+  async createSyndicateBookEntry(entry: InsertSyndicateBook): Promise<SyndicateBookEntry> {
+    const results = await db.insert(schema.syndicateBook).values(entry).returning();
+    return results[0];
+  }
+
+  async updateSyndicateBookEntry(id: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry | undefined> {
+    const results = await db
+      .update(schema.syndicateBook)
+      .set({ ...entry, lastUpdatedAt: new Date() })
+      .where(eq(schema.syndicateBook.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async upsertSyndicateBookEntry(dealId: string, lenderId: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry> {
+    const existing = await this.getSyndicateBookEntryByDealAndLender(dealId, lenderId);
+    if (existing) {
+      const updated = await this.updateSyndicateBookEntry(existing.id, entry);
+      return updated!;
+    } else {
+      return this.createSyndicateBookEntry({
+        dealId,
+        lenderId,
+        status: entry.status || "invited",
+        ...entry,
+      } as InsertSyndicateBook);
+    }
   }
 }
 

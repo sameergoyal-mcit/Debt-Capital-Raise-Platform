@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  FileText, 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
   MessageSquare,
   Upload,
   Download,
@@ -18,7 +19,8 @@ import {
   Eye,
   FileUp,
   History,
-  X
+  X,
+  Shield
 } from "lucide-react";
 import { mockDocuments, Document, DocumentCategory } from "@/data/documents";
 import { parseISO, formatDistanceToNow, format } from "date-fns";
@@ -421,10 +423,18 @@ export default function DocumentsPage() {
           </div>
         </div>
 
+        {/* Security Notice */}
+        <Alert className="bg-primary/5 border-primary/20">
+          <Shield className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm">
+            <span className="font-medium">Security Notice:</span> All documents are dynamically watermarked with your identity for protection. Downloads are tracked and logged.
+          </AlertDescription>
+        </Alert>
+
         <Tabs defaultValue="files" className="flex-1 min-h-0 flex flex-col">
           <TabsList className="w-fit mb-4">
             <TabsTrigger value="files">Files {isInvestor ? "" : "& Redlines"}</TabsTrigger>
-            {!isInvestor && <TabsTrigger value="access">Investor Access Logs</TabsTrigger>}
+            {!isInvestor && <TabsTrigger value="access">Lender Access Logs</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="files" className="flex-1 min-h-0 mt-0">
@@ -683,7 +693,7 @@ export default function DocumentsPage() {
           <TabsContent value="access" className="flex-1 min-h-0">
              <Card className="border-border/60 shadow-sm h-full overflow-y-auto">
                 <CardHeader>
-                  <CardTitle>Investor Access Activity</CardTitle>
+                  <CardTitle>Lender Access Activity</CardTitle>
                   <CardDescription>Track who has viewed and downloaded data room files.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">

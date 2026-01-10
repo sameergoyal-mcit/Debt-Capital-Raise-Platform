@@ -69,7 +69,7 @@ export default function SubmitCommitment() {
             <div className="flex flex-col items-center justify-center h-[60vh] text-center">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
               <h2 className="text-xl font-bold">Access Denied</h2>
-              <p className="text-muted-foreground mt-2">Only accredited investors can submit commitments.</p>
+              <p className="text-muted-foreground mt-2">Only accredited lenders can submit indications.</p>
               <Button className="mt-6" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
                 Return to Overview
               </Button>
@@ -83,7 +83,7 @@ export default function SubmitCommitment() {
           <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
             <ArrowLeft className="h-4 w-4" /> Back to Deal
           </Button>
-          <h1 className="text-2xl font-semibold text-primary">Submit Commitment</h1>
+          <h1 className="text-2xl font-semibold text-primary">Submit Indication</h1>
           <p className="text-muted-foreground">
             {deal.dealName} • {deal.instrument} • Target: ${(deal.targetSize / 1000000).toFixed(0)}M
           </p>
@@ -234,7 +234,7 @@ export default function SubmitCommitment() {
                 {user.lenderId && <span className="ml-1">({user.lenderId})</span>}
               </div>
               <Button onClick={handleSubmit} disabled={isSubmitting} className="min-w-[150px]">
-                {isSubmitting ? "Submitting..." : isDecline ? "Submit Decline" : ticketType === "firm" ? "Submit Firm Bid" : "Submit Indication"}
+                {isSubmitting ? "Submitting..." : isDecline ? "Submit Decline" : ticketType === "firm" ? "Submit Firm Commitment" : "Submit Indication (IOI)"}
               </Button>
             </CardFooter>
           </Card>

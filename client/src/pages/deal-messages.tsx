@@ -329,7 +329,7 @@ export default function DealMessagesPage() {
                      data-testid="filter-deal-process"
                      className={cn("text-[10px] px-2 py-1 rounded-sm transition-all", filterType === "deal_process" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                    >
-                     Deal Process
+                     Process / Logistics
                    </button>
                  </div>
               </div>
@@ -387,7 +387,7 @@ export default function DealMessagesPage() {
                                    "mt-1 text-[10px] gap-1 px-1.5 h-5 font-normal",
                                    isMe ? "bg-primary-foreground/10 text-muted-foreground border-primary/20" : "bg-background/50 border-border/50"
                                )}>
-                                   <MessageCircle className="h-3 w-3" /> Deal Process
+                                   <MessageCircle className="h-3 w-3" /> Process / Logistics
                                </Badge>
                            )}
 
@@ -414,7 +414,7 @@ export default function DealMessagesPage() {
                             <SelectContent>
                                 <SelectItem value="deal_process">
                                     <div className="flex items-center gap-2">
-                                        <MessageCircle className="h-3 w-3" /> Deal Process Related
+                                        <MessageCircle className="h-3 w-3" /> Process / Logistics
                                     </div>
                                 </SelectItem>
                                 <SelectItem value="due_diligence">

@@ -247,3 +247,55 @@ export const insertDealModelSchema = createInsertSchema(dealModels).omit({
 });
 export type InsertDealModel = z.infer<typeof insertDealModelSchema>;
 export type DealModel = typeof dealModels.$inferSelect;
+
+// Closing Items Table - Conditions Precedent for deal closing
+export const closingItems = pgTable("closing_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  description: text("description").notNull(), // e.g. "Insurance Cert", "Legal Opinion"
+  status: text("status").notNull().default("pending"), // pending, uploaded, approved
+  fileId: varchar("file_id").references(() => documents.id), // optional linked document
+  category: text("category").notNull().default("general"), // legal, financial, insurance, compliance, other
+  requiredBy: text("required_by"), // Who requires this item (e.g. "Agent", "Lender Group")
+  dueDate: text("due_date"),
+  notes: text("notes"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertClosingItemSchema = createInsertSchema(closingItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertClosingItem = z.infer<typeof insertClosingItemSchema>;
+export type ClosingItem = typeof closingItems.$inferSelect;
+
+// Syndicate Book Table - Internal tracking for bookrunners/issuers
+export const syndicateBook = pgTable("syndicate_book", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  lenderId: varchar("lender_id").notNull().references(() => lenders.id),
+  status: text("status").notNull().default("invited"), // invited, interested, ioi_submitted, soft_circled, firm_committed, allocated, declined
+  indicatedAmount: numeric("indicated_amount"), // IOI amount
+  firmCommitmentAmount: numeric("firm_commitment_amount"), // Firm commitment amount
+  allocatedAmount: numeric("allocated_amount"), // Final allocation
+  spreadBps: integer("spread_bps"), // Spread in basis points
+  internalNotes: text("internal_notes"), // Private notes (never shown to investors)
+  lastUpdatedBy: varchar("last_updated_by").references(() => users.id),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertSyndicateBookSchema = createInsertSchema(syndicateBook).omit({
+  id: true,
+  createdAt: true,
+  lastUpdatedAt: true,
+});
+export type InsertSyndicateBook = z.infer<typeof insertSyndicateBookSchema>;
+export type SyndicateBookEntry = typeof syndicateBook.$inferSelect;

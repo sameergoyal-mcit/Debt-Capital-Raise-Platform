@@ -47,8 +47,8 @@ const emptyStateConfig: Record<EmptyStateType, {
     title: "No Questions Yet",
     description: {
       Investor: "Have a question about this deal? Submit it here for a response from the deal team.",
-      Issuer: "Investor due diligence questions will be tracked here.",
-      Bookrunner: "Investor due diligence questions will be tracked here."
+      Issuer: "Lender diligence questions will be tracked here.",
+      Bookrunner: "Lender diligence questions will be tracked here."
     }
   },
   documents: {
@@ -56,8 +56,8 @@ const emptyStateConfig: Record<EmptyStateType, {
     title: "No Documents Available",
     description: {
       Investor: "Documents will appear here once uploaded to the data room.",
-      Issuer: "Upload documents to make them available to investors.",
-      Bookrunner: "Upload documents to make them available to investors."
+      Issuer: "Upload documents to make them available to lenders.",
+      Bookrunner: "Upload documents to make them available to lenders."
     }
   },
   invitations: {
@@ -74,8 +74,8 @@ const emptyStateConfig: Record<EmptyStateType, {
     title: "No Messages Yet",
     description: {
       Investor: "Start a conversation with the deal team.",
-      Issuer: "Investor messages will appear here.",
-      Bookrunner: "Investor messages will appear here."
+      Issuer: "Lender messages will appear here.",
+      Bookrunner: "Lender messages will appear here."
     }
   },
   activity: {

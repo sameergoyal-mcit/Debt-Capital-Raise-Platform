@@ -213,7 +213,7 @@ export default function AuditTrail() {
               <p className="text-sm mt-1">
                 {searchTerm || actionFilter !== "all" 
                   ? "Try adjusting your filters" 
-                  : "Investor activity will appear here"
+                  : "Lender activity will appear here"
                 }
               </p>
             </div>
@@ -223,7 +223,7 @@ export default function AuditTrail() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[180px]">Time</TableHead>
-                    <TableHead>Investor</TableHead>
+                    <TableHead>Lender</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Details</TableHead>

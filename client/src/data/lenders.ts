@@ -2,7 +2,29 @@ import { differenceInDays, parseISO } from "date-fns";
 
 export type LenderType = "Direct Lender" | "CLO" | "Insurance" | "Bank" | "BDC" | "Credit Fund";
 
-export type LenderStatus = "Not Contacted" | "NDA Sent" | "NDA Signed" | "LP Viewed" | "IOI" | "Firm" | "Declined";
+export type LenderStatus = "invited" | "interested" | "ioi_submitted" | "soft_circled" | "firm_committed" | "allocated" | "declined";
+
+// Status display labels for UI
+export const LenderStatusLabels: Record<LenderStatus, string> = {
+  invited: "Invited",
+  interested: "Interested",
+  ioi_submitted: "IOI Submitted",
+  soft_circled: "Soft Circled",
+  firm_committed: "Firm Committed",
+  allocated: "Allocated",
+  declined: "Declined",
+};
+
+// Status progression order (for sorting and filtering)
+export const LenderStatusOrder: LenderStatus[] = [
+  "invited",
+  "interested",
+  "ioi_submitted",
+  "soft_circled",
+  "firm_committed",
+  "allocated",
+  "declined",
+];
 
 export interface Interaction {
   id: string;
@@ -48,25 +70,25 @@ export function computeSeriousnessScore(lender: Lender): number {
 
   // Base score from status
   switch (lender.status) {
-    case "Firm":
-      score += 30;
+    case "allocated":
+      score += 40;
       break;
-    case "IOI":
+    case "firm_committed":
+      score += 35;
+      break;
+    case "soft_circled":
+      score += 25;
+      break;
+    case "ioi_submitted":
       score += 20;
       break;
-    case "LP Viewed":
-      score += 15;
-      break;
-    case "NDA Signed":
+    case "interested":
       score += 10;
       break;
-    case "NDA Sent":
+    case "invited":
       score += 5;
       break;
-    case "Not Contacted":
-      score += 0;
-      break;
-    case "Declined":
+    case "declined":
       return 0; // Immediate 0
   }
 
@@ -90,7 +112,7 @@ export const mockLenders: Lender[] = [
     id: "1",
     name: "BlackRock Credit",
     type: "Direct Lender" as LenderType,
-    status: "Firm" as LenderStatus,
+    status: "allocated" as LenderStatus,
     ticketMin: 10000000,
     ticketMax: 25000000,
     pricingBps: 625,
@@ -117,7 +139,7 @@ export const mockLenders: Lender[] = [
     id: "2",
     name: "Apollo Global",
     type: "Direct Lender" as LenderType,
-    status: "IOI" as LenderStatus,
+    status: "soft_circled" as LenderStatus,
     ticketMin: 15000000,
     ticketMax: 30000000,
     pricingBps: 650,
@@ -143,7 +165,7 @@ export const mockLenders: Lender[] = [
     id: "3",
     name: "Oak Hill Advisors",
     type: "Credit Fund" as LenderType,
-    status: "LP Viewed" as LenderStatus,
+    status: "interested" as LenderStatus,
     ticketMin: 5000000,
     ticketMax: 15000000,
     lastContactAt: new Date(Date.now() - 86400000 * 5).toISOString(),
@@ -157,13 +179,13 @@ export const mockLenders: Lender[] = [
   {
     id: "4",
     name: "Barings",
-    type: "Credit Fund" as LenderType, // Asset managers mapped to Credit Fund
-    status: "NDA Signed" as LenderStatus,
+    type: "Credit Fund" as LenderType,
+    status: "interested" as LenderStatus,
     ticketMin: 5000000,
     ticketMax: 10000000,
-    lastContactAt: new Date(Date.now() - 86400000 * 8).toISOString(), // > 7 days
+    lastContactAt: new Date(Date.now() - 86400000 * 8).toISOString(),
     owner: "Michael Ross",
-    notes: "Signed NDA, waiting for data room access.",
+    notes: "Signed NDA, reviewing materials.",
     interactions: [
       { id: "i5", date: new Date(Date.now() - 86400000 * 8).toISOString(), type: "Email" as const, note: "NDA Signed returned.", user: "Michael Ross" }
     ],
@@ -173,7 +195,7 @@ export const mockLenders: Lender[] = [
     id: "5",
     name: "Golub Capital",
     type: "BDC" as LenderType,
-    status: "Firm" as LenderStatus,
+    status: "firm_committed" as LenderStatus,
     ticketMin: 10000000,
     ticketMax: 20000000,
     pricingBps: 625,
@@ -187,7 +209,7 @@ export const mockLenders: Lender[] = [
     id: "6",
     name: "Ares Management",
     type: "Direct Lender" as LenderType,
-    status: "IOI" as LenderStatus,
+    status: "ioi_submitted" as LenderStatus,
     ticketMin: 20000000,
     ticketMax: 50000000,
     pricingBps: 600,
@@ -201,7 +223,7 @@ export const mockLenders: Lender[] = [
     id: "7",
     name: "KKR Credit",
     type: "CLO" as LenderType,
-    status: "Declined" as LenderStatus,
+    status: "declined" as LenderStatus,
     ticketMin: 0,
     ticketMax: 0,
     lastContactAt: new Date(Date.now() - 86400000 * 10).toISOString(),
@@ -214,7 +236,7 @@ export const mockLenders: Lender[] = [
     id: "8",
     name: "HPS Investment Partners",
     type: "Credit Fund" as LenderType,
-    status: "LP Viewed" as LenderStatus,
+    status: "ioi_submitted" as LenderStatus,
     ticketMin: 10000000,
     ticketMax: 20000000,
     lastContactAt: new Date(Date.now() - 86400000 * 1).toISOString(),
@@ -227,7 +249,7 @@ export const mockLenders: Lender[] = [
     id: "9",
     name: "Sixth Street",
     type: "Insurance" as LenderType,
-    status: "NDA Sent" as LenderStatus,
+    status: "invited" as LenderStatus,
     ticketMin: 15000000,
     ticketMax: 30000000,
     lastContactAt: new Date(Date.now() - 86400000 * 6).toISOString(),
@@ -240,7 +262,7 @@ export const mockLenders: Lender[] = [
     id: "10",
     name: "JPMorgan",
     type: "Bank" as LenderType,
-    status: "Not Contacted" as LenderStatus,
+    status: "invited" as LenderStatus,
     ticketMin: 5000000,
     ticketMax: 15000000,
     lastContactAt: new Date(Date.now() - 86400000 * 15).toISOString(),
