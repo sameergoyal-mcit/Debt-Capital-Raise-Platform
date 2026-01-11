@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -41,8 +42,12 @@ import { mockLenders, LenderStatusLabels, type LenderStatus } from "@/data/lende
 import { getDealInvitations } from "@/data/invitations";
 import { mockDeals } from "@/data/deals";
 
+export type SyndicateBookFilter = "all" | "no_ioi" | "firm_committed" | "soft_circled";
+
 interface SyndicateBookProps {
   dealId: string;
+  filter?: SyndicateBookFilter;
+  onClearFilter?: () => void;
 }
 
 interface SyndicateBookEntry {
@@ -70,7 +75,7 @@ const SYNDICATE_STATUSES: { value: LenderStatus; label: string }[] = [
   { value: "declined", label: "Declined" },
 ];
 
-export function SyndicateBook({ dealId }: SyndicateBookProps) {
+export function SyndicateBook({ dealId, filter = "all", onClearFilter }: SyndicateBookProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -173,6 +178,28 @@ export function SyndicateBook({ dealId }: SyndicateBookProps) {
     };
   }, [entries, deal]);
 
+  // Filter entries based on filter prop
+  const filteredEntries = useMemo(() => {
+    if (filter === "all") return entries;
+
+    return entries.filter(entry => {
+      switch (filter) {
+        case "no_ioi":
+          // Lenders who have signed NDA but haven't submitted IOI
+          const inv = invitations.find(i => i.lenderId === entry.lenderId);
+          const hasNDA = inv?.ndaSignedAt;
+          const hasNoIOI = !["ioi_submitted", "soft_circled", "firm_committed", "allocated"].includes(entry.status);
+          return hasNDA && hasNoIOI;
+        case "firm_committed":
+          return entry.status === "firm_committed" || entry.status === "allocated";
+        case "soft_circled":
+          return entry.status === "soft_circled";
+        default:
+          return true;
+      }
+    });
+  }, [entries, filter, invitations]);
+
   // Get lender info with NDA status
   const getLenderInfo = (lenderId: string) => {
     const lender = mockLenders.find(l => l.id === lenderId);
@@ -248,6 +275,35 @@ export function SyndicateBook({ dealId }: SyndicateBookProps) {
           Data here is never shared with investors.
         </p>
       </div>
+
+      {/* Filter Alert Banner */}
+      {filter !== "all" && (
+        <Alert className={filter === "no_ioi" ? "bg-red-50 border-red-200" : "bg-blue-50 border-blue-200"}>
+          <AlertCircle className={`h-4 w-4 ${filter === "no_ioi" ? "text-red-600" : "text-blue-600"}`} />
+          <AlertDescription className={`text-sm flex-1 ${filter === "no_ioi" ? "text-red-800" : "text-blue-800"}`}>
+            {filter === "no_ioi" && (
+              <span className="font-medium">No Indication Received:</span>
+            )}
+            {filter === "firm_committed" && (
+              <span className="font-medium">Firm Committed Lenders</span>
+            )}
+            {filter === "soft_circled" && (
+              <span className="font-medium">Soft Circled Lenders</span>
+            )}
+            {" "}Showing {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}.
+          </AlertDescription>
+          {onClearFilter && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClearFilter}
+              className="ml-auto shrink-0"
+            >
+              Clear Filter
+            </Button>
+          )}
+        </Alert>
+      )}
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -335,16 +391,25 @@ export function SyndicateBook({ dealId }: SyndicateBookProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.length === 0 ? (
+              {filteredEntries.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <AlertCircle className="h-8 w-8 mx-auto mb-3 text-muted-foreground/50" />
-                    <p className="font-medium">No entries in syndicate book</p>
-                    <p className="text-sm">Invite lenders to the deal to start tracking.</p>
+                    {entries.length === 0 ? (
+                      <>
+                        <p className="font-medium">No entries in syndicate book</p>
+                        <p className="text-sm">Invite lenders to the deal to start tracking.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium">No matching entries</p>
+                        <p className="text-sm">No lenders match the current filter criteria.</p>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
-                entries.map((entry) => {
+                filteredEntries.map((entry) => {
                   const lenderInfo = getLenderInfo(entry.lenderId);
                   const isEditing = editingId === entry.id;
 

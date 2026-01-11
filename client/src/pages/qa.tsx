@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { Link, useRoute, useLocation } from "wouter";
+import React, { useState, useMemo, useEffect } from "react";
+import { Link, useRoute, useLocation, useSearch } from "wouter";
 import {
   Search,
   Filter,
@@ -57,15 +57,45 @@ import { formatDistanceToNow, parseISO, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { downloadCSV } from "@/lib/download";
 
+export type QAFilter = "all" | "open" | "draft_ready" | "answered" | "awaiting_draft";
+
 export default function QACenter() {
   const [, params] = useRoute("/deal/:id/qa");
   const dealId = params?.id || "101";
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const searchString = useSearch();
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(prev => prev + 1);
+
+  // Parse filter from URL query params
+  const getFilterFromUrl = (): QAFilter => {
+    const params = new URLSearchParams(searchString);
+    const filter = params.get("filter");
+    if (filter === "open" || filter === "draft_ready" || filter === "answered" || filter === "awaiting_draft") {
+      return filter;
+    }
+    return "all";
+  };
+
+  const [activeFilter, setActiveFilter] = useState<QAFilter>(getFilterFromUrl());
+
+  // Sync filter state with URL changes
+  useEffect(() => {
+    setActiveFilter(getFilterFromUrl());
+  }, [searchString]);
+
+  // Update URL when filter changes
+  const handleFilterChange = (filter: QAFilter) => {
+    setActiveFilter(filter);
+    if (filter === "all") {
+      navigate(`/deal/${dealId}/qa`);
+    } else {
+      navigate(`/deal/${dealId}/qa?filter=${filter}`);
+    }
+  };
 
   const isInvestor = user?.role === "Investor";
   const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
@@ -73,7 +103,8 @@ export default function QACenter() {
   const currentDeal = mockDeals.find(d => d.id === dealId);
   const availableDeals = mockDeals;
 
-  const qaItems = useMemo(() => {
+  // Get all items first for counts
+  const allQaItems = useMemo(() => {
     const items = getQAs(dealId, isInvestor ? user?.lenderId : undefined);
     return items.sort((a, b) => {
       const aDate = a.answerUpdatedAt || a.questionCreatedAt;
@@ -81,6 +112,47 @@ export default function QACenter() {
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
   }, [dealId, user, isInvestor, refreshKey]);
+
+  // Filter items based on active filter
+  const qaItems = useMemo(() => {
+    switch (activeFilter) {
+      case "open":
+        // qa.status == "open"
+        return allQaItems.filter(q => q.status === "open");
+      case "draft_ready":
+        // qa.draftStatus == "ready" AND !qa.submittedAnswer (issuer/bookrunner only)
+        return allQaItems.filter(q =>
+          q.draftStatus === "ready" &&
+          (!q.submittedAnswer || q.submittedAnswer.trim() === "")
+        );
+      case "answered":
+        // qa.status == "answered" OR !!qa.submittedAnswer
+        return allQaItems.filter(q =>
+          q.status === "answered" ||
+          q.status === "closed" ||
+          (q.submittedAnswer && q.submittedAnswer.trim() !== "")
+        );
+      case "awaiting_draft":
+        return allQaItems.filter(q => q.draftStatus === "none" || q.draftStatus === "generating");
+      default:
+        return allQaItems;
+    }
+  }, [allQaItems, activeFilter]);
+
+  // Compute counts for status chips
+  const statusCounts = useMemo(() => ({
+    all: allQaItems.length,
+    open: allQaItems.filter(q => q.status === "open").length,
+    draft_ready: allQaItems.filter(q =>
+      q.draftStatus === "ready" &&
+      (!q.submittedAnswer || q.submittedAnswer.trim() === "")
+    ).length,
+    answered: allQaItems.filter(q =>
+      q.status === "answered" ||
+      q.status === "closed" ||
+      (q.submittedAnswer && q.submittedAnswer.trim() !== "")
+    ).length
+  }), [allQaItems]);
 
   const handleDealChange = (newDealId: string) => {
     navigate(`/deal/${newDealId}/qa`);
@@ -146,6 +218,39 @@ export default function QACenter() {
           </div>
         </div>
 
+        {/* Status Summary Chips - Clickable filters */}
+        <div className="flex flex-wrap gap-2">
+          <StatusChip
+            label="All"
+            count={statusCounts.all}
+            active={activeFilter === "all"}
+            onClick={() => handleFilterChange("all")}
+          />
+          <StatusChip
+            label="Open"
+            count={statusCounts.open}
+            active={activeFilter === "open"}
+            onClick={() => handleFilterChange("open")}
+            variant="warning"
+          />
+          {isInternal && (
+            <StatusChip
+              label="Draft Ready"
+              count={statusCounts.draft_ready}
+              active={activeFilter === "draft_ready"}
+              onClick={() => handleFilterChange("draft_ready")}
+              variant="info"
+            />
+          )}
+          <StatusChip
+            label="Answered"
+            count={statusCounts.answered}
+            active={activeFilter === "answered"}
+            onClick={() => handleFilterChange("answered")}
+            variant="success"
+          />
+        </div>
+
         <div className="grid gap-6 md:grid-cols-4">
           {/* Stats / Filters */}
           <div className="space-y-4 col-span-1">
@@ -154,11 +259,35 @@ export default function QACenter() {
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Status</h3>
                   <div className="space-y-1">
-                    <FilterItem label="All Questions" count={qaItems.length} active />
-                    <FilterItem label="Open" count={qaItems.filter(q => q.status === 'open').length} dot="bg-red-500" />
-                    {!isInvestor && <FilterItem label="Draft Ready" count={qaItems.filter(q => q.draftStatus === 'ready' && q.status !== 'answered').length} dot="bg-amber-500" />}
-                    {!isInvestor && <FilterItem label="Awaiting Draft" count={qaItems.filter(q => q.draftStatus === 'none' || q.draftStatus === 'generating').length} dot="bg-gray-400" />}
-                    <FilterItem label="Submitted/Answered" count={qaItems.filter(q => q.status === 'answered' || q.status === 'closed').length} dot="bg-green-500" />
+                    <FilterItem
+                      label="All Questions"
+                      count={statusCounts.all}
+                      active={activeFilter === "all"}
+                      onClick={() => handleFilterChange("all")}
+                    />
+                    <FilterItem
+                      label="Open"
+                      count={statusCounts.open}
+                      dot="bg-red-500"
+                      active={activeFilter === "open"}
+                      onClick={() => handleFilterChange("open")}
+                    />
+                    {isInternal && (
+                      <FilterItem
+                        label="Draft Ready"
+                        count={statusCounts.draft_ready}
+                        dot="bg-amber-500"
+                        active={activeFilter === "draft_ready"}
+                        onClick={() => handleFilterChange("draft_ready")}
+                      />
+                    )}
+                    <FilterItem
+                      label="Answered"
+                      count={statusCounts.answered}
+                      dot="bg-green-500"
+                      active={activeFilter === "answered"}
+                      onClick={() => handleFilterChange("answered")}
+                    />
                   </div>
                 </div>
 
@@ -170,7 +299,7 @@ export default function QACenter() {
                         <FilterItem
                           key={src}
                           label={MaterialSourceLabels[src]}
-                          count={qaItems.filter(q => q.materialSource === src).length}
+                          count={allQaItems.filter(q => q.materialSource === src).length}
                         />
                       ))}
                     </div>
@@ -180,9 +309,9 @@ export default function QACenter() {
                 <div className="space-y-2 pt-4 border-t border-border">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Topics</h3>
                    <div className="space-y-1">
-                    <FilterItem label="Financials" count={qaItems.filter(q => q.topic === 'Financials' || q.category === 'Financials').length} />
-                    <FilterItem label="Legal" count={qaItems.filter(q => q.topic === 'Legal' || q.category === 'Legal / Documentation').length} />
-                    <FilterItem label="Commercial" count={qaItems.filter(q => q.topic === 'Commercial' || q.category === 'Commercial').length} />
+                    <FilterItem label="Financials" count={allQaItems.filter(q => q.topic === 'Financials' || q.category === 'Financials').length} />
+                    <FilterItem label="Legal" count={allQaItems.filter(q => q.topic === 'Legal' || q.category === 'Legal / Documentation').length} />
+                    <FilterItem label="Commercial" count={allQaItems.filter(q => q.topic === 'Commercial' || q.category === 'Commercial').length} />
                   </div>
                 </div>
               </CardContent>
@@ -235,17 +364,92 @@ export default function QACenter() {
   );
 }
 
-function FilterItem({ label, count, active, dot }: { label: string; count: number; active?: boolean; dot?: string }) {
+function StatusChip({
+  label,
+  count,
+  active,
+  onClick,
+  variant = "default"
+}: {
+  label: string;
+  count: number;
+  active?: boolean;
+  onClick: () => void;
+  variant?: "default" | "warning" | "info" | "success";
+}) {
+  const variantStyles = {
+    default: active
+      ? "bg-primary text-primary-foreground border-primary"
+      : "bg-background text-foreground border-border hover:bg-secondary",
+    warning: active
+      ? "bg-red-500 text-white border-red-500"
+      : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
+    info: active
+      ? "bg-amber-500 text-white border-amber-500"
+      : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+    success: active
+      ? "bg-green-500 text-white border-green-500"
+      : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+  };
+
   return (
-    <div className={cn(
-      "flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-sm",
-      active ? "bg-secondary text-primary font-medium" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-    )}>
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-all",
+        variantStyles[variant]
+      )}
+    >
+      {label}
+      <span className={cn(
+        "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold",
+        active
+          ? "bg-white/20 text-inherit"
+          : variant === "default"
+            ? "bg-muted text-muted-foreground"
+            : "bg-white/50"
+      )}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function FilterItem({
+  label,
+  count,
+  active,
+  dot,
+  onClick
+}: {
+  label: string;
+  count: number;
+  active?: boolean;
+  dot?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between p-2 rounded-md transition-colors text-sm",
+        onClick ? "cursor-pointer" : "",
+        active ? "bg-secondary text-primary font-medium" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="flex items-center gap-2">
         {dot && <div className={cn("h-2 w-2 rounded-full", dot)} />}
         {label}
       </div>
-      <span className="text-xs opacity-70 bg-background border border-border px-1.5 py-0.5 rounded-full">{count}</span>
+      <span className={cn(
+        "text-xs bg-background border border-border px-1.5 py-0.5 rounded-full",
+        active ? "opacity-100" : "opacity-70"
+      )}>
+        {count}
+      </span>
     </div>
   );
 }

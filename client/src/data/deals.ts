@@ -1,4 +1,5 @@
 import { differenceInDays, parseISO } from "date-fns";
+import type { DealStageId } from "@/lib/deal-stages";
 
 export type DealStage = "Pre-Launch" | "NDA" | "Lender Presentation" | "Due Diligence" | "Indication of Interest" | "Signing" | "Allocation" | "Closing";
 export type DealStatus = "Active" | "Diligence" | "Closing" | "Closed" | "Paused" | "At Risk";
@@ -55,6 +56,17 @@ export interface Deal {
   ioiDate?: string; // ISO date
   commitmentDate?: string; // ISO date
   sponsor: string;
+
+  // Stage machine fields
+  stageOverride?: DealStageId;
+  ndaDeadline?: string; // ISO date
+  ioiDeadline?: string; // ISO date - explicit IOI deadline
+  expectedAllocationDate?: string; // ISO date
+  expectedCloseDate?: string; // ISO date
+
+  // Internal flags for stage progression
+  allocationPlanReady?: boolean;
+  closingChecklistComplete?: boolean;
 }
 
 export const mockDeals: Deal[] = [
@@ -89,7 +101,14 @@ export const mockDeals: Deal[] = [
     hardCloseDate: "2025-07-15",
     blockersCount: 1,
     updatedAt: "2025-06-12",
-    ndaTemplateId: "nda_std_v1"
+    ndaTemplateId: "nda_std_v1",
+    // Stage machine fields
+    ioiDeadline: "2025-05-15",
+    ndaDeadline: "2025-05-10",
+    expectedAllocationDate: "2025-06-20",
+    expectedCloseDate: "2025-06-30",
+    allocationPlanReady: false,
+    closingChecklistComplete: false
   },
   {
     id: "102",

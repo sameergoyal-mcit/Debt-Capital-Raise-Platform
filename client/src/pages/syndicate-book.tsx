@@ -1,6 +1,6 @@
-import { useRoute } from "wouter";
+import { useRoute, useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { SyndicateBook } from "@/components/syndicate-book";
+import { SyndicateBook, SyndicateBookFilter } from "@/components/syndicate-book";
 import { mockDeals } from "@/data/deals";
 import { Badge } from "@/components/ui/badge";
 import { Lock } from "lucide-react";
@@ -8,7 +8,21 @@ import { Lock } from "lucide-react";
 export default function SyndicateBookPage() {
   const [, params] = useRoute("/deal/:id/syndicate-book");
   const dealId = params?.id || "101";
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
   const deal = mockDeals.find(d => d.id === dealId);
+
+  // Parse URL filter
+  const getUrlFilter = (): SyndicateBookFilter => {
+    const urlParams = new URLSearchParams(searchString);
+    const filter = urlParams.get("filter");
+    if (filter === "no_ioi" || filter === "firm_committed" || filter === "soft_circled") {
+      return filter;
+    }
+    return "all";
+  };
+
+  const urlFilter = getUrlFilter();
 
   return (
     <Layout>
@@ -30,7 +44,11 @@ export default function SyndicateBookPage() {
         </div>
 
         {/* Syndicate Book Component */}
-        <SyndicateBook dealId={dealId} />
+        <SyndicateBook
+          dealId={dealId}
+          filter={urlFilter}
+          onClearFilter={() => navigate(`/deal/${dealId}/syndicate-book`)}
+        />
       </div>
     </Layout>
   );

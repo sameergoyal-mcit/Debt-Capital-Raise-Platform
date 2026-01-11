@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import { mockDocuments } from "@/data/documents";
 import { useAuth } from "@/context/auth-context";
 import { downloadICS, downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
+import { getDealBlockers } from "@/lib/deal-blockers";
 import { useToast } from "@/hooks/use-toast";
 import { parse, format } from "date-fns";
 import {
@@ -63,10 +64,18 @@ export default function Timeline() {
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const isInvestor = user?.role === "Investor";
   const isIssuer = user?.role === "Issuer";
   const isBookrunner = user?.role === "Bookrunner";
   const canModifyTimeline = isIssuer; // Only issuer can modify
+
+  // Get computed blockers from real data
+  const blockers = getDealBlockers({
+    dealId,
+    role: (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner",
+    lenderId: user?.lenderId
+  });
 
   // Timeline state
   const [timeline, setTimeline] = useState(() => getDealTimeline(dealId));
@@ -363,22 +372,45 @@ export default function Timeline() {
             )}
 
             {/* Potential Blockers (internal only) */}
-            {!isInvestor && (
-              <Card className="border-l-4 border-l-amber-500 shadow-sm">
+            {!isInvestor && blockers.length > 0 && (
+              <Card className={`border-l-4 shadow-sm ${blockers.some(b => b.severity === "critical") ? "border-l-red-500" : "border-l-amber-500"}`}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-amber-700 text-base">
+                  <CardTitle className={`flex items-center gap-2 text-base ${blockers.some(b => b.severity === "critical") ? "text-red-700" : "text-amber-700"}`}>
                     <AlertTriangle className="h-5 w-5" /> Potential Blockers
+                    <Badge variant="outline" className={`ml-2 ${blockers.some(b => b.severity === "critical") ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                      {blockers.length}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="p-3 bg-amber-50 rounded-md border border-amber-100">
-                    <p className="text-sm font-medium text-amber-900">Quality of Earnings Report</p>
-                    <p className="text-xs text-amber-700 mt-1">Delayed by 3 days. May impact diligence access date.</p>
-                  </div>
-                  <div className="p-3 bg-secondary rounded-md border border-border">
-                    <p className="text-sm font-medium">Customer Calls</p>
-                    <p className="text-xs text-muted-foreground mt-1">Pending scheduling with top 3 accounts.</p>
-                  </div>
+                  {blockers.map((blocker) => (
+                    <div
+                      key={blocker.id}
+                      onClick={() => navigate(blocker.href)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                        blocker.severity === "critical"
+                          ? "bg-red-50 border-red-200 hover:bg-red-100"
+                          : "bg-amber-50 border-amber-200 hover:bg-amber-100"
+                      }`}
+                    >
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${
+                        blocker.severity === "critical" ? "bg-red-500 animate-pulse" : "bg-amber-500"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-medium text-sm ${
+                          blocker.severity === "critical" ? "text-red-800" : "text-amber-800"
+                        }`}>
+                          {blocker.label}
+                        </span>
+                      </div>
+                      <Badge variant="secondary" className="h-5 text-xs">
+                        {blocker.count}
+                      </Badge>
+                      <ChevronRight className={`h-4 w-4 shrink-0 ${
+                        blocker.severity === "critical" ? "text-red-400" : "text-amber-400"
+                      }`} />
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}

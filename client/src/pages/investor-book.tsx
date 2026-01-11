@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Link, useRoute } from "wouter";
+import { Link, useRoute, useSearch, useLocation } from "wouter";
 import { 
   Search, 
   Filter, 
@@ -64,6 +64,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,11 +83,37 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { emailService } from "@/lib/email-service";
 import { InviteLenderModal } from "@/components/invite-lender-modal";
 
+export type LenderBookFilter = "all" | "nda_pending" | "nda_signed" | "engaged";
+
 export default function InvestorBook() {
   const [, params] = useRoute("/deal/:id/book");
   const dealId = params?.id || "101";
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
   const { role } = useRole();
   const { toast } = useToast();
+
+  // Parse URL filter
+  const getUrlFilter = (): LenderBookFilter => {
+    const urlParams = new URLSearchParams(searchString);
+    const filter = urlParams.get("filter");
+    if (filter === "nda_pending" || filter === "nda_signed" || filter === "engaged") {
+      return filter;
+    }
+    return "all";
+  };
+
+  const [urlFilter, setUrlFilter] = useState<LenderBookFilter>(getUrlFilter());
+
+  // Sync with URL changes
+  useEffect(() => {
+    setUrlFilter(getUrlFilter());
+  }, [searchString]);
+
+  // Clear filter function
+  const clearFilter = () => {
+    navigate(`/deal/${dealId}/book`);
+  };
 
   // Get invitations for this deal and filter lenders to only show invited ones
   const [invitations, setInvitations] = useState<Invitation[]>(() => getDealInvitations(dealId));
@@ -120,13 +147,25 @@ export default function InvestorBook() {
 
   const filteredLenders = useMemo(() => {
     return lenders.filter(l => {
-      const matchesSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      const matchesSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             l.owner.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === "all" || l.status === statusFilter;
       const matchesType = typeFilter === "all" || l.type === typeFilter;
-      return matchesSearch && matchesStatus && matchesType;
+
+      // Apply URL-based filter
+      const invitation = invitations.find(inv => inv.lenderId === l.id);
+      let matchesUrlFilter = true;
+      if (urlFilter === "nda_pending") {
+        matchesUrlFilter = invitation ? (invitation.ndaRequired && !invitation.ndaSignedAt) : false;
+      } else if (urlFilter === "nda_signed") {
+        matchesUrlFilter = invitation ? !!invitation.ndaSignedAt : false;
+      } else if (urlFilter === "engaged") {
+        matchesUrlFilter = l.status === "Active" || l.status === "In Diligence";
+      }
+
+      return matchesSearch && matchesStatus && matchesType && matchesUrlFilter;
     }).sort((a, b) => b.seriousnessScore - a.seriousnessScore); // Default sort by score
-  }, [lenders, searchQuery, statusFilter, typeFilter]);
+  }, [lenders, searchQuery, statusFilter, typeFilter, urlFilter, invitations]);
 
   const handleUpdateLender = (updatedLender: Lender) => {
     setLenders(prev => prev.map(l => l.id === updatedLender.id ? updatedLender : l));
@@ -170,6 +209,33 @@ export default function InvestorBook() {
             )}
           </div>
         </div>
+
+        {/* Filter Alert Banner */}
+        {urlFilter !== "all" && (
+          <Alert className={urlFilter === "nda_pending" ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200"}>
+            <AlertCircle className={`h-4 w-4 ${urlFilter === "nda_pending" ? "text-amber-600" : "text-blue-600"}`} />
+            <AlertDescription className={`text-sm flex-1 ${urlFilter === "nda_pending" ? "text-amber-800" : "text-blue-800"}`}>
+              {urlFilter === "nda_pending" && (
+                <span className="font-medium">NDA Pending Lenders:</span>
+              )}
+              {urlFilter === "nda_signed" && (
+                <span className="font-medium">Lenders with Signed NDA</span>
+              )}
+              {urlFilter === "engaged" && (
+                <span className="font-medium">Actively Engaged Lenders</span>
+              )}
+              {" "}Showing {filteredLenders.length} lender{filteredLenders.length !== 1 ? "s" : ""}.
+            </AlertDescription>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilter}
+              className="ml-auto shrink-0"
+            >
+              Clear Filter
+            </Button>
+          </Alert>
+        )}
 
         <BookStats lenders={lenders} />
 

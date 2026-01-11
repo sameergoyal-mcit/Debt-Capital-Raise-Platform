@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useRoute, Link } from "wouter";
+import React, { useState, useEffect as useReactEffect } from "react";
+import { useRoute, Link, useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -119,9 +119,13 @@ function InteractiveModelViewerWrapper({ modelName, fileKey, dealId }: { modelNa
   );
 }
 
+export type DocumentUrlFilter = "all" | "action_required" | "required_missing";
+
 export default function DocumentsPage() {
   const [, params] = useRoute("/deal/:id/documents");
   const dealId = params?.id || "101";
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -131,6 +135,27 @@ export default function DocumentsPage() {
   const [apiDocs, setApiDocs] = useState<Document[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Parse URL filter
+  const getUrlFilter = (): DocumentUrlFilter => {
+    const urlParams = new URLSearchParams(searchString);
+    const filter = urlParams.get("filter");
+    if (filter === "action_required") return "action_required";
+    if (filter === "required_missing") return "required_missing";
+    return "all";
+  };
+
+  const [urlFilter, setUrlFilter] = useState<DocumentUrlFilter>(getUrlFilter());
+
+  // Sync with URL changes
+  useReactEffect(() => {
+    setUrlFilter(getUrlFilter());
+  }, [searchString]);
+
+  // Clear filter function
+  const clearFilter = () => {
+    navigate(`/deal/${dealId}/documents`);
+  };
 
   useEffect(() => {
     fetch(`/api/deals/${dealId}/documents`)
@@ -290,7 +315,29 @@ export default function DocumentsPage() {
     return filtered;
   };
 
-  const accessibleDocs = applyDocumentFilters(baseAccessibleDocs, filters);
+  // Required document categories for the deal
+  const REQUIRED_DOC_CATEGORIES: DocumentCategory[] = ["Lender Presentation", "Legal"];
+
+  // Check for missing required categories
+  const existingCategories = new Set(baseAccessibleDocs.map(d => d.category));
+  const missingCategories = REQUIRED_DOC_CATEGORIES.filter(cat => !existingCategories.has(cat));
+
+  // Apply URL-based filter first
+  let urlFilteredDocs = baseAccessibleDocs;
+  if (urlFilter === "action_required") {
+    urlFilteredDocs = baseAccessibleDocs.filter(d =>
+      d.status === "Comments Outstanding" ||
+      d.status === "In Review" ||
+      d.status === "Draft"
+    );
+  } else if (urlFilter === "required_missing") {
+    // For required_missing, show only docs in required categories (or all if none exist)
+    urlFilteredDocs = baseAccessibleDocs.filter(d =>
+      REQUIRED_DOC_CATEGORIES.includes(d.category)
+    );
+  }
+
+  const accessibleDocs = applyDocumentFilters(urlFilteredDocs, filters);
 
   const selectedDoc = accessibleDocs.find(d => d.id === selectedDocId) || accessibleDocs[0];
 
@@ -430,6 +477,33 @@ export default function DocumentsPage() {
             <span className="font-medium">Security Notice:</span> All documents are dynamically watermarked with your identity for protection. Downloads are tracked and logged.
           </AlertDescription>
         </Alert>
+
+        {/* Filter Alert Banner */}
+        {urlFilter !== "all" && (
+          <Alert className={urlFilter === "required_missing" ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200"}>
+            <AlertCircle className={`h-4 w-4 ${urlFilter === "required_missing" ? "text-amber-600" : "text-blue-600"}`} />
+            <AlertDescription className={`text-sm flex-1 ${urlFilter === "required_missing" ? "text-amber-800" : "text-blue-800"}`}>
+              {urlFilter === "required_missing" ? (
+                <>
+                  <span className="font-medium">Required Materials Missing:</span>{" "}
+                  {missingCategories.length > 0
+                    ? `The following required categories have no documents uploaded: ${missingCategories.join(", ")}.`
+                    : "All required document categories have been uploaded."}
+                </>
+              ) : (
+                <span className="font-medium">Showing documents requiring action</span>
+              )}
+            </AlertDescription>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilter}
+              className="ml-auto shrink-0"
+            >
+              Clear Filter
+            </Button>
+          </Alert>
+        )}
 
         <Tabs defaultValue="files" className="flex-1 min-h-0 flex flex-col">
           <TabsList className="w-fit mb-4">

@@ -1,10 +1,10 @@
 import React from "react";
-import { Link, useRoute } from "wouter";
-import { 
-  FileText, 
-  Users, 
-  CheckCircle2, 
-  Clock, 
+import { Link, useRoute, useLocation } from "wouter";
+import {
+  FileText,
+  Users,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   Download,
   Calendar,
@@ -25,7 +25,9 @@ import {
   Lock,
   Unlock,
   MoreHorizontal,
-  BarChart3
+  BarChart3,
+  Check,
+  ListChecks
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,9 @@ import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
 import { format as formatDate } from "date-fns";
 import { getTimelineProgress, getDealTimeline } from "@/data/timeline";
+import { getDealBlockers, DealBlocker, GetDealBlockersParams } from "@/lib/deal-blockers";
+import { getDealStageResultForRole, DEAL_STAGES, STAGE_ORDER, DealStageId } from "@/lib/deal-stage-engine";
+import { useAuth } from "@/context/auth-context";
 
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
@@ -72,15 +77,52 @@ export default function DealOverview() {
   const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
   const risk = computeDealRisk(deal);
   const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
-  
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+
   const [invitations, setInvitations] = useState(getDealInvitations(dealId));
   const [activeNdaId, setActiveNdaId] = useState(deal.ndaTemplateId || "nda_std_v1");
   const [isNdaDialogOpen, setIsNdaDialogOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
-  
+
   const ndaTemplate = getNDATemplate(activeNdaId);
   const { toast } = useToast();
+
+  // Get computed blockers from real data
+  const blockers = getDealBlockers({
+    dealId,
+    role: (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner",
+    lenderId: user?.lenderId
+  });
+
+  // Get stage result from stage engine
+  const stageResult = getDealStageResultForRole(
+    dealId,
+    (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner"
+  );
+
+  const isInvestor = user?.role === "Investor";
+
+  // Handle stage override
+  const handleStageOverride = (newStage: string) => {
+    if (newStage) {
+      // In a real app, this would update the deal in the database
+      (deal as any).stageOverride = newStage as DealStageId;
+      toast({
+        title: "Stage Override Applied",
+        description: `Deal stage manually set to ${DEAL_STAGES[newStage as DealStageId].label}.`,
+      });
+    }
+  };
+
+  const clearStageOverride = () => {
+    (deal as any).stageOverride = undefined;
+    toast({
+      title: "Stage Override Cleared",
+      description: "Deal stage will be computed automatically.",
+    });
+  };
 
   const handleTierChange = (lenderId: string, newTier: "early" | "full" | "legal") => {
     const success = updateAccessTier(dealId, lenderId, newTier);
@@ -607,44 +649,166 @@ export default function DealOverview() {
 
           {/* Right Column (1/3) */}
           <div className="space-y-6">
-            
-            {/* Actionable Alerts / Task Panel */}
-            <Card className="border-l-4 border-l-amber-500 shadow-sm">
+
+            {/* Deal Stage Card */}
+            <Card className="border-border/60 shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-amber-700">
-                  <AlertCircle className="h-5 w-5" /> Action Required
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Layers className="h-5 w-5 text-primary" />
+                    Deal Stage
+                  </span>
+                  {!isInvestor && stageResult.stage !== "closed" && (
+                    <Select
+                      value={(deal as any).stageOverride || ""}
+                      onValueChange={handleStageOverride}
+                    >
+                      <SelectTrigger className="w-[130px] h-7 text-xs">
+                        <SelectValue placeholder="Override..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STAGE_ORDER.filter(s => s !== "on_hold").map(s => (
+                          <SelectItem key={s} value={s} className="text-xs">
+                            {DEAL_STAGES[s].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Pricing Decisions</h4>
-                  <AlertItem 
-                    title="Approve Final Pricing" 
-                    desc="Lead investor requesting confirmation on OID flex."
-                    impact="Delays closing by 2 days"
-                    urgent 
-                  />
-                </div>
-                
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Diligence</h4>
-                  <AlertItem 
-                    title="Respond to BlackRock" 
-                    desc="Outstanding diligence question on FY24 churn." 
-                    impact="Blocks credit committee approval"
-                  />
-                </div>
+                  {/* Stage label + badge */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge
+                      variant="outline"
+                      className="text-sm bg-primary/10 text-primary border-primary/30"
+                    >
+                      {stageResult.stageLabel}
+                    </Badge>
+                    {(deal as any).stageOverride && !isInvestor && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-muted-foreground"
+                        onClick={clearStageOverride}
+                      >
+                        Clear override
+                      </Button>
+                    )}
+                  </div>
 
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Legal</h4>
-                  <AlertItem 
-                    title="Finish Covenant Comps" 
-                    desc="Legal counsel needs input for draft v2." 
-                    impact="Delays CA distribution"
-                  />
+                  {/* Progress bar */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Stage Progress</span>
+                      <span>{stageResult.stageProgressPct}%</span>
+                    </div>
+                    <Progress value={stageResult.stageProgressPct} className="h-2" />
+                  </div>
+
+                  {/* Next deadline */}
+                  {stageResult.nextDeadline && (
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 pt-1">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        Next: {stageResult.nextDeadline.label} -{" "}
+                        {format(parseISO(stageResult.nextDeadline.date), "MMM d")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {/* Potential Blockers - Computed from Real Data */}
+            <Card className={`border-l-4 shadow-sm ${blockers.some(b => b.severity === "critical") ? "border-l-red-500" : blockers.length > 0 ? "border-l-amber-500" : "border-l-green-500"}`}>
+              <CardHeader className="pb-2">
+                <CardTitle className={`flex items-center gap-2 ${blockers.some(b => b.severity === "critical") ? "text-red-700" : blockers.length > 0 ? "text-amber-700" : "text-green-700"}`}>
+                  <AlertCircle className="h-5 w-5" />
+                  {blockers.length > 0 ? "Potential Blockers" : "No Blockers"}
+                  {blockers.length > 0 && (
+                    <Badge variant="outline" className={`ml-2 ${blockers.some(b => b.severity === "critical") ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                      {blockers.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {blockers.length === 0 ? (
+                  <div className="flex items-center gap-2 text-green-700 text-sm py-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>All clear - no immediate blockers detected</span>
+                  </div>
+                ) : (
+                  blockers.map((blocker) => (
+                    <div
+                      key={blocker.id}
+                      onClick={() => navigate(blocker.href)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                        blocker.severity === "critical"
+                          ? "bg-red-50 border-red-200 hover:bg-red-100"
+                          : "bg-amber-50 border-amber-200 hover:bg-amber-100"
+                      }`}
+                    >
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${
+                        blocker.severity === "critical" ? "bg-red-500 animate-pulse" : "bg-amber-500"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-medium text-sm ${
+                          blocker.severity === "critical" ? "text-red-800" : "text-amber-800"
+                        }`}>
+                          {blocker.label}
+                        </span>
+                      </div>
+                      <Badge variant="secondary" className="h-5 text-xs">
+                        {blocker.count}
+                      </Badge>
+                      <ChevronRight className={`h-4 w-4 shrink-0 ${
+                        blocker.severity === "critical" ? "text-red-400" : "text-amber-400"
+                      }`} />
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Stage Checklist (Internal Only) */}
+            {!isInvestor && (stageResult.satisfiedRequirements.length > 0 || stageResult.missingRequirements.length > 0) && (
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ListChecks className="h-5 w-5 text-primary" />
+                    Stage Checklist
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {stageResult.satisfiedRequirements.slice(0, 5).map(req => (
+                    <div key={req.id} className="flex items-center gap-2 text-sm text-green-700">
+                      <Check className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{req.label}</span>
+                    </div>
+                  ))}
+                  {stageResult.missingRequirements.map(req => (
+                    <div
+                      key={req.id}
+                      onClick={() => navigate(req.resolveHref(dealId))}
+                      className="flex items-center gap-2 text-sm text-amber-700 cursor-pointer hover:bg-amber-50 p-1 -mx-1 rounded transition-colors"
+                    >
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 truncate">{req.label}</span>
+                      <ChevronRight className="h-3 w-3 shrink-0" />
+                    </div>
+                  ))}
+                  {stageResult.satisfiedRequirements.length > 5 && (
+                    <div className="text-xs text-muted-foreground pt-1">
+                      +{stageResult.satisfiedRequirements.length - 5} more completed
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Deal Summary (Existing) */}
             <Card className="bg-primary text-primary-foreground border-none shadow-md">
