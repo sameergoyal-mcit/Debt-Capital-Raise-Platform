@@ -299,3 +299,35 @@ export const insertSyndicateBookSchema = createInsertSchema(syndicateBook).omit(
 });
 export type InsertSyndicateBook = z.infer<typeof insertSyndicateBookSchema>;
 export type SyndicateBookEntry = typeof syndicateBook.$inferSelect;
+
+// Indications Table - IOI submissions by lenders
+export const indications = pgTable("indications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  lenderId: varchar("lender_id").notNull().references(() => lenders.id),
+  submittedByUserId: varchar("submitted_by_user_id").notNull().references(() => users.id),
+  ioiAmount: numeric("ioi_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  termsJson: jsonb("terms_json").$type<{
+    spreadBps?: number;
+    oid?: number;
+    fees?: number;
+    tenorMonths?: number;
+    amortization?: string;
+    covenantsNotes?: string;
+    conditions?: string;
+    comments?: string;
+    isFirm?: boolean;
+  }>().notNull(),
+  status: text("status").notNull().default("submitted"), // submitted, updated, withdrawn
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertIndicationSchema = createInsertSchema(indications).omit({
+  id: true,
+  submittedAt: true,
+  updatedAt: true,
+});
+export type InsertIndication = z.infer<typeof insertIndicationSchema>;
+export type Indication = typeof indications.$inferSelect;

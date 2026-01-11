@@ -1,4 +1,14 @@
-type UserRole = "Bookrunner" | "Issuer" | "Investor";
+// Internal role type for capability mapping
+type RoleKey = "Bookrunner" | "Issuer" | "Investor";
+
+// Map normalized role strings to capability keys
+function normalizeRole(role: string): RoleKey {
+  const lower = role.toLowerCase();
+  if (lower === "bookrunner") return "Bookrunner";
+  if (lower === "issuer" || lower === "sponsor") return "Issuer";
+  if (lower === "investor" || lower === "lender") return "Investor";
+  return "Investor"; // Default to investor for unknown roles
+}
 
 export interface Capabilities {
   viewInvestorBook: boolean;
@@ -19,7 +29,7 @@ export interface Capabilities {
   signNDA: boolean;
 }
 
-const roleCapabilities: Record<UserRole, Capabilities> = {
+const roleCapabilities: Record<RoleKey, Capabilities> = {
   Bookrunner: {
     viewInvestorBook: true,
     sendReminders: true,
@@ -76,34 +86,41 @@ const roleCapabilities: Record<UserRole, Capabilities> = {
   }
 };
 
-export function can(role: UserRole | undefined): Capabilities {
+const defaultCapabilities: Capabilities = {
+  viewInvestorBook: false,
+  sendReminders: false,
+  downloadPackage: false,
+  seeAllQA: false,
+  seeAllCommitments: false,
+  manageDeals: false,
+  createDeal: false,
+  editTermSheet: false,
+  publishDeal: false,
+  inviteLenders: false,
+  viewExecutionTracker: false,
+  uploadDocuments: false,
+  answerQA: false,
+  submitCommitment: false,
+  uploadMarkup: false,
+  signNDA: false
+};
+
+export function can(role: string | undefined): Capabilities {
   if (!role) {
-    return {
-      viewInvestorBook: false,
-      sendReminders: false,
-      downloadPackage: false,
-      seeAllQA: false,
-      seeAllCommitments: false,
-      manageDeals: false,
-      createDeal: false,
-      editTermSheet: false,
-      publishDeal: false,
-      inviteLenders: false,
-      viewExecutionTracker: false,
-      uploadDocuments: false,
-      answerQA: false,
-      submitCommitment: false,
-      uploadMarkup: false,
-      signNDA: false
-    };
+    return defaultCapabilities;
   }
-  return roleCapabilities[role] || roleCapabilities.Investor;
+  const normalizedRole = normalizeRole(role);
+  return roleCapabilities[normalizedRole] || roleCapabilities.Investor;
 }
 
-export function isInternal(role: UserRole | undefined): boolean {
-  return role === "Bookrunner" || role === "Issuer";
+export function isInternal(role: string | undefined): boolean {
+  if (!role) return false;
+  const lower = role.toLowerCase();
+  return lower === "bookrunner" || lower === "issuer" || lower === "sponsor";
 }
 
-export function isInvestor(role: UserRole | undefined): boolean {
-  return role === "Investor";
+export function isInvestor(role: string | undefined): boolean {
+  if (!role) return false;
+  const lower = role.toLowerCase();
+  return lower === "investor" || lower === "lender";
 }

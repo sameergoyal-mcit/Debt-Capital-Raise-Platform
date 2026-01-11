@@ -33,13 +33,19 @@ import FinancialModel from "@/pages/financial-model";
 import SyndicateBookPage from "@/pages/syndicate-book";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
+// Helper to check if role matches allowed roles (case insensitive)
+function roleMatches(userRole: string, allowedRoles: string[]): boolean {
+  const normalizedUserRole = userRole.toLowerCase();
+  return allowedRoles.some(r => r.toLowerCase() === normalizedUserRole);
+}
+
 // Protected Route Wrapper
-function ProtectedRoute({ 
-  component: Component, 
-  allowedRoles 
-}: { 
-  component: React.ComponentType<any>, 
-  allowedRoles?: UserRole[] 
+function ProtectedRoute({
+  component: Component,
+  allowedRoles
+}: {
+  component: React.ComponentType<any>,
+  allowedRoles?: string[]
 }) {
   const { user, isAuthenticated } = useAuth();
   const [location] = useLocation();
@@ -54,18 +60,19 @@ function ProtectedRoute({
   const dealId = dealMatch ? dealMatch[1] : null;
 
   // 2. Check Deal Access for Investors
-  if (user?.role === "Investor" && dealId) {
+  const isLenderRole = user?.role.toLowerCase() === "investor" || user?.role.toLowerCase() === "lender";
+  if (isLenderRole && dealId) {
     // If user has no deal access list or deal is not in list
-    if (!user.dealAccess || !user.dealAccess.includes(dealId)) {
+    if (!user?.dealAccess || !user.dealAccess.includes(dealId)) {
       // Redirect to dashboard with "unauthorized" reason
       return <Redirect to={getRedirectWithReason("/investor", "unauthorized", location)} />;
     }
   }
 
   // 3. Check Role Access
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && !roleMatches(user.role, allowedRoles)) {
     // Redirect logic for unauthorized role access
-    if (user.role === "Investor") {
+    if (isLenderRole) {
        // If they tried to access a deal page they have access to (checked above), 
        // but the specific PAGE is restricted (e.g. /deal/123/book),
        // redirect them to the investor-safe deal home.

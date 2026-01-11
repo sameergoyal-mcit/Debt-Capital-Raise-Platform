@@ -1,7 +1,7 @@
-import { UserRole } from "@/context/auth-context";
-
-export function getUnauthorizedRedirect(role: UserRole) {
-  if (role === "Investor") return "/investor";
+export function getUnauthorizedRedirect(role?: string) {
+  if (!role) return "/login";
+  const normalizedRole = role.toLowerCase();
+  if (normalizedRole === "investor" || normalizedRole === "lender") return "/investor";
   return "/deals";
 }
 

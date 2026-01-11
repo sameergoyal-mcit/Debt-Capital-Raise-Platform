@@ -25,6 +25,8 @@ import type {
   InsertClosingItem,
   SyndicateBookEntry,
   InsertSyndicateBook,
+  Indication,
+  InsertIndication,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -115,6 +117,12 @@ export interface IStorage {
   createSyndicateBookEntry(entry: InsertSyndicateBook): Promise<SyndicateBookEntry>;
   updateSyndicateBookEntry(id: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry | undefined>;
   upsertSyndicateBookEntry(dealId: string, lenderId: string, entry: Partial<InsertSyndicateBook>): Promise<SyndicateBookEntry>;
+
+  // Indications (IOI)
+  getIndicationByDealAndLender(dealId: string, lenderId: string): Promise<Indication | undefined>;
+  listIndicationsByDeal(dealId: string): Promise<Indication[]>;
+  upsertIndication(dealId: string, lenderId: string, indication: Partial<InsertIndication>): Promise<Indication>;
+  withdrawIndication(dealId: string, lenderId: string): Promise<Indication | undefined>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -581,6 +589,70 @@ export class DrizzleStorage implements IStorage {
         ...entry,
       } as InsertSyndicateBook);
     }
+  }
+
+  // Indications (IOI)
+  async getIndicationByDealAndLender(dealId: string, lenderId: string): Promise<Indication | undefined> {
+    const results = await db
+      .select()
+      .from(schema.indications)
+      .where(and(eq(schema.indications.dealId, dealId), eq(schema.indications.lenderId, lenderId)));
+    return results[0];
+  }
+
+  async listIndicationsByDeal(dealId: string): Promise<Indication[]> {
+    return db
+      .select()
+      .from(schema.indications)
+      .where(eq(schema.indications.dealId, dealId))
+      .orderBy(desc(schema.indications.submittedAt));
+  }
+
+  async upsertIndication(dealId: string, lenderId: string, indication: Partial<InsertIndication>): Promise<Indication> {
+    const existing = await this.getIndicationByDealAndLender(dealId, lenderId);
+    if (existing) {
+      // Update existing indication - cast to any to handle jsonb field type inference issues
+      const results = await db
+        .update(schema.indications)
+        .set({
+          ioiAmount: indication.ioiAmount,
+          currency: indication.currency,
+          termsJson: indication.termsJson,
+          submittedByUserId: indication.submittedByUserId,
+          status: "updated",
+          updatedAt: new Date(),
+        } as any)
+        .where(eq(schema.indications.id, existing.id))
+        .returning();
+      return results[0];
+    } else {
+      // Create new indication
+      const results = await db
+        .insert(schema.indications)
+        .values({
+          dealId,
+          lenderId,
+          status: "submitted",
+          ...indication,
+        } as any)
+        .returning();
+      return results[0];
+    }
+  }
+
+  async withdrawIndication(dealId: string, lenderId: string): Promise<Indication | undefined> {
+    const existing = await this.getIndicationByDealAndLender(dealId, lenderId);
+    if (!existing) return undefined;
+
+    const results = await db
+      .update(schema.indications)
+      .set({
+        status: "withdrawn",
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.indications.id, existing.id))
+      .returning();
+    return results[0];
   }
 }
 

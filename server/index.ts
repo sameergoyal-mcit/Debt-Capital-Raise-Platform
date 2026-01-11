@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { setupAuth, setupAuthRoutes } from "./auth";
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,6 +22,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Setup authentication (passport + sessions)
+setupAuth(app);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -68,6 +72,10 @@ app.use((req, res, next) => {
     console.error("Error seeding database:", error);
   }
 
+  // Setup auth routes (login, logout, register, me)
+  setupAuthRoutes(app);
+
+  // Setup API routes
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

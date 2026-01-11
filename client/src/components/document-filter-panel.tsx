@@ -35,7 +35,7 @@ interface DocumentFilterPanelProps {
   onClose: () => void;
   filters: DocumentFilters;
   onFiltersChange: (filters: DocumentFilters) => void;
-  role: "Investor" | "Issuer" | "Bookrunner";
+  role: string;
 }
 
 const documentCategories = [

@@ -160,7 +160,8 @@ export default function InvestorBook() {
       } else if (urlFilter === "nda_signed") {
         matchesUrlFilter = invitation ? !!invitation.ndaSignedAt : false;
       } else if (urlFilter === "engaged") {
-        matchesUrlFilter = l.status === "Active" || l.status === "In Diligence";
+        // Engaged = beyond invited, showing interest or further
+        matchesUrlFilter = l.status !== "invited" && l.status !== "declined";
       }
 
       return matchesSearch && matchesStatus && matchesType && matchesUrlFilter;

@@ -1,192 +1,144 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import bcrypt from "bcryptjs";
 import { PDFDocument, rgb, degrees } from "pdf-lib";
 import { storage } from "./storage";
-import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema, insertDealModelSchema, insertClosingItemSchema, insertSyndicateBookSchema } from "@shared/schema";
+import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema, insertDealModelSchema, insertClosingItemSchema, insertSyndicateBookSchema, insertIndicationSchema } from "@shared/schema";
 import { runCreditModel, calculateQuickSummary, type CreditModelAssumptions } from "./lib/credit-engine";
 import { z } from "zod";
 
-// Authentication middleware (simplified for prototype - checks session/header)
-function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
-  // For prototype: check for user header or session
-  const userId = req.headers["x-user-id"] as string;
-  const userRole = req.headers["x-user-role"] as string;
-  
-  if (userId && userRole) {
-    (req as any).user = { id: userId, role: userRole };
-    return next();
-  }
-  
-  // Allow unauthenticated access in development for demo purposes
-  if (process.env.NODE_ENV !== "production") {
-    (req as any).user = { id: "demo", role: "bookrunner" };
-    return next();
-  }
-  
-  return res.status(401).json({ error: "Authentication required" });
-}
+// Import authentication and authorization middleware
+import { requireAuth, requireRole, getSessionUser, type SessionUser } from "./auth";
+import {
+  requireDealAccess,
+  requireNDA,
+  checkNDA,
+  requireDocAccess,
+  filterDocumentsByTier,
+  getLenderAccessContext,
+  getLenderAccess,
+  hasNDAWall,
+} from "./middleware";
+import { audit, auditLogFromRequest, AuditActions } from "./lib/audit";
 
-function ensureRole(...roles: string[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-    if (!roles.includes(user.role)) {
-      return res.status(403).json({ error: "Insufficient permissions" });
-    }
-    return next();
-  };
-}
-
-// Middleware to check lender has invitation to deal
-async function ensureLenderHasAccess(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user;
-  const dealId = req.params.dealId || req.params.id;
-  
-  if (!user || !dealId) {
-    return res.status(400).json({ error: "Missing user or deal ID" });
+// Internal-only middleware (for syndicate, analytics, etc.)
+function ensureInternalOnly(req: Request, res: Response, next: NextFunction) {
+  const user = req.user as SessionUser | undefined;
+  if (!user) {
+    return res.status(401).json({ error: "Authentication required", code: "UNAUTHORIZED" });
   }
-  
-  // Sponsors and bookrunners have full access
-  if (["sponsor", "bookrunner", "issuer"].includes(user.role)) {
-    return next();
+  const role = user.role.toLowerCase();
+  if (role === "lender" || role === "investor") {
+    return res.status(403).json({
+      error: "This resource is restricted to internal users only",
+      code: "INTERNAL_ONLY"
+    });
   }
-  
-  // For lenders, check invitation exists
-  if (user.role === "lender" && user.lenderId) {
-    const invitation = await storage.getInvitation(dealId, user.lenderId);
-    if (!invitation) {
-      return res.status(403).json({ error: "No invitation to this deal" });
-    }
-    (req as any).invitation = invitation;
-    return next();
-  }
-  
-  // Allow in development mode
-  if (process.env.NODE_ENV !== "production") {
-    return next();
-  }
-  
-  return res.status(403).json({ error: "Access denied" });
+  return next();
 }
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
-  // ========== AUTH ==========
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { username, password, role } = req.body;
-      
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password required" });
-      }
-      
-      let user = await storage.getUserByUsername(username);
-      
-      if (user) {
-        // Verify password
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) {
-          return res.status(401).json({ error: "Invalid credentials" });
-        }
-      } else {
-        // Create new user with hashed password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        user = await storage.createUser({
-          username,
-          password: hashedPassword,
-          email: `${username}@demo.com`,
-          role: role || "lender",
-        });
-      }
-      
-      res.json({ 
-        user: { id: user.id, username: user.username, role: user.role, email: user.email },
-        message: "Login successful" 
-      });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
 
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { username, password, email, role } = req.body;
-      
-      if (!username || !password || !email) {
-        return res.status(400).json({ error: "Username, password, and email required" });
-      }
-      
-      const existing = await storage.getUserByUsername(username);
-      if (existing) {
-        return res.status(400).json({ error: "Username already exists" });
-      }
-      
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({
-        username,
-        password: hashedPassword,
-        email,
-        role: role || "lender",
-      });
-      
-      res.status(201).json({ 
-        user: { id: user.id, username: user.username, role: user.role, email: user.email },
-        message: "Registration successful" 
-      });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // Auth routes are now handled by setupAuthRoutes in auth.ts
 
-  app.get("/api/auth/me", ensureAuthenticated, async (req, res) => {
-    const user = (req as any).user;
-    res.json(user);
-  });
-  
   // ========== DEALS ==========
-  app.get("/api/deals", async (req, res) => {
+  // List deals - returns deals based on user role
+  app.get("/api/deals", requireAuth, async (req, res) => {
     try {
-      const deals = await storage.listDeals();
-      res.json(deals);
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+
+      if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+        // Internal users see all deals
+        const deals = await storage.listDeals();
+        return res.json(deals);
+      }
+
+      // Lenders see only deals they're invited to
+      if (role === "lender" && user.lenderId) {
+        const invitations = await storage.listInvitationsByLender(user.lenderId);
+        const dealIds = invitations.map((inv) => inv.dealId);
+        const allDeals = await storage.listDeals();
+        const accessibleDeals = allDeals.filter((d) => dealIds.includes(d.id));
+        return res.json(accessibleDeals);
+      }
+
+      return res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/deals/:id", async (req, res) => {
+  // Get single deal - with NDA wall for lenders
+  app.get("/api/deals/:id", requireAuth, requireDealAccess, checkNDA, async (req, res) => {
     try {
-      const deal = await storage.getDeal(req.params.id);
-      if (!deal) {
-        return res.status(404).json({ error: "Deal not found" });
+      const deal = (req as any).deal;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+
+      // Log view
+      await audit.viewDeal(req, deal.id);
+
+      // For lenders behind NDA wall, return teaser only
+      if (role === "lender" && hasNDAWall(req)) {
+        return res.json({
+          id: deal.id,
+          dealName: deal.dealName,
+          borrowerName: deal.borrowerName,
+          sector: deal.sector,
+          sponsor: deal.sponsor,
+          instrument: deal.instrument,
+          facilityType: deal.facilityType,
+          status: deal.status,
+          launchDate: deal.launchDate,
+          closeDate: deal.closeDate,
+          hardCloseDate: deal.hardCloseDate,
+          ndaRequired: deal.ndaRequired,
+          _ndaWall: true,
+          _message: "Sign NDA to access full deal information",
+        });
       }
+
       res.json(deal);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/deals", async (req, res) => {
+  // Create deal - internal users only
+  app.post("/api/deals", requireAuth, requireRole("bookrunner", "issuer", "sponsor"), async (req, res) => {
     try {
       const validated = insertDealSchema.parse(req.body);
       const deal = await storage.createDeal(validated);
+
+      await auditLogFromRequest(req, AuditActions.CREATE_DEAL, {
+        resourceType: "deal",
+        resourceId: deal.id,
+        dealId: deal.id,
+      });
+
       res.status(201).json(deal);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/deals/:id", async (req, res) => {
+  // Update deal - internal users only
+  app.patch("/api/deals/:id", requireAuth, requireRole("bookrunner", "issuer", "sponsor"), requireDealAccess, async (req, res) => {
     try {
       const deal = await storage.updateDeal(req.params.id, req.body);
       if (!deal) {
         return res.status(404).json({ error: "Deal not found" });
       }
+
+      await auditLogFromRequest(req, AuditActions.UPDATE_DEAL, {
+        resourceType: "deal",
+        resourceId: deal.id,
+        dealId: deal.id,
+      });
+
       res.json(deal);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -194,7 +146,8 @@ export async function registerRoutes(
   });
 
   // ========== LENDERS ==========
-  app.get("/api/lenders", async (req, res) => {
+  // List all lenders - internal users only
+  app.get("/api/lenders", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const lenders = await storage.listLenders();
       res.json(lenders);
@@ -203,7 +156,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/lenders/:id", async (req, res) => {
+  // Get lender by ID - internal users only
+  app.get("/api/lenders/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const lender = await storage.getLender(req.params.id);
       if (!lender) {
@@ -215,7 +169,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/lenders/email/:email", async (req, res) => {
+  // Get lender by email - internal users only
+  app.get("/api/lenders/email/:email", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const lender = await storage.getLenderByEmail(req.params.email);
       if (!lender) {
@@ -227,7 +182,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/lenders", async (req, res) => {
+  // Create lender - internal users only
+  app.post("/api/lenders", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const validated = insertLenderSchema.parse(req.body);
       // Check if lender exists by email
@@ -243,7 +199,8 @@ export async function registerRoutes(
   });
 
   // ========== INVITATIONS ==========
-  app.get("/api/deals/:dealId/invitations", async (req, res) => {
+  // List invitations for a deal - internal users only
+  app.get("/api/deals/:dealId/invitations", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const invitations = await storage.listInvitationsByDeal(req.params.dealId);
       res.json(invitations);
@@ -252,46 +209,88 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/lenders/:lenderId/invitations", async (req, res) => {
+  // List invitations for a lender - lender can see own, internal sees all
+  app.get("/api/lenders/:lenderId/invitations", requireAuth, async (req, res) => {
     try {
-      const invitations = await storage.listInvitationsByLender(req.params.lenderId);
+      const user = req.user as SessionUser;
+      const requestedLenderId = req.params.lenderId;
+
+      // Lenders can only see their own invitations
+      if (user.role.toLowerCase() === "lender" && user.lenderId !== requestedLenderId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const invitations = await storage.listInvitationsByLender(requestedLenderId);
       res.json(invitations);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/invitations", async (req, res) => {
+  // Create invitation - internal users only
+  app.post("/api/invitations", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const validated = insertInvitationSchema.parse(req.body);
       const invitation = await storage.createInvitation(validated);
+
+      await auditLogFromRequest(req, AuditActions.CREATE_INVITATION, {
+        resourceType: "invitation",
+        resourceId: invitation.id,
+        dealId: invitation.dealId,
+        lenderId: invitation.lenderId,
+      });
+
       res.status(201).json(invitation);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.post("/api/invitations/:dealId/:lenderId/sign-nda", async (req, res) => {
+  // Sign NDA - lenders only (no requireNDA since they're signing it)
+  app.post("/api/invitations/:dealId/:lenderId/sign-nda", requireAuth, async (req, res) => {
     try {
       const { dealId, lenderId } = req.params;
+      const user = req.user as SessionUser;
+
+      // Lenders can only sign their own NDA
+      if (user.role.toLowerCase() === "lender" && user.lenderId !== lenderId) {
+        return res.status(403).json({ error: "Cannot sign NDA for another lender" });
+      }
+
       const { signerEmail, ndaVersion } = req.body;
       const signerIp = req.ip || "unknown";
-      
-      const invitation = await storage.updateInvitationNdaSigned(dealId, lenderId, signerEmail, signerIp, ndaVersion);
+
+      const invitation = await storage.updateInvitationNdaSigned(dealId, lenderId, signerEmail || user.email, signerIp, ndaVersion);
       if (!invitation) {
         return res.status(404).json({ error: "Invitation not found" });
       }
 
       // Log the NDA signing
-      await storage.createLog({
+      await audit.signNDA(req, dealId, lenderId);
+
+      res.json(invitation);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update invitation tier - internal users only
+  app.patch("/api/invitations/:dealId/:lenderId/tier", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId, lenderId } = req.params;
+      const { tier, changedBy } = req.body;
+      const user = req.user as SessionUser;
+
+      const invitation = await storage.updateInvitationTier(dealId, lenderId, tier, changedBy || user.email);
+      if (!invitation) {
+        return res.status(404).json({ error: "Invitation not found" });
+      }
+
+      await auditLogFromRequest(req, AuditActions.UPDATE_TIER, {
+        resourceType: "invitation",
         dealId,
         lenderId,
-        actorRole: "investor",
-        actorEmail: signerEmail,
-        action: "SIGN_NDA",
-        resourceId: invitation.id,
-        resourceType: "invitation",
-        metadata: { ndaVersion, ip: signerIp } as Record<string, any>,
+        metadata: { newTier: tier },
       });
 
       res.json(invitation);
@@ -300,36 +299,59 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/invitations/:dealId/:lenderId/tier", async (req, res) => {
+  // ========== DOCUMENTS ==========
+  // List documents for a deal - filtered by NDA and tier for lenders
+  app.get("/api/deals/:dealId/documents", requireAuth, requireDealAccess, checkNDA, async (req, res) => {
     try {
-      const { dealId, lenderId } = req.params;
-      const { tier, changedBy } = req.body;
-      
-      const invitation = await storage.updateInvitationTier(dealId, lenderId, tier, changedBy);
-      if (!invitation) {
-        return res.status(404).json({ error: "Invitation not found" });
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const dealId = req.params.dealId;
+
+      const documents = await storage.listDocumentsByDeal(dealId);
+
+      // Log document list view
+      await auditLogFromRequest(req, AuditActions.LIST_DOCS, {
+        resourceType: "document",
+        dealId,
+        metadata: { count: documents.length },
+      });
+
+      // Internal users see all documents
+      if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+        return res.json(documents);
       }
 
-      res.json(invitation);
+      // Lenders behind NDA wall see empty list
+      if (role === "lender" && hasNDAWall(req)) {
+        return res.json([]);
+      }
+
+      // Lenders with signed NDA see documents filtered by tier
+      const lenderAccess = getLenderAccess(req);
+      if (lenderAccess) {
+        const filteredDocs = filterDocumentsByTier(documents, lenderAccess.accessTier);
+        return res.json(filteredDocs);
+      }
+
+      return res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ========== DOCUMENTS ==========
-  app.get("/api/deals/:dealId/documents", async (req, res) => {
-    try {
-      const documents = await storage.listDocumentsByDeal(req.params.dealId);
-      res.json(documents);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/documents", async (req, res) => {
+  // Create document - internal users only
+  app.post("/api/documents", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const validated = insertDocumentSchema.parse(req.body);
       const document = await storage.createDocument(validated);
+
+      await auditLogFromRequest(req, AuditActions.UPLOAD_DOC, {
+        resourceType: "document",
+        resourceId: document.id,
+        dealId: document.dealId,
+        metadata: { name: document.name },
+      });
+
       res.status(201).json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -337,15 +359,14 @@ export async function registerRoutes(
   });
 
   // ========== DOCUMENT DOWNLOAD WITH WATERMARKING ==========
-  app.get("/api/documents/:id/download", async (req, res) => {
+  // Document download with proper auth, NDA, and tier checks
+  app.get("/api/documents/:id/download", requireAuth, requireDocAccess, async (req, res) => {
     try {
-      const document = await storage.getDocument(req.params.id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
-      }
+      const document = (req as any).document;
+      const user = req.user as SessionUser;
 
-      // Get user info from headers for watermarking
-      const userEmail = req.headers["x-user-email"] as string || "unknown@user.com";
+      // Get user email for watermarking
+      const userEmail = user.email || "unknown@user.com";
       const currentDate = new Date().toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
@@ -409,25 +430,16 @@ export async function registerRoutes(
 
         const pdfBytes = await pdfDoc.save();
 
-        // Log the download
-        const lenderId = req.headers["x-lender-id"] as string;
-        const dealId = document.dealId;
-        await storage.createLog({
-          dealId,
-          lenderId,
-          actorRole: "investor",
-          actorEmail: userEmail,
-          action: "DOWNLOAD_WATERMARKED_DOC",
-          resourceId: document.id,
-          resourceType: "document",
-          metadata: { documentName: document.name, watermarked: true } as Record<string, any>,
-        });
+        // Log the watermarked download
+        await audit.watermarkStream(req, document.id, document.dealId, document.name);
 
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader("Content-Disposition", `attachment; filename="${document.name}"`);
         res.send(Buffer.from(pdfBytes));
       } else {
-        // For non-PDF files, return a simple response
+        // For non-PDF files, log and return simple response
+        await audit.downloadDoc(req, document.id, document.dealId, document.name);
+
         res.json({
           message: "Download initiated",
           document: document.name,
@@ -440,7 +452,8 @@ export async function registerRoutes(
   });
 
   // ========== COMMITMENTS ==========
-  app.get("/api/deals/:dealId/commitments", async (req, res) => {
+  // List commitments - internal users only
+  app.get("/api/deals/:dealId/commitments", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const commitments = await storage.listCommitmentsByDeal(req.params.dealId);
       res.json(commitments);
@@ -449,9 +462,17 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/commitments", async (req, res) => {
+  // Create commitment - lenders only, requires NDA
+  app.post("/api/commitments", requireAuth, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const validated = insertCommitmentSchema.parse(req.body);
+
+      // Verify lender can only create for themselves
+      if (user.role.toLowerCase() === "lender" && user.lenderId !== validated.lenderId) {
+        return res.status(403).json({ error: "Cannot create commitment for another lender" });
+      }
+
       const commitment = await storage.createCommitment(validated);
 
       // Update deal committed amount
@@ -460,14 +481,12 @@ export async function registerRoutes(
       await storage.updateDeal(validated.dealId, { committed: String(totalCommitted) });
 
       // Log the commitment submission
-      await storage.createLog({
+      await auditLogFromRequest(req, AuditActions.SUBMIT_COMMITMENT, {
+        resourceType: "commitment",
+        resourceId: commitment.id,
         dealId: validated.dealId,
         lenderId: validated.lenderId,
-        actorRole: "investor",
-        action: "SUBMIT_COMMITMENT",
-        resourceId: commitment.id,
-        resourceType: "commitment",
-        metadata: { amount: validated.amount, status: validated.status } as Record<string, any>,
+        metadata: { amount: validated.amount, status: validated.status },
       });
 
       res.status(201).json(commitment);
@@ -477,32 +496,105 @@ export async function registerRoutes(
   });
 
   // ========== Q&A ==========
-  app.get("/api/deals/:dealId/qa", async (req, res) => {
+  // List Q&A - lenders see own items only (no draft info), internal sees all
+  app.get("/api/deals/:dealId/qa", requireAuth, requireDealAccess, checkNDA, async (req, res) => {
     try {
-      const qaItems = await storage.listQAByDeal(req.params.dealId);
-      res.json(qaItems);
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const dealId = req.params.dealId;
+
+      // Log view
+      await auditLogFromRequest(req, AuditActions.VIEW_QA, {
+        resourceType: "qa",
+        dealId,
+      });
+
+      const qaItems = await storage.listQAByDeal(dealId);
+
+      // Internal users see all items including drafts
+      if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+        return res.json(qaItems);
+      }
+
+      // Lenders behind NDA wall see nothing
+      if (role === "lender" && hasNDAWall(req)) {
+        return res.json([]);
+      }
+
+      // Lenders see only their own items, without draft info
+      if (role === "lender" && user.lenderId) {
+        const filtered = qaItems
+          .filter((item) => item.lenderId === user.lenderId)
+          .map((item) => ({
+            id: item.id,
+            dealId: item.dealId,
+            lenderId: item.lenderId,
+            category: item.category,
+            status: item.status,
+            question: item.question,
+            askedAt: item.askedAt,
+            answer: item.status === "answered" ? item.answer : null,
+            answeredAt: item.answeredAt,
+            source: item.source,
+            // Explicitly exclude draft fields
+          }));
+        return res.json(filtered);
+      }
+
+      return res.json([]);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/qa", async (req, res) => {
+  // Create Q&A question - lenders only, requires NDA
+  app.post("/api/qa", requireAuth, requireRole("lender"), async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const validated = insertQAItemSchema.parse(req.body);
-      const qaItem = await storage.createQA(validated);
+
+      // Check NDA for lender
+      if (!user.lenderId) {
+        return res.status(403).json({ error: "Lender profile required" });
+      }
+
+      const accessContext = await getLenderAccessContext(req, validated.dealId);
+      if (!accessContext) {
+        return res.status(403).json({ error: "No invitation to this deal" });
+      }
+      if (accessContext.ndaWall) {
+        return res.status(403).json({ error: "NDA required to submit questions", code: "NDA_REQUIRED" });
+      }
+
+      // Ensure lender can only create for themselves
+      if (validated.lenderId && validated.lenderId !== user.lenderId) {
+        return res.status(403).json({ error: "Cannot create Q&A for another lender" });
+      }
+
+      const qaItem = await storage.createQA({
+        ...validated,
+        lenderId: user.lenderId,
+      });
+
+      await audit.submitQA(req, validated.dealId, qaItem.id);
+
       res.status(201).json(qaItem);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/qa/:id/answer", async (req, res) => {
+  // Answer Q&A - internal users only
+  app.patch("/api/qa/:id/answer", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const { answer } = req.body;
       const qaItem = await storage.answerQA(req.params.id, answer);
       if (!qaItem) {
         return res.status(404).json({ error: "Q&A item not found" });
       }
+
+      await audit.answerQA(req, qaItem.dealId, qaItem.id);
+
       res.json(qaItem);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -510,7 +602,8 @@ export async function registerRoutes(
   });
 
   // ========== AUDIT LOGS ==========
-  app.get("/api/deals/:dealId/logs", async (req, res) => {
+  // View logs - internal users only
+  app.get("/api/deals/:dealId/logs", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const logs = await storage.listLogsByDeal(req.params.dealId, limit);
@@ -520,7 +613,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/logs", async (req, res) => {
+  // Create log - internal only (mostly used by server)
+  app.post("/api/logs", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const validated = insertLogSchema.parse(req.body);
       const log = await storage.createLog(validated);
@@ -531,19 +625,10 @@ export async function registerRoutes(
   });
 
   // ========== AUDIT LOG - Deal View ==========
-  app.post("/api/deals/:dealId/view", async (req, res) => {
+  // Deprecated: use GET /api/deals/:id which auto-logs
+  app.post("/api/deals/:dealId/view", requireAuth, async (req, res) => {
     try {
-      const { lenderId, actorEmail } = req.body;
-      await storage.createLog({
-        dealId: req.params.dealId,
-        lenderId,
-        actorRole: "investor",
-        actorEmail,
-        action: "VIEW_DEAL",
-        resourceId: req.params.dealId,
-        resourceType: "deal",
-        metadata: { timestamp: new Date().toISOString() } as Record<string, any>,
-      });
+      await audit.viewDeal(req, req.params.dealId);
       res.status(201).json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -551,19 +636,11 @@ export async function registerRoutes(
   });
 
   // ========== AUDIT LOG - Document Download ==========
-  app.post("/api/documents/:documentId/download", async (req, res) => {
+  // Deprecated: use GET /api/documents/:id/download which auto-logs
+  app.post("/api/documents/:documentId/download", requireAuth, async (req, res) => {
     try {
-      const { dealId, lenderId, actorEmail, documentName } = req.body;
-      await storage.createLog({
-        dealId,
-        lenderId,
-        actorRole: "investor",
-        actorEmail,
-        action: "DOWNLOAD_DOC",
-        resourceId: req.params.documentId,
-        resourceType: "document",
-        metadata: { documentName },
-      });
+      const { dealId, documentName } = req.body;
+      await audit.downloadDoc(req, req.params.documentId, dealId, documentName);
       res.status(201).json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -571,12 +648,9 @@ export async function registerRoutes(
   });
 
   // ========== CREDIT ENGINE - Quick Summary ==========
-  app.get("/api/deals/:dealId/credit-summary", async (req, res) => {
+  app.get("/api/deals/:dealId/credit-summary", requireAuth, requireDealAccess, async (req, res) => {
     try {
-      const deal = await storage.getDeal(req.params.dealId);
-      if (!deal) {
-        return res.status(404).json({ error: "Deal not found" });
-      }
+      const deal = (req as any).deal;
 
       const summary = calculateQuickSummary({
         facilitySize: Number(deal.facilitySize),
@@ -594,7 +668,8 @@ export async function registerRoutes(
   });
 
   // ========== SEND REMINDERS ==========
-  app.post("/api/deals/:dealId/reminders", async (req, res) => {
+  // Internal users only
+  app.post("/api/deals/:dealId/reminders", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const { dealId } = req.params;
       const { audience, subject, bodyText, recipientLenderIds } = req.body;
@@ -606,7 +681,7 @@ export async function registerRoutes(
 
       // Get invitations for this deal
       const invitations = await storage.listInvitationsByDeal(dealId);
-      
+
       // Filter based on audience
       let recipients = invitations;
       switch (audience) {
@@ -632,18 +707,16 @@ export async function registerRoutes(
       }
 
       // Log the reminder action
-      await storage.createLog({
-        dealId,
-        actorRole: "bookrunner",
-        action: "SEND_REMINDER",
+      await auditLogFromRequest(req, "SEND_REMINDER", {
         resourceType: "deal",
         resourceId: dealId,
+        dealId,
         metadata: {
           audience,
           subject,
           recipientCount: recipients.length,
           sentAt: new Date().toISOString(),
-        } as Record<string, any>,
+        },
       });
 
       // In production, this would send actual emails
@@ -659,7 +732,8 @@ export async function registerRoutes(
   });
 
   // ========== DEAL MODELS (Sandbox) ==========
-  app.get("/api/deals/:dealId/models", async (req, res) => {
+  // List models - internal users only (lenders see published via documents)
+  app.get("/api/deals/:dealId/models", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const models = await storage.listDealModelsByDeal(req.params.dealId);
       res.json(models);
@@ -668,7 +742,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/deal-models/:id", async (req, res) => {
+  // Get model by ID - internal users only
+  app.get("/api/deal-models/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const model = await storage.getDealModel(req.params.id);
       if (!model) {
@@ -680,11 +755,16 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/deal-models", async (req, res) => {
+  // Create deal model - internal users only
+  app.post("/api/deal-models", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const validated = insertDealModelSchema.parse(req.body);
-      const model = await storage.createDealModel(validated);
-      
+      const model = await storage.createDealModel({
+        ...validated,
+        createdBy: user.id,
+      });
+
       if (validated.isPublished) {
         await storage.createDocument({
           dealId: validated.dealId,
@@ -696,23 +776,24 @@ export async function registerRoutes(
           isAutomated: true,
         });
       }
-      
+
       res.status(201).json(model);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.post("/api/deal-models/:id/publish", async (req, res) => {
+  // Publish deal model - internal users only
+  app.post("/api/deal-models/:id/publish", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const model = await storage.getDealModel(req.params.id);
       if (!model) {
         return res.status(404).json({ error: "Model not found" });
       }
-      
-      const user = (req as any).user;
-      const publishedModel = await storage.publishDealModel(req.params.id, user?.id || "system");
-      
+
+      const user = req.user as SessionUser;
+      const publishedModel = await storage.publishDealModel(req.params.id, user.id);
+
       await storage.createDocument({
         dealId: model.dealId,
         category: "Lender Paydown Model",
@@ -722,7 +803,7 @@ export async function registerRoutes(
         fileKey: `model:${req.params.id}`,
         isAutomated: true,
       });
-      
+
       res.json(publishedModel);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -742,7 +823,8 @@ export async function registerRoutes(
     cashSweepPercent: z.number().min(0).max(100).optional(),
   });
 
-  app.post("/api/deals/:dealId/calculate", async (req, res) => {
+  // Run credit model calculation - internal users only
+  app.post("/api/deals/:dealId/calculate", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const deal = await storage.getDeal(req.params.dealId);
       if (!deal) {
@@ -765,7 +847,8 @@ export async function registerRoutes(
   });
 
   // ========== CLOSING ITEMS (Conditions Precedent) ==========
-  app.get("/api/deals/:dealId/closing-items", async (req, res) => {
+  // List closing items - internal users only
+  app.get("/api/deals/:dealId/closing-items", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const items = await storage.listClosingItemsByDeal(req.params.dealId);
       res.json(items);
@@ -774,7 +857,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/closing-items/:id", async (req, res) => {
+  // Get closing item by ID - internal users only
+  app.get("/api/closing-items/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const item = await storage.getClosingItem(req.params.id);
       if (!item) {
@@ -786,20 +870,22 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/closing-items", async (req, res) => {
+  // Create closing item - internal users only
+  app.post("/api/closing-items", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const validated = insertClosingItemSchema.parse(req.body);
-      const item = await storage.createClosingItem(validated);
+      const item = await storage.createClosingItem({
+        ...validated,
+        createdBy: user.id,
+      });
 
       // Log the creation
-      await storage.createLog({
-        dealId: validated.dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "CREATE_CLOSING_ITEM",
-        resourceId: item.id,
+      await auditLogFromRequest(req, AuditActions.CREATE_CLOSING_ITEM, {
         resourceType: "closing_item",
-        metadata: { description: validated.description, category: validated.category } as Record<string, any>,
+        resourceId: item.id,
+        dealId: validated.dealId,
+        metadata: { description: validated.description, category: validated.category },
       });
 
       res.status(201).json(item);
@@ -808,7 +894,8 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/closing-items/:id", async (req, res) => {
+  // Update closing item - internal users only
+  app.patch("/api/closing-items/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const item = await storage.updateClosingItem(req.params.id, req.body);
       if (!item) {
@@ -817,14 +904,11 @@ export async function registerRoutes(
 
       // Log status changes
       if (req.body.status) {
-        await storage.createLog({
-          dealId: item.dealId,
-          actorRole: req.headers["x-user-role"] as string || "bookrunner",
-          actorEmail: req.headers["x-user-email"] as string,
-          action: req.body.status === "approved" ? "APPROVE_CLOSING_ITEM" : "UPDATE_CLOSING_ITEM",
-          resourceId: item.id,
+        await auditLogFromRequest(req, req.body.status === "approved" ? AuditActions.APPROVE_CLOSING_ITEM : AuditActions.UPDATE_CLOSING_ITEM, {
           resourceType: "closing_item",
-          metadata: { description: item.description, newStatus: req.body.status } as Record<string, any>,
+          resourceId: item.id,
+          dealId: item.dealId,
+          metadata: { description: item.description, newStatus: req.body.status },
         });
       }
 
@@ -834,7 +918,8 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/closing-items/:id", async (req, res) => {
+  // Delete closing item - internal users only
+  app.delete("/api/closing-items/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const item = await storage.getClosingItem(req.params.id);
       if (!item) {
@@ -847,14 +932,11 @@ export async function registerRoutes(
       }
 
       // Log the deletion
-      await storage.createLog({
-        dealId: item.dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "DELETE_CLOSING_ITEM",
-        resourceId: req.params.id,
+      await auditLogFromRequest(req, AuditActions.DELETE_CLOSING_ITEM, {
         resourceType: "closing_item",
-        metadata: { description: item.description } as Record<string, any>,
+        resourceId: req.params.id,
+        dealId: item.dealId,
+        metadata: { description: item.description },
       });
 
       res.json({ success: true });
@@ -863,33 +945,30 @@ export async function registerRoutes(
     }
   });
 
-  // Upload document to fulfill a closing item
-  app.post("/api/closing-items/:id/upload", async (req, res) => {
+  // Upload document to fulfill a closing item - internal users only
+  app.post("/api/closing-items/:id/upload", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const item = await storage.getClosingItem(req.params.id);
       if (!item) {
         return res.status(404).json({ error: "Closing item not found" });
       }
 
       const { fileId } = req.body;
-      const userId = req.headers["x-user-id"] as string;
 
       const updatedItem = await storage.updateClosingItem(req.params.id, {
         status: "uploaded",
         fileId,
-        uploadedBy: userId,
+        uploadedBy: user.id,
         uploadedAt: new Date(),
       });
 
       // Log the upload
-      await storage.createLog({
-        dealId: item.dealId,
-        actorRole: req.headers["x-user-role"] as string || "lender",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "UPLOAD_CLOSING_ITEM",
-        resourceId: req.params.id,
+      await auditLogFromRequest(req, AuditActions.UPLOAD_CLOSING_ITEM, {
         resourceType: "closing_item",
-        metadata: { description: item.description, fileId } as Record<string, any>,
+        resourceId: req.params.id,
+        dealId: item.dealId,
+        metadata: { description: item.description, fileId },
       });
 
       res.json(updatedItem);
@@ -898,31 +977,27 @@ export async function registerRoutes(
     }
   });
 
-  // Approve a closing item
-  app.post("/api/closing-items/:id/approve", async (req, res) => {
+  // Approve a closing item - internal users only
+  app.post("/api/closing-items/:id/approve", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const item = await storage.getClosingItem(req.params.id);
       if (!item) {
         return res.status(404).json({ error: "Closing item not found" });
       }
 
-      const userId = req.headers["x-user-id"] as string;
-
       const updatedItem = await storage.updateClosingItem(req.params.id, {
         status: "approved",
-        approvedBy: userId,
+        approvedBy: user.id,
         approvedAt: new Date(),
       });
 
       // Log the approval
-      await storage.createLog({
-        dealId: item.dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "APPROVE_CLOSING_ITEM",
-        resourceId: req.params.id,
+      await auditLogFromRequest(req, AuditActions.APPROVE_CLOSING_ITEM, {
         resourceType: "closing_item",
-        metadata: { description: item.description } as Record<string, any>,
+        resourceId: req.params.id,
+        dealId: item.dealId,
+        metadata: { description: item.description },
       });
 
       res.json(updatedItem);
@@ -933,27 +1008,24 @@ export async function registerRoutes(
 
   // ========== SYNDICATE BOOK (Internal Only - Bookrunner/Issuer) ==========
 
-  // Middleware to ensure only internal users can access syndicate book
-  const ensureInternalOnly = (req: Request, res: Response, next: NextFunction) => {
-    const userRole = req.headers["x-user-role"] as string;
-    if (!userRole || userRole.toLowerCase() === "investor" || userRole.toLowerCase() === "lender") {
-      return res.status(403).json({ error: "Access denied. Internal users only." });
-    }
-    return next();
-  };
-
-  // Get syndicate book for a deal
-  app.get("/api/deals/:dealId/syndicate-book", ensureInternalOnly, async (req, res) => {
+  // Get syndicate book for a deal - internal users only
+  app.get("/api/deals/:dealId/syndicate-book", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const entries = await storage.listSyndicateBookByDeal(req.params.dealId);
+
+      await auditLogFromRequest(req, AuditActions.VIEW_SYNDICATE, {
+        resourceType: "syndicate_book",
+        dealId: req.params.dealId,
+      });
+
       res.json(entries);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Get single syndicate book entry
-  app.get("/api/syndicate-book/:id", ensureInternalOnly, async (req, res) => {
+  // Get single syndicate book entry - internal users only
+  app.get("/api/syndicate-book/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const entry = await storage.getSyndicateBookEntry(req.params.id);
       if (!entry) {
@@ -965,21 +1037,18 @@ export async function registerRoutes(
     }
   });
 
-  // Create syndicate book entry
-  app.post("/api/syndicate-book", ensureInternalOnly, async (req, res) => {
+  // Create syndicate book entry - internal users only
+  app.post("/api/syndicate-book", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const validated = insertSyndicateBookSchema.parse(req.body);
       const entry = await storage.createSyndicateBookEntry(validated);
 
       // Log the action
-      await storage.createLog({
-        dealId: validated.dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "CREATE_SYNDICATE_ENTRY",
-        resourceId: entry.id,
+      await auditLogFromRequest(req, "CREATE_SYNDICATE_ENTRY", {
         resourceType: "syndicate_book",
-        metadata: { lenderId: validated.lenderId, status: validated.status } as Record<string, any>,
+        resourceId: entry.id,
+        dealId: validated.dealId,
+        metadata: { lenderId: validated.lenderId, status: validated.status },
       });
 
       res.status(201).json(entry);
@@ -988,26 +1057,24 @@ export async function registerRoutes(
     }
   });
 
-  // Update syndicate book entry
-  app.patch("/api/syndicate-book/:id", ensureInternalOnly, async (req, res) => {
+  // Update syndicate book entry - internal users only
+  app.patch("/api/syndicate-book/:id", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const entry = await storage.updateSyndicateBookEntry(req.params.id, {
         ...req.body,
-        lastUpdatedBy: req.headers["x-user-id"] as string,
+        lastUpdatedBy: user.id,
       });
       if (!entry) {
         return res.status(404).json({ error: "Entry not found" });
       }
 
       // Log the update
-      await storage.createLog({
-        dealId: entry.dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "UPDATE_SYNDICATE_ENTRY",
-        resourceId: entry.id,
+      await auditLogFromRequest(req, AuditActions.UPDATE_SYNDICATE, {
         resourceType: "syndicate_book",
-        metadata: { lenderId: entry.lenderId, changes: req.body } as Record<string, any>,
+        resourceId: entry.id,
+        dealId: entry.dealId,
+        metadata: { lenderId: entry.lenderId, changes: req.body },
       });
 
       res.json(entry);
@@ -1016,24 +1083,23 @@ export async function registerRoutes(
     }
   });
 
-  // Upsert syndicate book entry (create or update)
-  app.put("/api/deals/:dealId/syndicate-book/:lenderId", ensureInternalOnly, async (req, res) => {
+  // Upsert syndicate book entry (create or update) - internal users only
+  app.put("/api/deals/:dealId/syndicate-book/:lenderId", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const { dealId, lenderId } = req.params;
       const entry = await storage.upsertSyndicateBookEntry(dealId, lenderId, {
         ...req.body,
-        lastUpdatedBy: req.headers["x-user-id"] as string,
+        lastUpdatedBy: user.id,
       });
 
       // Log the upsert
-      await storage.createLog({
-        dealId,
-        actorRole: req.headers["x-user-role"] as string || "bookrunner",
-        actorEmail: req.headers["x-user-email"] as string,
-        action: "UPSERT_SYNDICATE_ENTRY",
-        resourceId: entry.id,
+      await auditLogFromRequest(req, AuditActions.UPDATE_SYNDICATE, {
         resourceType: "syndicate_book",
-        metadata: { lenderId, changes: req.body } as Record<string, any>,
+        resourceId: entry.id,
+        dealId,
+        lenderId,
+        metadata: { changes: req.body },
       });
 
       res.json(entry);
@@ -1042,8 +1108,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get syndicate book summary/metrics for a deal
-  app.get("/api/deals/:dealId/syndicate-book/summary", ensureInternalOnly, async (req, res) => {
+  // Get syndicate book summary/metrics for a deal - internal users only
+  app.get("/api/deals/:dealId/syndicate-book/summary", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const entries = await storage.listSyndicateBookByDeal(req.params.dealId);
       const deal = await storage.getDeal(req.params.dealId);
@@ -1100,7 +1166,7 @@ export async function registerRoutes(
 
   // Get engagement analytics for a deal
   // Only accessible by internal users (issuer/bookrunner)
-  app.get("/api/deals/:dealId/engagement-analytics", ensureInternalOnly, async (req, res) => {
+  app.get("/api/deals/:dealId/engagement-analytics", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
       const { dealId } = req.params;
       const days = parseInt(req.query.days as string) || 7;
@@ -1242,60 +1308,44 @@ export async function registerRoutes(
 
   // Generate credit memo for a lender
   // This endpoint verifies access and generates memo data
-  app.get("/api/deals/:dealId/credit-memo", async (req, res) => {
+  app.get("/api/deals/:dealId/credit-memo", requireAuth, requireDealAccess, checkNDA, async (req, res) => {
     try {
       const { dealId } = req.params;
-      const lenderId = req.headers["x-lender-id"] as string;
-      const userRole = req.headers["x-user-role"] as string;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const deal = (req as any).deal;
 
-      // Get deal
-      const deal = await storage.getDeal(dealId);
-      if (!deal) {
-        return res.status(404).json({ error: "Deal not found" });
-      }
+      // Get access context
+      let accessTier: "early" | "full" | "legal" = "early";
+      let lenderName = "Internal User";
 
-      // Get invitation to check access
-      let accessTier = "early";
-      let ndaSigned = false;
-      let lenderName = "Lender";
-
-      if (lenderId) {
-        const invitation = await storage.getInvitation(dealId, lenderId);
-        if (!invitation) {
-          return res.status(403).json({ error: "No invitation to this deal" });
+      // For internal users, allow full access
+      if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+        accessTier = "legal";
+      } else if (role === "lender" && user.lenderId) {
+        // Check NDA wall for lenders
+        if (hasNDAWall(req)) {
+          return res.status(403).json({
+            error: "NDA required",
+            message: "Please sign the NDA to access the credit memo",
+            code: "NDA_REQUIRED",
+          });
         }
-        accessTier = invitation.accessTier || "early";
-        ndaSigned = !invitation.ndaRequired || !!invitation.ndaSignedAt;
 
-        const lender = await storage.getLender(lenderId);
+        const lenderAccess = getLenderAccess(req);
+        if (lenderAccess) {
+          accessTier = lenderAccess.accessTier;
+        }
+
+        const lender = await storage.getLender(user.lenderId);
         if (lender) {
           lenderName = `${lender.firstName} ${lender.lastName} (${lender.organization})`;
         }
       }
 
-      // For internal users, allow full access
-      if (userRole && ["bookrunner", "issuer", "sponsor"].includes(userRole.toLowerCase())) {
-        accessTier = "legal";
-        ndaSigned = true;
-      }
-
-      // Check NDA status
-      if (!ndaSigned) {
-        return res.status(403).json({
-          error: "NDA required",
-          message: "Please sign the NDA to access the credit memo"
-        });
-      }
-
       // Get documents available at access tier
-      const allDocs = await storage.listDocuments(dealId);
-      const tierOrder: Record<string, number> = { early: 1, full: 2, legal: 3 };
-      const userTierLevel = tierOrder[accessTier] || 1;
-
-      const accessibleDocs = allDocs.filter(doc => {
-        const docTierLevel = tierOrder[doc.visibilityTier || "early"] || 1;
-        return docTierLevel <= userTierLevel;
-      });
+      const allDocs = await storage.listDocumentsByDeal(dealId);
+      const accessibleDocs = filterDocumentsByTier(allDocs, accessTier);
 
       // Build memo metadata
       const memoData = {
@@ -1336,18 +1386,201 @@ export async function registerRoutes(
       };
 
       // Log access
-      await storage.createLog({
-        dealId,
-        lenderId: lenderId || null,
-        actorRole: userRole || "lender",
-        actorEmail: null,
-        action: "download_credit_memo",
-        resourceId: dealId,
+      await auditLogFromRequest(req, "DOWNLOAD_CREDIT_MEMO", {
         resourceType: "deal",
-        metadata: { accessTier } as Record<string, any>,
+        resourceId: dealId,
+        dealId,
+        metadata: { accessTier },
       });
 
       res.json(memoData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== INDICATIONS (IOI) ==========
+
+  // Helper: sync indication to syndicate book (updates IOI amount, status - does NOT overwrite banker fields)
+  async function syncIndicationToSyndicateBook(
+    dealId: string,
+    lenderId: string,
+    ioiAmount: string,
+    status: string,
+    userId?: string
+  ) {
+    const existing = await storage.getSyndicateBookEntryByDealAndLender(dealId, lenderId);
+
+    // Determine syndicate book status based on indication status
+    let syndicateStatus = "ioi_submitted";
+    if (status === "withdrawn") {
+      syndicateStatus = existing?.status === "invited" ? "invited" : "interested";
+    }
+
+    // Only update IOI-related fields; preserve banker-entered fields
+    const updateFields: any = {
+      indicatedAmount: status === "withdrawn" ? null : ioiAmount,
+      lastUpdatedBy: userId || null,
+    };
+
+    // Only upgrade status, never downgrade (e.g., don't overwrite firm_committed with ioi_submitted)
+    const statusOrder = ["invited", "interested", "ioi_submitted", "soft_circled", "firm_committed", "allocated", "declined"];
+    const currentStatusIndex = statusOrder.indexOf(existing?.status || "invited");
+    const newStatusIndex = statusOrder.indexOf(syndicateStatus);
+
+    if (newStatusIndex > currentStatusIndex || status === "withdrawn") {
+      updateFields.status = syndicateStatus;
+    }
+
+    await storage.upsertSyndicateBookEntry(dealId, lenderId, updateFields);
+  }
+
+  // GET /api/deals/:dealId/indication - Lender's own indication for this deal
+  app.get("/api/deals/:dealId/indication", requireAuth, requireDealAccess, checkNDA, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+
+      // Lenders can only see their own indication
+      if (role === "lender") {
+        if (!user.lenderId) {
+          return res.status(400).json({ error: "Lender ID required" });
+        }
+
+        // Check NDA wall for lenders
+        if (hasNDAWall(req)) {
+          return res.status(403).json({
+            error: "NDA signature required to view indication",
+            code: "NDA_REQUIRED"
+          });
+        }
+
+        const indication = await storage.getIndicationByDealAndLender(dealId, user.lenderId);
+        return res.json(indication || null);
+      }
+
+      // Internal users can view any indication (via the plural endpoint)
+      return res.status(400).json({ error: "Use /api/deals/:dealId/indications for internal users" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/indication - Submit or update indication (upsert)
+  app.post("/api/deals/:dealId/indication", requireAuth, requireRole("lender"), requireDealAccess, checkNDA, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+
+      if (!user.lenderId) {
+        return res.status(400).json({ error: "Lender ID required" });
+      }
+
+      // Check NDA wall for lenders
+      if (hasNDAWall(req)) {
+        return res.status(403).json({
+          error: "NDA signature required to submit indication",
+          code: "NDA_REQUIRED"
+        });
+      }
+
+      const { ioiAmount, termsJson, currency } = req.body;
+
+      if (!ioiAmount || !termsJson) {
+        return res.status(400).json({ error: "ioiAmount and termsJson are required" });
+      }
+
+      const existing = await storage.getIndicationByDealAndLender(dealId, user.lenderId);
+      const isUpdate = !!existing;
+
+      const indication = await storage.upsertIndication(dealId, user.lenderId, {
+        submittedByUserId: user.id,
+        ioiAmount,
+        termsJson,
+        currency: currency || "USD",
+      });
+
+      // Sync to syndicate book
+      await syncIndicationToSyndicateBook(dealId, user.lenderId, ioiAmount, indication.status, user.id);
+
+      // Log audit
+      if (isUpdate) {
+        await audit.submitIOI(req, dealId, indication.id, ioiAmount);
+      } else {
+        await auditLogFromRequest(req, AuditActions.UPDATE_IOI, {
+          resourceType: "indication",
+          resourceId: indication.id,
+          dealId,
+          lenderId: user.lenderId,
+          metadata: {
+            ioiAmount,
+            currency: currency || "USD",
+            isFirm: termsJson?.isFirm || false,
+            spreadBps: termsJson?.spreadBps,
+          },
+        });
+      }
+
+      res.status(isUpdate ? 200 : 201).json(indication);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/indication/withdraw - Withdraw indication
+  app.post("/api/deals/:dealId/indication/withdraw", requireAuth, requireRole("lender"), async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+
+      if (!user.lenderId) {
+        return res.status(400).json({ error: "Lender ID required" });
+      }
+
+      const indication = await storage.withdrawIndication(dealId, user.lenderId);
+
+      if (!indication) {
+        return res.status(404).json({ error: "No indication found to withdraw" });
+      }
+
+      // Sync to syndicate book
+      await syncIndicationToSyndicateBook(dealId, user.lenderId, indication.ioiAmount, "withdrawn", user.id);
+
+      // Log audit
+      await audit.withdrawIOI(req, dealId, indication.id);
+
+      res.json(indication);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/indications - All indications for deal (issuer/bookrunner only)
+  app.get("/api/deals/:dealId/indications", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      const indications = await storage.listIndicationsByDeal(dealId);
+
+      // Enrich with lender info
+      const enrichedIndications = await Promise.all(
+        indications.map(async (indication) => {
+          const lender = await storage.getLender(indication.lenderId);
+          return {
+            ...indication,
+            lender: lender ? {
+              id: lender.id,
+              firstName: lender.firstName,
+              lastName: lender.lastName,
+              organization: lender.organization,
+              email: lender.email,
+            } : null,
+          };
+        })
+      );
+
+      res.json(enrichedIndications);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

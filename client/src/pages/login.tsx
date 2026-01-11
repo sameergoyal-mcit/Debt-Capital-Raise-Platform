@@ -8,16 +8,19 @@ import { Input } from "@/components/ui/input";
 import { mockLenders } from "@/data/lenders";
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginAsRole, isAuthenticated, isLoading: authLoading } = useAuth();
   const [role, setRole] = useState<UserRole>("Bookrunner");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("demo123");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Update default email when role changes
   useEffect(() => {
     if (role === "Bookrunner") setEmail("sarah.jenkins@capitalflow.com");
     else if (role === "Issuer") setEmail("cfo@titan-software.com");
     else setEmail("investor@fund.com");
+    setError(null);
   }, [role]);
 
   // If already logged in, redirect
@@ -25,36 +28,38 @@ export default function Login() {
     // handled by context
   }
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setIsLoading(true);
-    
-    // Attempt to guess lender from email
+    setError(null);
+
+    // Attempt to guess lender from email for demo
     let lenderId: string | undefined;
-    
+
     if (role === "Investor") {
-      // Simple heuristic: check if lender name part exists in email
       const emailDomain = email.toLowerCase().split('@')[1] || email.toLowerCase();
-      const matchedLender = mockLenders.find(l => 
-        emailDomain.includes(l.name.toLowerCase().split(' ')[0]) || 
+      const matchedLender = mockLenders.find(l =>
+        emailDomain.includes(l.name.toLowerCase().split(' ')[0]) ||
         email.toLowerCase().includes(l.name.toLowerCase().replace(/\s/g, ""))
       );
-      
+
       lenderId = matchedLender?.id;
-      
-      if (!lenderId && role === "Investor") {
-        // Fallback for demo if no match found but "investor" is generic
-        // Maybe default to first one or just let context handle generic
+
+      if (!lenderId) {
         if (email.includes("blackrock")) lenderId = "1";
         else if (email.includes("apollo")) lenderId = "2";
         else if (email.includes("oak")) lenderId = "3";
       }
     }
 
-    // Simulate network delay
-    setTimeout(() => {
-      login(role, lenderId);
-      setIsLoading(false);
-    }, 800);
+    // Try real login first
+    const result = await login({ email, password });
+
+    if (!result.success) {
+      // Fall back to demo mode
+      loginAsRole(role, lenderId);
+    }
+
+    setIsLoading(false);
   };
 
   return (
@@ -101,8 +106,17 @@ export default function Login() {
 
                  <div className="space-y-2">
                    <Label>Password</Label>
-                   <Input type="password" value="password123" disabled />
+                   <Input
+                     type="password"
+                     value={password}
+                     onChange={(e) => setPassword(e.target.value)}
+                     className="bg-background"
+                   />
                  </div>
+
+                 {error && (
+                   <p className="text-sm text-destructive">{error}</p>
+                 )}
               </div>
             </Tabs>
           </CardContent>

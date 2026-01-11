@@ -26,7 +26,7 @@ interface UploadDocumentModalProps {
   onClose: () => void;
   onUpload: (doc: UploadedDocument) => void;
   dealId: string;
-  role: "Investor" | "Issuer" | "Bookrunner";
+  role: string;
 }
 
 export interface UploadedDocument {

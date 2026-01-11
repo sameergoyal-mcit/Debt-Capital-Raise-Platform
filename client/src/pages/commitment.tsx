@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -11,10 +12,34 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, CheckCircle2, DollarSign, AlertCircle, ArrowLeft } from "lucide-react";
+import { Upload, FileText, CheckCircle2, DollarSign, AlertCircle, ArrowLeft, Clock, XCircle } from "lucide-react";
 import { mockDeals } from "@/data/deals";
 import { useAuth } from "@/context/auth-context";
 import { NDAGate } from "@/components/nda-gate";
+import { format, parseISO } from "date-fns";
+
+interface Indication {
+  id: string;
+  dealId: string;
+  lenderId: string;
+  submittedByUserId: string;
+  ioiAmount: string;
+  currency: string;
+  termsJson: {
+    spreadBps?: number;
+    oid?: number;
+    fees?: number;
+    tenorMonths?: number;
+    amortization?: string;
+    covenantsNotes?: string;
+    conditions?: string;
+    comments?: string;
+    isFirm?: boolean;
+  };
+  status: "submitted" | "updated" | "withdrawn";
+  submittedAt: string;
+  updatedAt: string;
+}
 
 export default function SubmitCommitment() {
   const [, params] = useRoute("/deal/:id/commitment");
@@ -23,34 +48,138 @@ export default function SubmitCommitment() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   const [amount, setAmount] = useState<number>(10000000); // 10M default
   const [ticketType, setTicketType] = useState<string>("indicative");
   const [conditions, setConditions] = useState<string>("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [spreadBps, setSpreadBps] = useState<number | undefined>(undefined);
+  const [oid, setOid] = useState<number | undefined>(undefined);
+  const [comments, setComments] = useState<string>("");
   const [files, setFiles] = useState<string[]>([]);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
 
   const isDecline = ticketType === "decline";
+  const isFirm = ticketType === "firm";
+
+  // Fetch existing indication
+  const { data: existingIndication, isLoading: isLoadingIndication } = useQuery<Indication | null>({
+    queryKey: ["indication", dealId, user?.lenderId],
+    queryFn: async () => {
+      if (!user?.lenderId) return null;
+      const res = await fetch(`/api/deals/${dealId}/indication`, {
+        headers: {
+          "x-user-id": user.email || "",
+          "x-user-role": "lender",
+          "x-lender-id": user.lenderId,
+        },
+      });
+      if (res.status === 403) return null;
+      if (!res.ok) throw new Error("Failed to fetch indication");
+      const data = await res.json();
+      return data;
+    },
+    enabled: !!user?.lenderId,
+  });
+
+  // Populate form with existing data
+  useEffect(() => {
+    if (existingIndication && existingIndication.status !== "withdrawn") {
+      setAmount(parseFloat(existingIndication.ioiAmount) || 10000000);
+      setTicketType(existingIndication.termsJson?.isFirm ? "firm" : "indicative");
+      setConditions(existingIndication.termsJson?.conditions || "");
+      setSpreadBps(existingIndication.termsJson?.spreadBps);
+      setOid(existingIndication.termsJson?.oid);
+      setComments(existingIndication.termsJson?.comments || "");
+    }
+  }, [existingIndication]);
+
+  // Submit/update indication mutation
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}/indication`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user?.email || "",
+          "x-user-role": "lender",
+          "x-lender-id": user?.lenderId || "",
+        },
+        body: JSON.stringify({
+          ioiAmount: amount.toString(),
+          currency: deal.currency || "USD",
+          termsJson: {
+            spreadBps,
+            oid,
+            conditions,
+            comments,
+            isFirm,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to submit indication");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["indication", dealId] });
+      const isUpdate = !!existingIndication && existingIndication.status !== "withdrawn";
+      toast({
+        title: isUpdate ? "Indication Updated" : "Indication Submitted",
+        description: `Your ${isFirm ? "firm commitment" : "IOI"} of $${(amount / 1000000).toFixed(1)}M has been ${isUpdate ? "updated" : "recorded"}.`,
+      });
+      setShowUpdateForm(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Withdraw indication mutation
+  const withdrawMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}/indication/withdraw`, {
+        method: "POST",
+        headers: {
+          "x-user-id": user?.email || "",
+          "x-user-role": "lender",
+          "x-lender-id": user?.lenderId || "",
+        },
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to withdraw indication");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["indication", dealId] });
+      toast({
+        title: "Indication Withdrawn",
+        description: "Your indication has been withdrawn.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSubmit = () => {
-    setIsSubmitting(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      if (isDecline) {
-        toast({
-          title: "Response Submitted",
-          description: "Your decision to decline has been recorded.",
-        });
-      } else {
-        toast({
-          title: "Commitment Submitted",
-          description: `Your ${ticketType} commitment of $${(amount / 1000000).toFixed(1)}M has been recorded.`,
-        });
-      }
-      setLocation(`/deal/${dealId}/overview`);
-    }, 1500);
+    if (isDecline) {
+      withdrawMutation.mutate();
+    } else {
+      submitMutation.mutate();
+    }
   };
 
   const handleFileUpload = () => {
@@ -62,6 +191,9 @@ export default function SubmitCommitment() {
       description: `${newFile} attached to commitment.`,
     });
   };
+
+  const hasActiveIndication = existingIndication && existingIndication.status !== "withdrawn";
+  const isSubmitting = submitMutation.isPending || withdrawMutation.isPending;
 
   const PageContent = () => {
       if (!user || user.role !== "Investor") {
@@ -77,13 +209,131 @@ export default function SubmitCommitment() {
         );
       }
 
+      // Show loading state
+      if (isLoadingIndication) {
+        return (
+          <div className="flex items-center justify-center h-[40vh]">
+            <Clock className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Loading...</span>
+          </div>
+        );
+      }
+
+      // Show existing indication summary with update/withdraw options
+      if (hasActiveIndication && !showUpdateForm) {
+        return (
+          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
+            <div className="mb-6">
+              <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
+                <ArrowLeft className="h-4 w-4" /> Back to Deal
+              </Button>
+              <h1 className="text-2xl font-semibold text-primary">Your Indication</h1>
+              <p className="text-muted-foreground">
+                {deal.dealName} • {deal.instrument} • Target: ${(deal.targetSize / 1000000).toFixed(0)}M
+              </p>
+            </div>
+
+            {/* Indication Status Card */}
+            <Card className="border-green-200 bg-green-50/50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                    <div>
+                      <CardTitle className="text-green-800">
+                        {existingIndication?.termsJson?.isFirm ? "Firm Commitment" : "Indication (IOI)"} Submitted
+                      </CardTitle>
+                      <CardDescription className="text-green-700/70">
+                        {existingIndication?.status === "updated" ? "Last updated" : "Submitted"}{" "}
+                        {existingIndication?.updatedAt && format(parseISO(existingIndication.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge variant={existingIndication?.termsJson?.isFirm ? "default" : "outline"} className="text-base px-4 py-1">
+                    ${(parseFloat(existingIndication?.ioiAmount || "0") / 1000000).toFixed(1)}M
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Type</span>
+                    <p className="font-medium">{existingIndication?.termsJson?.isFirm ? "Firm Commitment" : "Indicative / Soft Circle"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Currency</span>
+                    <p className="font-medium">{existingIndication?.currency || "USD"}</p>
+                  </div>
+                  {existingIndication?.termsJson?.spreadBps && (
+                    <div>
+                      <span className="text-muted-foreground">Spread (bps)</span>
+                      <p className="font-medium">{existingIndication.termsJson.spreadBps}</p>
+                    </div>
+                  )}
+                  {existingIndication?.termsJson?.oid && (
+                    <div>
+                      <span className="text-muted-foreground">OID</span>
+                      <p className="font-medium">{existingIndication.termsJson.oid}%</p>
+                    </div>
+                  )}
+                </div>
+                {existingIndication?.termsJson?.conditions && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">Conditions / Comments</span>
+                    <p className="text-sm mt-1 p-3 bg-white rounded border">{existingIndication.termsJson.conditions}</p>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="flex gap-3 border-t pt-6">
+                <Button onClick={() => setShowUpdateForm(true)} className="gap-2">
+                  <FileText className="h-4 w-4" /> Update Indication
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => withdrawMutation.mutate()}
+                  disabled={withdrawMutation.isPending}
+                  className="gap-2 text-destructive hover:text-destructive"
+                >
+                  <XCircle className="h-4 w-4" />
+                  {withdrawMutation.isPending ? "Withdrawing..." : "Withdraw"}
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Sidebar */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2" />
+              <Card className="bg-secondary/20 border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-base">Deal Terms Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pricing</span>
+                    <span className="font-medium">{deal.pricing.benchmark} + {deal.pricing.spreadLowBps}-{deal.pricing.spreadHighBps}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">OID Guidance</span>
+                    <span className="font-medium">{deal.pricing.oid}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Upfront Fee</span>
+                    <span className="font-medium">{deal.pricing.feesPct}%</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
         <div className="mb-6">
-          <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => setLocation(`/deal/${dealId}/overview`)}>
-            <ArrowLeft className="h-4 w-4" /> Back to Deal
+          <Button variant="ghost" className="pl-0 gap-2 mb-2" onClick={() => hasActiveIndication ? setShowUpdateForm(false) : setLocation(`/deal/${dealId}/overview`)}>
+            <ArrowLeft className="h-4 w-4" /> {hasActiveIndication ? "Back to Indication" : "Back to Deal"}
           </Button>
-          <h1 className="text-2xl font-semibold text-primary">Submit Indication</h1>
+          <h1 className="text-2xl font-semibold text-primary">{hasActiveIndication ? "Update Indication" : "Submit Indication"}</h1>
           <p className="text-muted-foreground">
             {deal.dealName} • {deal.instrument} • Target: ${(deal.targetSize / 1000000).toFixed(0)}M
           </p>
@@ -94,7 +344,7 @@ export default function SubmitCommitment() {
           <Card className="md:col-span-2 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Commitment Details</CardTitle>
-              <CardDescription>Enter your ticket size and conditions.</CardDescription>
+              <CardDescription>{hasActiveIndication ? "Update your ticket size and conditions." : "Enter your ticket size and conditions."}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
 
@@ -234,7 +484,13 @@ export default function SubmitCommitment() {
                 {user.lenderId && <span className="ml-1">({user.lenderId})</span>}
               </div>
               <Button onClick={handleSubmit} disabled={isSubmitting} className="min-w-[150px]">
-                {isSubmitting ? "Submitting..." : isDecline ? "Submit Decline" : ticketType === "firm" ? "Submit Firm Commitment" : "Submit Indication (IOI)"}
+                {isSubmitting
+                  ? (hasActiveIndication ? "Updating..." : "Submitting...")
+                  : isDecline
+                    ? "Withdraw Indication"
+                    : hasActiveIndication
+                      ? (ticketType === "firm" ? "Update Firm Commitment" : "Update Indication")
+                      : (ticketType === "firm" ? "Submit Firm Commitment" : "Submit Indication (IOI)")}
               </Button>
             </CardFooter>
           </Card>

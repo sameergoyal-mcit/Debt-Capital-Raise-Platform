@@ -65,6 +65,28 @@ interface SyndicateBookEntry {
   createdAt: string;
 }
 
+interface Indication {
+  id: string;
+  dealId: string;
+  lenderId: string;
+  ioiAmount: string;
+  termsJson: {
+    spreadBps?: number;
+    oid?: number;
+    isFirm?: boolean;
+    conditions?: string;
+  };
+  status: "submitted" | "updated" | "withdrawn";
+  submittedAt: string;
+  updatedAt: string;
+  lender?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    organization: string;
+  };
+}
+
 const SYNDICATE_STATUSES: { value: LenderStatus; label: string }[] = [
   { value: "invited", label: "Invited" },
   { value: "interested", label: "Interested" },
@@ -106,6 +128,35 @@ export function SyndicateBook({ dealId, filter = "all", onClearFilter }: Syndica
     },
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
+
+  // Fetch all indications for the deal (internal users only)
+  const { data: indications = [] } = useQuery<Indication[]>({
+    queryKey: ["indications", dealId],
+    queryFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}/indications`, {
+        headers: {
+          "x-user-role": user?.role || "Bookrunner",
+        },
+      });
+      if (!res.ok) {
+        if (res.status === 403) return [];
+        throw new Error("Failed to fetch indications");
+      }
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  // Create a map of lenderId -> indication for quick lookup
+  const indicationsByLender = useMemo(() => {
+    const map = new Map<string, Indication>();
+    indications.forEach(ind => {
+      if (ind.status !== "withdrawn") {
+        map.set(ind.lenderId, ind);
+      }
+    });
+    return map;
+  }, [indications]);
 
   // Update mutation
   const updateMutation = useMutation({
@@ -371,7 +422,7 @@ export function SyndicateBook({ dealId, filter = "all", onClearFilter }: Syndica
                 Internal tracking for all lenders in this deal. Notes are private.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["indications", dealId] }); }} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
@@ -438,8 +489,48 @@ export function SyndicateBook({ dealId, filter = "all", onClearFilter }: Syndica
                         )}
                       </TableCell>
 
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {entry.indicatedAmount ? formatCurrency(parseFloat(entry.indicatedAmount)) : "-"}
+                      <TableCell className="text-right">
+                        {(() => {
+                          const indication = indicationsByLender.get(entry.lenderId);
+                          if (indication) {
+                            return (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="text-right">
+                                      <p className="font-medium tabular-nums">{formatCurrency(parseFloat(indication.ioiAmount))}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {indication.termsJson?.isFirm ? (
+                                          <Badge variant="outline" className="text-[10px] px-1 bg-green-50 text-green-700 border-green-200">Firm</Badge>
+                                        ) : (
+                                          <span>{formatDistanceToNow(new Date(indication.submittedAt), { addSuffix: true })}</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="max-w-[250px]">
+                                    <div className="text-xs space-y-1">
+                                      <p><span className="text-muted-foreground">Amount:</span> {formatCurrency(parseFloat(indication.ioiAmount))}</p>
+                                      {indication.termsJson?.spreadBps && (
+                                        <p><span className="text-muted-foreground">Spread:</span> {indication.termsJson.spreadBps} bps</p>
+                                      )}
+                                      {indication.termsJson?.oid && (
+                                        <p><span className="text-muted-foreground">OID:</span> {indication.termsJson.oid}%</p>
+                                      )}
+                                      {indication.termsJson?.conditions && (
+                                        <p><span className="text-muted-foreground">Conditions:</span> {indication.termsJson.conditions}</p>
+                                      )}
+                                      <p className="pt-1 border-t text-muted-foreground">
+                                        {indication.status === "updated" ? "Updated" : "Submitted"} {formatDistanceToNow(new Date(indication.updatedAt), { addSuffix: true })}
+                                      </p>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          }
+                          return <span className="text-muted-foreground">-</span>;
+                        })()}
                       </TableCell>
 
                       <TableCell className="text-right font-medium tabular-nums">
