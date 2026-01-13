@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle2, DollarSign, AlertCircle, ArrowLeft, Clock, XCircle } from "lucide-react";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 import { useAuth } from "@/context/auth-context";
 import { NDAGate } from "@/components/nda-gate";
 import { format, parseISO } from "date-fns";
@@ -43,8 +43,8 @@ interface Indication {
 
 export default function SubmitCommitment() {
   const [, params] = useRoute("/deal/:id/commitment");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();

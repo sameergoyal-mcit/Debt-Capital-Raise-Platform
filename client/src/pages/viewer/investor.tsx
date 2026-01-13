@@ -3,7 +3,7 @@ import { useRoute } from "wouter";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { useRole } from "@/context/role";
 import { Users, Lock, FileText, Eye } from "lucide-react";
@@ -12,8 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function InvestorViewer() {
   const [, params] = useRoute("/deal/:id/viewer/investor");
-  const dealId = params?.id;
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
   const { setRole } = useRole();
 
   // Force role to investor when visiting this route

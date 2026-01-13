@@ -41,20 +41,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/auth-context";
+import { useDeal, useDeals, useQA, useAnswerQuestion } from "@/hooks/api-hooks";
+import type { QAItem } from "@shared/schema";
+// Keep mock data imports for mutation functions until we have API endpoints
 import {
-  getQAs,
-  updateQA,
-  QAItem,
   MaterialSource,
   MaterialSources,
   MaterialSourceLabels,
-  updateDraftAnswer,
-  setDraftSource,
-  generateDraftAnswer,
-  submitAnswer
 } from "@/data/qa";
-import { mockMessages, Message } from "@/data/messages";
-import { mockDeals } from "@/data/deals";
 import { formatDistanceToNow, parseISO, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { downloadCSV } from "@/lib/download";
@@ -123,18 +117,25 @@ export default function QACenter() {
   const isInvestor = userRole === "investor" || userRole === "lender";
   const isInternal = userRole === "bookrunner" || userRole === "issuer";
 
-  const currentDeal = mockDeals.find(d => d.id === dealId);
-  const availableDeals = mockDeals;
+  // Fetch data from API
+  const { data: currentDeal } = useDeal(dealId);
+  const { data: availableDeals = [] } = useDeals();
+  const { data: qaData = [], refetch: refetchQA } = useQA(dealId);
+  const answerMutation = useAnswerQuestion();
 
   // Get all items first for counts
   const allQaItems = useMemo(() => {
-    const items = getQAs(dealId, isInvestor ? user?.lenderId : undefined);
-    return items.sort((a, b) => {
-      const aDate = a.answerUpdatedAt || a.questionCreatedAt;
-      const bDate = b.answerUpdatedAt || b.questionCreatedAt;
+    // Filter by lender if investor
+    let items = qaData;
+    if (isInvestor && user?.lenderId) {
+      items = items.filter((q: any) => q.lenderId === user.lenderId);
+    }
+    return [...items].sort((a: any, b: any) => {
+      const aDate = a.answeredAt || a.createdAt;
+      const bDate = b.answeredAt || b.createdAt;
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
-  }, [dealId, user, isInvestor, refreshKey]);
+  }, [qaData, user, isInvestor, refreshKey]);
 
   // Filter items based on active filter
   const qaItems = useMemo(() => {

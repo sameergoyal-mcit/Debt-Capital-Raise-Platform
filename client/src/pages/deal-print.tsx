@@ -1,15 +1,14 @@
 import React, { useEffect } from "react";
 import { useRoute } from "wouter";
-import { mockDeals } from "@/data/deals";
-import { getDealInvitations } from "@/data/invitations";
-import { mockLenders } from "@/data/lenders";
+import { useDeal, useInvitations, useLenders } from "@/hooks/api-hooks";
 import { format } from "date-fns";
 
 export default function DealPrint() {
   const [, params] = useRoute("/deal/:id/print");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
-  const invitations = getDealInvitations(dealId);
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
+  const { data: invitations = [] } = useInvitations(dealId);
+  const { data: lenders = [] } = useLenders();
 
   useEffect(() => {
     const timer = setTimeout(() => {

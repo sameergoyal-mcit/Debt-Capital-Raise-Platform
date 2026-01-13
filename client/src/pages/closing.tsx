@@ -17,8 +17,8 @@ import {
   Plus,
   FileText
 } from "lucide-react";
-import { mockDeals } from "@/data/deals";
-import { mockClosingItems, ClosingItem, mockDocuments } from "@/data/documents";
+import { useDeal, useClosingItems, useDocuments } from "@/hooks/api-hooks";
+import type { ClosingItem } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { downloadCSV, downloadPlaceholderDoc } from "@/lib/download";
@@ -26,19 +26,21 @@ import { AddChecklistItemModal, ChecklistItem } from "@/components/add-checklist
 
 export default function Closing() {
   const [, params] = useRoute("/deal/:id/closing");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
+  const { data: closingItems = [] } = useClosingItems(dealId);
+  const { data: documents = [] } = useDocuments(dealId);
   const { user } = useAuth();
   const { toast } = useToast();
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [customItems, setCustomItems] = useState<ChecklistItem[]>([]);
-  
+
   const userRole = user?.role?.toLowerCase();
   const isInternal = userRole === "bookrunner" || userRole === "issuer";
-  const dealDocs = mockDocuments.filter(d => d.dealId === dealId);
+  const dealDocs = documents;
 
   const handleExportCPs = () => {
-    const allItems = [...mockClosingItems, ...customItems.map(c => ({
+    const allItems = [...closingItems, ...customItems.map(c => ({
       id: c.id,
       item: c.name,
       category: c.section.includes("Legal") ? "Legal" as const : c.section.includes("Financial") ? "Financial" as const : "Operational" as const,
@@ -62,12 +64,12 @@ export default function Closing() {
     setCustomItems(prev => [...prev, newItem]);
   };
 
-  const legalItems = mockClosingItems.filter(i => i.category === "Legal");
-  const financialItems = mockClosingItems.filter(i => i.category === "Financial");
-  const operationalItems = mockClosingItems.filter(i => i.category === "Operational");
+  const legalItems = closingItems.filter(i => i.category === "Legal");
+  const financialItems = closingItems.filter(i => i.category === "Financial");
+  const operationalItems = closingItems.filter(i => i.category === "Operational");
 
-  const completedCount = mockClosingItems.filter(i => i.status === "Completed").length;
-  const totalCount = mockClosingItems.length;
+  const completedCount = closingItems.filter(i => i.status === "Completed").length;
+  const totalCount = closingItems.length;
   const progress = Math.round((completedCount / totalCount) * 100);
 
   return (
@@ -109,15 +111,15 @@ export default function Closing() {
                 <Progress value={progress} className="h-3 bg-secondary" />
                 <div className="grid grid-cols-3 gap-4 mt-6 text-center">
                    <div>
-                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Legal" && i.status !== "Completed").length}</p>
+                     <p className="text-2xl font-bold text-primary">{closingItems.filter(i => i.category === "Legal" && i.status !== "Completed").length}</p>
                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Legal CPs</p>
                    </div>
                    <div>
-                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Financial" && i.status !== "Completed").length}</p>
+                     <p className="text-2xl font-bold text-primary">{closingItems.filter(i => i.category === "Financial" && i.status !== "Completed").length}</p>
                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Financial CPs</p>
                    </div>
                    <div>
-                     <p className="text-2xl font-bold text-primary">{mockClosingItems.filter(i => i.category === "Operational" && i.status !== "Completed").length}</p>
+                     <p className="text-2xl font-bold text-primary">{closingItems.filter(i => i.category === "Operational" && i.status !== "Completed").length}</p>
                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Ops Outstanding</p>
                    </div>
                 </div>
@@ -154,7 +156,7 @@ export default function Closing() {
                  </CardTitle>
                </CardHeader>
                <CardContent className="space-y-3">
-                 {mockClosingItems.filter(i => i.status !== "Completed").slice(0, 3).map(item => (
+                 {closingItems.filter(i => i.status !== "Completed").slice(0, 3).map(item => (
                    <div key={item.id} className="flex items-start gap-2 text-sm">
                      <Checkbox id={item.id} />
                      <div className="grid gap-1.5 leading-none">

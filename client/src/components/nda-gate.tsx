@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { getInvitation, signNDA } from "@/data/invitations";
-import { mockDeals } from "@/data/deals";
+import { useDeal, useLenderInvitations, useSignNda } from "@/hooks/api-hooks";
 import { getNDATemplate } from "@/data/nda-templates";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,13 +29,21 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
   const [isRedirecting, setIsRedirecting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Fetch deal and invitations from API
+  const { data: deal } = useDeal(dealId);
+  const { data: lenderInvitations = [], refetch: refetchInvitations } = useLenderInvitations(user?.lenderId);
+  const signNdaMutation = useSignNda();
+
+  // Find the invitation for this deal
+  const invitation = useMemo(() => {
+    return lenderInvitations.find((inv: any) => String(inv.dealId) === String(dealId));
+  }, [lenderInvitations, dealId]);
+
   // If not an investor, pass through (internal users bypass NDA)
   if (!user || user.role !== "Investor" || !user.lenderId) {
     return <>{children}</>;
   }
 
-  const invitation = getInvitation(dealId, user.lenderId);
-  const deal = mockDeals.find(d => d.id === dealId);
   const template = deal?.ndaTemplateId ? getNDATemplate(deal.ndaTemplateId) : getNDATemplate("nda_std_v1");
 
   // Handle scroll detection
@@ -80,13 +87,16 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
       // Logic for internal signing
       if (!config.useDocuSign) {
         if (!agreed) return;
-        
-        const ip = "192.168.1." + Math.floor(Math.random() * 255); // Mock IP
+
         const email = user.email || "investor@fund.com";
         const version = template?.version || "1.0";
 
-        const success = signNDA(dealId, user.lenderId!, version, email, ip);
-        if (success) {
+        try {
+          await signNdaMutation.mutateAsync({
+            dealId,
+            lenderId: user.lenderId!,
+          });
+
           toast({
             title: "NDA Signed",
             description: `You agreed to v${version} of the NDA. Access granted.`,
@@ -99,39 +109,58 @@ export function NDAGate({ dealId, children, title = "Confidential Information", 
             html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
           });
 
+          // Refetch invitations to get updated NDA status
+          refetchInvitations();
           setForceUpdate(prev => prev + 1);
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to sign NDA. Please try again.",
+            variant: "destructive",
+          });
         }
       }
     };
 
     // Placeholder for DocuSign Redirect
-    const handleDocuSignRedirect = () => {
+    const handleDocuSignRedirect = async () => {
       setIsRedirecting(true);
-      
+
       // Simulate external redirect and callback
-      setTimeout(() => {
+      setTimeout(async () => {
         // In a real app, this would be a callback route (e.g., /auth/docusign/callback)
         // Here we just mock the success immediately for demo purposes
-        const ip = "192.168.1." + Math.floor(Math.random() * 255); 
-        const email = user.email || "investor@fund.com";
-        const version = template?.version || "1.0";
-        
-        signNDA(dealId, user.lenderId!, version, email, ip);
-        
-        toast({
-          title: "DocuSign Envelope Completed",
-          description: "We received confirmation from DocuSign. Access granted.",
-        });
+        try {
+          await signNdaMutation.mutateAsync({
+            dealId,
+            lenderId: user.lenderId!,
+          });
 
-        // Send Email Notification
-        emailService.send({
-          to: "deal-team@capitalflow.com",
-          subject: `NDA Signed (DocuSign): ${deal?.dealName || dealId} - ${user.name || email}`,
-          html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
-        });
+          toast({
+            title: "DocuSign Envelope Completed",
+            description: "We received confirmation from DocuSign. Access granted.",
+          });
 
-        setIsRedirecting(false);
-        setForceUpdate(prev => prev + 1);
+          // Refetch invitations to get updated NDA status
+          refetchInvitations();
+
+          // Send Email Notification
+          emailService.send({
+            to: "deal-team@capitalflow.com",
+            subject: `NDA Signed (DocuSign): ${deal?.dealName || dealId} - ${user.name || email}`,
+            html: emailTemplates.ndaSigned(deal?.dealName || dealId, user.name || email)
+          });
+
+          setForceUpdate(prev => prev + 1);
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to sign NDA via DocuSign. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsRedirecting(false);
+        }
       }, 3000);
     };
 

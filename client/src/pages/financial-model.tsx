@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Save, Upload, Calculator, Calendar, ArrowLeft, Plus, Trash2, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts";
 import { useToast } from "@/hooks/use-toast";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 import { ScenarioComparison } from "@/components/scenario-comparison";
 import { SensitivityChart } from "@/components/sensitivity-chart";
 import { StressTesting } from "@/components/stress-testing";
@@ -281,8 +281,8 @@ const computedClass = "text-foreground";
 
 export default function FinancialModelPage() {
   const [, params] = useRoute("/deal/:id/model");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
   const { toast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);

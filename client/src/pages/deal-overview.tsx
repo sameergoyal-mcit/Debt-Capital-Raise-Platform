@@ -37,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, Legend } from "recharts";
 import { differenceInDays, parseISO, format } from "date-fns";
-import { useDeal, useInvitations, useLenders, useUpdateInvitationTier } from "@/hooks/api-hooks";
+import { useDeal, useInvitations, useLenders, useUpdateInvitationTier, useDocuments, useQA, useCommitments } from "@/hooks/api-hooks";
 import { enrichDeal, computeDealRisk } from "@/lib/deal-utils";
 import type { Invitation, Lender } from "@shared/schema";
 
@@ -93,7 +93,7 @@ const getDealTimeline = (dealId: string) => ({
   milestones: [] as { id: string; status: string; label: string }[]
 });
 import { getDealBlockers, DealBlocker, GetDealBlockersParams } from "@/lib/deal-blockers";
-import { getDealStageResultForRole, DEAL_STAGES, STAGE_ORDER, DealStageId } from "@/lib/deal-stage-engine";
+import { getDealStageResultFromDataForRole, DEAL_STAGES, STAGE_ORDER, DealStageId, StageContextInput } from "@/lib/deal-stage-engine";
 import { useAuth } from "@/context/auth-context";
 
 export default function DealOverview() {
@@ -102,9 +102,12 @@ export default function DealOverview() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
-  // Fetch deal, invitations, and lenders from API
+  // Fetch deal, invitations, documents, Q&A, commitments, and lenders from API
   const { data: rawDeal, isLoading: dealLoading } = useDeal(dealId);
   const { data: invitationsData = [], refetch: refetchInvitations } = useInvitations(dealId);
+  const { data: documentsData = [] } = useDocuments(dealId);
+  const { data: qaData = [] } = useQA(dealId);
+  const { data: commitmentsData = [] } = useCommitments(dealId);
   const { data: lendersData = [] } = useLenders();
   const updateTierMutation = useUpdateInvitationTier();
 
@@ -122,18 +125,38 @@ export default function DealOverview() {
   const ndaTemplate = getNDATemplate(activeNdaId);
   const { toast } = useToast();
 
+  // Build stage context from API data
+  const stageContextData: StageContextInput | null = rawDeal ? {
+    deal: rawDeal,
+    documents: documentsData,
+    invitations: invitationsData,
+    qaItems: qaData,
+    commitments: commitmentsData.map(c => ({
+      ...c,
+      amount: typeof c.amount === 'string' ? c.amount : String(c.amount || 0)
+    }))
+  } : null;
+
   // Get computed blockers from real data
-  const blockers = getDealBlockers({
+  const blockers = stageContextData ? getDealBlockers({
     dealId,
     role: (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner",
-    lenderId: user?.lenderId
-  });
+    lenderId: user?.lenderId,
+    data: stageContextData
+  }) : [];
 
-  // Get stage result from stage engine
-  const stageResult = getDealStageResultForRole(
-    dealId,
+  // Get stage result from stage engine using API data
+  const stageResult = stageContextData ? getDealStageResultFromDataForRole(
+    stageContextData,
     (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner"
-  );
+  ) : {
+    stage: "setup" as DealStageId,
+    stageLabel: "Setup",
+    stageProgressPct: 0,
+    satisfiedRequirements: [],
+    missingRequirements: [],
+    recommendedActions: []
+  };
 
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";

@@ -21,7 +21,15 @@
       "Bash(grep:*)",
       "Bash(pgrep:*)",
       "Bash(timeout 15 npm run dev)",
-      "Bash(npm run db:push:*)"
+      "Bash(npm run db:push:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(node -e:*)",
+      "Bash(npm run dev:*)",
+      "Bash(DEAL_ID=\"29685517-df9b-4fc4-bbb4-e13d60549bc3\")",
+      "Bash(__NEW_LINE_87b3528b8340d59e__ echo \"=== Deal Details ===\")",
+      "Bash(__NEW_LINE_87b3528b8340d59e__ echo \"\")",
+      "Bash(__NEW_LINE_3c5b53696856e3c8__ echo \"=== Deal Documents ===\")",
+      "Bash(__NEW_LINE_3c5b53696856e3c8__ echo \"\")"
     ]
   }
 }

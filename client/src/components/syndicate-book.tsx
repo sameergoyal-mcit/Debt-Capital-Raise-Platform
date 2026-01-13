@@ -38,9 +38,9 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
-import { mockLenders, LenderStatusLabels, type LenderStatus } from "@/data/lenders";
-import { getDealInvitations } from "@/data/invitations";
-import { mockDeals } from "@/data/deals";
+import { useDeal, useInvitations, useLenders } from "@/hooks/api-hooks";
+// Keep type imports from data files
+import { LenderStatusLabels, type LenderStatus } from "@/data/lenders";
 
 export type SyndicateBookFilter = "all" | "no_ioi" | "firm_committed" | "soft_circled";
 
@@ -106,8 +106,10 @@ export function SyndicateBook({ dealId, filter = "all", onClearFilter }: Syndica
   const [editingNotes, setEditingNotes] = useState<string>("");
   const [editingStatus, setEditingStatus] = useState<LenderStatus | null>(null);
 
-  const deal = mockDeals.find(d => d.id === dealId);
-  const invitations = useMemo(() => getDealInvitations(dealId), [dealId]);
+  // Use API hooks for deal and invitations
+  const { data: deal } = useDeal(dealId);
+  const { data: invitationsData = [] } = useInvitations(dealId);
+  const invitations = invitationsData;
 
   // Fetch syndicate book entries
   const { data: entries = [], isLoading, refetch } = useQuery<SyndicateBookEntry[]>({

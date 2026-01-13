@@ -3,12 +3,8 @@
  * Computes current deal stage from data signals and evaluates requirements
  */
 
-import { mockDeals, Deal } from "@/data/deals";
-import { mockDocuments, Document } from "@/data/documents";
-import { getDealInvitations, Invitation } from "@/data/invitations";
-import { getQAsByDeal, QAItem } from "@/data/qa";
-import { getAllCommitmentsForDeal, Commitment } from "@/data/commitments";
 import { parseISO, isBefore, isAfter } from "date-fns";
+import type { Deal, Document, Invitation, QAItem, Commitment } from "@shared/schema";
 
 import {
   DealStageId,
@@ -35,20 +31,32 @@ export interface StageResult {
   recommendedActions: string[];
 }
 
+/**
+ * Input type for building stage context from API data
+ */
+export interface StageContextInput {
+  deal: Deal;
+  documents: Document[];
+  invitations: Invitation[];
+  qaItems: QAItem[];
+  commitments: Commitment[];
+}
+
 // =============================================================================
 // CONTEXT BUILDING
 // =============================================================================
 
 /**
- * Build the requirement context from deal data stores
+ * Build the requirement context from API data
+ * This is the new preferred method that takes data directly instead of looking it up
  */
-export function buildRequirementContext(dealId: string): RequirementContext {
-  const deal = mockDeals.find(d => d.id === dealId);
+export function buildRequirementContextFromData(data: StageContextInput): RequirementContext {
+  const { deal, documents, invitations, qaItems, commitments } = data;
 
   if (!deal) {
     // Return empty context for unknown deals
     return {
-      deal: { id: dealId },
+      deal: { id: "" },
       documents: [],
       invitations: [],
       qaItems: [],
@@ -56,39 +64,50 @@ export function buildRequirementContext(dealId: string): RequirementContext {
     };
   }
 
-  const documents = mockDocuments.filter(d => d.dealId === dealId);
-  const invitations = getDealInvitations(dealId);
-  const qaItems = getQAsByDeal(dealId);
-  const commitments = getAllCommitmentsForDeal(dealId);
-
   return {
     deal: {
-      id: deal.id,
-      launchDate: deal.launchDate,
-      ioiDeadline: (deal as any).ioiDeadline,
-      commitmentDeadline: deal.commitmentDate,
-      ndaDeadline: (deal as any).ndaDeadline,
-      expectedAllocationDate: (deal as any).expectedAllocationDate,
-      expectedCloseDate: deal.closeDate,
-      allocationPlanReady: (deal as any).allocationPlanReady,
-      closingChecklistComplete: (deal as any).closingChecklistComplete,
-      status: deal.status,
-      stageOverride: (deal as any).stageOverride,
+      id: String(deal.id),
+      launchDate: deal.launchDate || undefined,
+      ioiDeadline: deal.ioiDeadline || undefined,
+      commitmentDeadline: deal.commitmentDeadline || undefined,
+      ndaDeadline: deal.ndaDeadline || undefined,
+      expectedAllocationDate: deal.expectedAllocationDate || undefined,
+      expectedCloseDate: deal.closeDate || undefined,
+      allocationPlanReady: deal.allocationPlanReady || false,
+      closingChecklistComplete: deal.closingChecklistComplete || false,
+      status: deal.status || undefined,
+      stageOverride: deal.stageOverride as DealStageId | undefined,
     },
-    documents: documents.map(d => ({ category: d.category, status: d.status })),
+    documents: documents.map(d => ({
+      category: d.category || "",
+      status: d.status || ""
+    })),
     invitations: invitations.map(i => ({
-      ndaRequired: i.ndaRequired,
-      ndaSignedAt: i.ndaSignedAt,
+      ndaRequired: i.ndaRequired || false,
+      ndaSignedAt: i.ndaSignedAt ? String(i.ndaSignedAt) : undefined,
     })),
     qaItems: qaItems.map(q => ({
-      status: q.status,
-      draftStatus: q.draftStatus,
-      submittedAnswer: q.submittedAnswer,
+      status: q.status || "open",
+      draftStatus: (q as any).draftStatus || "none",
+      submittedAnswer: (q as any).submittedAnswer,
     })),
     commitments: commitments.map(c => ({
-      status: c.status,
-      amount: c.amount,
+      status: c.status || "",
+      amount: typeof c.amount === "string" ? parseFloat(c.amount) : (c.amount || 0),
     })),
+  };
+}
+
+/**
+ * Build empty context for when no data is available
+ */
+export function buildEmptyContext(dealId: string): RequirementContext {
+  return {
+    deal: { id: dealId },
+    documents: [],
+    invitations: [],
+    qaItems: [],
+    commitments: [],
   };
 }
 
@@ -103,10 +122,10 @@ export function computeDealStage(context: RequirementContext): DealStageId {
   const { deal, documents, invitations, commitments } = context;
 
   // 1. Check explicit status overrides
-  if (deal.status === "Closed") {
+  if (deal.status === "Closed" || deal.status === "closed") {
     return "closed";
   }
-  if (deal.status === "Paused") {
+  if (deal.status === "Paused" || deal.status === "paused") {
     return "on_hold";
   }
 
@@ -129,7 +148,9 @@ export function computeDealStage(context: RequirementContext): DealStageId {
   }
 
   // Allocation stage: ready to allocate
-  const firmCommitments = commitments.filter(c => c.status === "Firm");
+  const firmCommitments = commitments.filter(c =>
+    c.status === "Firm" || c.status === "firm"
+  );
   if (firmCommitments.length >= 1 && hasDocumentCategory(documents, "Legal")) {
     return "allocation";
   }
@@ -141,7 +162,7 @@ export function computeDealStage(context: RequirementContext): DealStageId {
 
   // Bookbuilding stage: IOIs received, building book
   const totalCommitted = commitments
-    .filter(c => c.status !== "Withdrawn")
+    .filter(c => c.status !== "Withdrawn" && c.status !== "withdrawn")
     .reduce((sum, c) => sum + (c.amount || 0), 0);
 
   if (commitments.length > 0 || totalCommitted > 0) {
@@ -268,10 +289,11 @@ function generateRecommendedActions(missing: StageRequirement[]): string[] {
 // =============================================================================
 
 /**
- * Get the full stage result for a deal
+ * Get the full stage result from provided data
+ * This is the new preferred method that takes data directly
  */
-export function getDealStageResult(dealId: string): StageResult {
-  const context = buildRequirementContext(dealId);
+export function getDealStageResultFromData(data: StageContextInput): StageResult {
+  const context = buildRequirementContextFromData(data);
   const stage = computeDealStage(context);
   const { satisfied, missing } = evaluateRequirements(stage, context);
 
@@ -290,6 +312,57 @@ export function getDealStageResult(dealId: string): StageResult {
 }
 
 /**
+ * Get stage result with role-based filtering from provided data
+ * This is the new preferred method
+ */
+export function getDealStageResultFromDataForRole(
+  data: StageContextInput,
+  role: "Bookrunner" | "Issuer" | "Investor"
+): StageResult {
+  const result = getDealStageResultFromData(data);
+
+  // Filter out internal-only requirements for investors
+  if (role === "Investor") {
+    result.satisfiedRequirements = result.satisfiedRequirements.filter(r => !r.internalOnly);
+    result.missingRequirements = result.missingRequirements.filter(r => !r.internalOnly);
+
+    // Recalculate progress with filtered requirements
+    const total = result.satisfiedRequirements.length + result.missingRequirements.length;
+    result.stageProgressPct = calculateProgress(result.satisfiedRequirements.length, total);
+
+    // Regenerate actions
+    result.recommendedActions = generateRecommendedActions(result.missingRequirements);
+  }
+
+  return result;
+}
+
+/**
+ * @deprecated Use getDealStageResultFromData instead
+ * Get stage result for a deal - returns empty result when deal not in context
+ */
+export function getDealStageResult(dealId: string): StageResult {
+  // Return a basic result since we can't look up mock data anymore
+  const context = buildEmptyContext(dealId);
+  const stage = computeDealStage(context);
+  const { satisfied, missing } = evaluateRequirements(stage, context);
+
+  const totalRequirements = satisfied.length + missing.length;
+  const progressPct = calculateProgress(satisfied.length, totalRequirements);
+
+  return {
+    stage,
+    stageLabel: DEAL_STAGES[stage].label,
+    stageProgressPct: progressPct,
+    satisfiedRequirements: satisfied,
+    missingRequirements: missing,
+    nextDeadline: findNextDeadline(context),
+    recommendedActions: generateRecommendedActions(missing),
+  };
+}
+
+/**
+ * @deprecated Use getDealStageResultFromDataForRole instead
  * Get stage result with role-based filtering
  */
 export function getDealStageResultForRole(

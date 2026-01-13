@@ -19,8 +19,7 @@ import {
   Check,
   AlertCircle
 } from "lucide-react";
-import { mockDeals } from "@/data/deals";
-import { mockDocuments } from "@/data/documents";
+import { useDeal, useDocuments } from "@/hooks/api-hooks";
 import { useAuth } from "@/context/auth-context";
 import { downloadICS, downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
@@ -60,8 +59,9 @@ import {
 
 export default function Timeline() {
   const [, params] = useRoute("/deal/:id/timeline");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
+  const { data: documentsData = [] } = useDocuments(dealId);
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -71,7 +71,7 @@ export default function Timeline() {
   const isBookrunner = userRole === "bookrunner";
   const canModifyTimeline = isIssuer; // Only issuer can modify
 
-  // Get computed blockers from real data
+  // Get computed blockers from real data (without mock data now)
   const blockers = getDealBlockers({
     dealId,
     role: (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner",
@@ -96,7 +96,7 @@ export default function Timeline() {
 
   // Build validation context
   const buildValidationContext = useCallback((): ValidationContext => {
-    const dealDocuments = mockDocuments.filter(d => d.dealId === dealId);
+    const dealDocuments = documentsData;
 
     // Check for Financial Model in VDR (interactive_model or specific document)
     const hasFinancialModelInVDR = dealDocuments.some(

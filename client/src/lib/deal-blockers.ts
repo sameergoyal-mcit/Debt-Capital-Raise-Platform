@@ -3,7 +3,12 @@
  * Computes actionable blockers from deal stage requirements
  */
 
-import { getDealStageResultForRole } from "./deal-stage-engine";
+import {
+  getDealStageResultForRole,
+  getDealStageResultFromDataForRole,
+  StageContextInput,
+  StageResult,
+} from "./deal-stage-engine";
 
 export type BlockerSeverity = "warning" | "critical";
 
@@ -19,14 +24,22 @@ export interface GetDealBlockersParams {
   dealId: string;
   role: "Bookrunner" | "Issuer" | "Investor";
   lenderId?: string;
+  data?: StageContextInput;
 }
 
 /**
  * Compute all potential blockers for a deal based on stage requirements
+ * Now accepts optional data parameter to avoid mock data lookups
  */
-export function getDealBlockers({ dealId, role, lenderId }: GetDealBlockersParams): DealBlocker[] {
-  // Get stage result with role-based filtering
-  const stageResult = getDealStageResultForRole(dealId, role);
+export function getDealBlockers({ dealId, role, lenderId, data }: GetDealBlockersParams): DealBlocker[] {
+  // Get stage result - use data if provided, otherwise fall back to deprecated method
+  let stageResult: StageResult;
+  if (data) {
+    stageResult = getDealStageResultFromDataForRole(data, role);
+  } else {
+    // Deprecated path - returns empty result since mock data is removed
+    stageResult = getDealStageResultForRole(dealId, role);
+  }
 
   // Convert missing requirements to blockers
   const blockers: DealBlocker[] = stageResult.missingRequirements.map(req => ({
@@ -43,6 +56,18 @@ export function getDealBlockers({ dealId, role, lenderId }: GetDealBlockersParam
     if (a.severity === "warning" && b.severity === "critical") return 1;
     return 0;
   });
+}
+
+/**
+ * Get blockers directly from provided data
+ * This is the new preferred method
+ */
+export function getDealBlockersFromData(
+  data: StageContextInput,
+  role: "Bookrunner" | "Issuer" | "Investor"
+): DealBlocker[] {
+  const dealId = String(data.deal.id);
+  return getDealBlockers({ dealId, role, data });
 }
 
 /**

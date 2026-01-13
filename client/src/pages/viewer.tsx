@@ -17,14 +17,14 @@ import {
   TrendingUp,
   AlertTriangle
 } from "lucide-react";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 import { RoleSwitcher } from "@/components/role-switcher";
 import { useRole } from "@/context/role";
 
 export default function Viewer() {
   const [, params] = useRoute("/deal/:id/viewer");
-  const dealId = params?.id;
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
   const { role } = useRole();
 
   return (

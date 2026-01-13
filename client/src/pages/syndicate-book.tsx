@@ -1,16 +1,16 @@
 import { useRoute, useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { SyndicateBook, SyndicateBookFilter } from "@/components/syndicate-book";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 import { Badge } from "@/components/ui/badge";
 import { Lock } from "lucide-react";
 
 export default function SyndicateBookPage() {
   const [, params] = useRoute("/deal/:id/syndicate-book");
-  const dealId = params?.id || "101";
+  const dealId = params?.id || "1";
   const searchString = useSearch();
   const [, navigate] = useLocation();
-  const deal = mockDeals.find(d => d.id === dealId);
+  const { data: deal } = useDeal(dealId);
 
   // Parse URL filter
   const getUrlFilter = (): SyndicateBookFilter => {

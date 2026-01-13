@@ -38,12 +38,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { mockDeals } from "@/data/deals";
+import { useDeal } from "@/hooks/api-hooks";
 
 export default function DealMessagesPage() {
   const [, params] = useRoute("/deal/:id/messages");
-  const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId);
+  const dealId = params?.id || "1";
+  const { data: deal } = useDeal(dealId);
   
   const { user } = useAuth();
   const { toast } = useToast();
