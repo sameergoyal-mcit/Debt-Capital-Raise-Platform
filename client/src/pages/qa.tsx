@@ -97,8 +97,9 @@ export default function QACenter() {
     }
   };
 
-  const isInvestor = user?.role === "Investor";
-  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
+  const isInternal = userRole === "bookrunner" || userRole === "issuer";
 
   const currentDeal = mockDeals.find(d => d.id === dealId);
   const availableDeals = mockDeals;

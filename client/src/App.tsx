@@ -31,6 +31,9 @@ import AuditTrail from "@/pages/audit-trail";
 import DealPrint from "@/pages/deal-print";
 import FinancialModel from "@/pages/financial-model";
 import SyndicateBookPage from "@/pages/syndicate-book";
+import ExecutionLenders from "@/pages/execution-lenders";
+import LegalNegotiation from "@/pages/legal-negotiation";
+import LegalDocWorkspace from "@/pages/legal-doc-workspace";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Helper to check if role matches allowed roles (case insensitive)
@@ -169,6 +172,19 @@ function Router() {
       {/* Syndicate Book - Internal Only */}
       <Route path="/deal/:id/syndicate-book">
         <ProtectedRoute component={SyndicateBookPage} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* Legal Negotiation - Internal Only */}
+      <Route path="/deal/:id/execution/lenders">
+        <ProtectedRoute component={ExecutionLenders} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      <Route path="/deal/:id/legal/negotiation">
+        <ProtectedRoute component={LegalNegotiation} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      <Route path="/deal/:id/legal/docs/:docKey">
+        <ProtectedRoute component={LegalDocWorkspace} allowedRoles={["Issuer", "Bookrunner", "Investor"]} />
       </Route>
 
       <Route path="/deal/:id/audit">

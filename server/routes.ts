@@ -1586,5 +1586,331 @@ export async function registerRoutes(
     }
   });
 
+  // ========== MASTER DOCUMENTS (Legal Negotiation) ==========
+
+  // Helper: check if lender has legal tier access
+  async function hasLegalTierAccess(req: Request, dealId: string): Promise<boolean> {
+    const user = req.user as SessionUser;
+    if (!user) return false;
+
+    const role = user.role.toLowerCase();
+    // Internal users always have access
+    if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+      return true;
+    }
+
+    // Lenders need legal tier
+    if ((role === "lender" || role === "investor") && user.lenderId) {
+      const invitation = await storage.getInvitation(dealId, user.lenderId);
+      return invitation?.accessTier === "legal" && !!invitation?.ndaSignedAt;
+    }
+
+    return false;
+  }
+
+  // GET /api/deals/:dealId/master-docs - List master docs (internal only)
+  app.get("/api/deals/:dealId/master-docs", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const masterDocs = await storage.listMasterDocsByDeal(dealId);
+
+      // Enrich with version and markup counts
+      const enrichedDocs = await Promise.all(
+        masterDocs.map(async (doc) => {
+          const versions = await storage.listVersionsByMasterDoc(doc.id);
+          const markups = await storage.listMarkupsByMasterDoc(doc.id);
+
+          return {
+            ...doc,
+            versionCount: versions.length,
+            currentVersionNumber: versions.length > 0 ? versions[0].versionNumber : 0,
+            markupCounts: {
+              total: markups.length,
+              uploaded: markups.filter(m => m.status === "uploaded").length,
+              reviewing: markups.filter(m => m.status === "reviewing").length,
+              incorporated: markups.filter(m => m.status === "incorporated").length,
+              rejected: markups.filter(m => m.status === "rejected").length,
+            },
+          };
+        })
+      );
+
+      res.json(enrichedDocs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/master-docs/ensure - Ensure 3 master docs exist (internal only)
+  app.post("/api/deals/:dealId/master-docs/ensure", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+
+      const masterDocs = await storage.ensureMasterDocsForDeal(dealId, user.id);
+      res.json(masterDocs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/master-docs/:docKey - Get master doc with versions and markups
+  // Internal users see all markups; lenders with legal tier see only their own
+  app.get("/api/deals/:dealId/master-docs/:docKey", requireAuth, async (req, res) => {
+    try {
+      const { dealId, docKey } = req.params;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+
+      // Check access
+      const hasAccess = await hasLegalTierAccess(req, dealId);
+      if (!hasAccess) {
+        return res.status(403).json({
+          error: "Legal tier access required",
+          code: "LEGAL_TIER_REQUIRED"
+        });
+      }
+
+      const masterDoc = await storage.getMasterDocByKey(dealId, docKey);
+      if (!masterDoc) {
+        return res.status(404).json({ error: "Master document not found" });
+      }
+
+      // Get versions
+      const versions = await storage.listVersionsByMasterDoc(masterDoc.id);
+
+      // Get markups - filter for lenders
+      let markups = await storage.listMarkupsByMasterDoc(masterDoc.id);
+      const isInternal = role === "bookrunner" || role === "issuer" || role === "sponsor";
+
+      if (!isInternal && user.lenderId) {
+        // Lenders see only their own markups
+        markups = markups.filter(m => m.lenderId === user.lenderId);
+      }
+
+      // Enrich markups with lender info for internal users
+      const enrichedMarkups = isInternal
+        ? await Promise.all(
+            markups.map(async (markup) => {
+              const lender = await storage.getLender(markup.lenderId);
+              return {
+                ...markup,
+                lender: lender ? {
+                  id: lender.id,
+                  firstName: lender.firstName,
+                  lastName: lender.lastName,
+                  organization: lender.organization,
+                } : null,
+              };
+            })
+          )
+        : markups;
+
+      // Log view
+      await audit.viewNegotiationDoc(req, dealId, docKey);
+
+      res.json({
+        ...masterDoc,
+        versions,
+        markups: enrichedMarkups,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/master-docs/:docKey/versions - Upload new master version (internal only)
+  app.post("/api/deals/:dealId/master-docs/:docKey/versions", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId, docKey } = req.params;
+      const user = req.user as SessionUser;
+      const { filePath, mimeType, changeSummary } = req.body;
+
+      if (!filePath) {
+        return res.status(400).json({ error: "filePath is required" });
+      }
+
+      // Get or create master doc
+      let masterDoc = await storage.getMasterDocByKey(dealId, docKey);
+      if (!masterDoc) {
+        // Auto-create if missing
+        const docs = await storage.ensureMasterDocsForDeal(dealId, user.id);
+        masterDoc = docs.find(d => d.docKey === docKey);
+        if (!masterDoc) {
+          return res.status(400).json({ error: "Invalid docKey" });
+        }
+      }
+
+      // Create version
+      const version = await storage.createDocumentVersion({
+        masterDocId: masterDoc.id,
+        filePath,
+        mimeType,
+        uploadedBy: user.id,
+        changeSummary,
+      });
+
+      // Log audit
+      await audit.uploadMasterVersion(req, dealId, version.id, docKey, version.versionNumber);
+
+      res.status(201).json(version);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/master-docs/:docKey/markups - Submit lender markup (legal tier lenders only)
+  app.post("/api/deals/:dealId/master-docs/:docKey/markups", requireAuth, async (req, res) => {
+    try {
+      const { dealId, docKey } = req.params;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+
+      // Only lenders can submit markups
+      if (role !== "lender" && role !== "investor") {
+        return res.status(403).json({ error: "Only lenders can submit markups" });
+      }
+
+      if (!user.lenderId) {
+        return res.status(400).json({ error: "Lender ID required" });
+      }
+
+      // Check legal tier access
+      const hasAccess = await hasLegalTierAccess(req, dealId);
+      if (!hasAccess) {
+        return res.status(403).json({
+          error: "Legal tier access required to submit markups",
+          code: "LEGAL_TIER_REQUIRED"
+        });
+      }
+
+      const { filePath, mimeType, notes } = req.body;
+
+      if (!filePath) {
+        return res.status(400).json({ error: "filePath is required" });
+      }
+
+      const masterDoc = await storage.getMasterDocByKey(dealId, docKey);
+      if (!masterDoc) {
+        return res.status(404).json({ error: "Master document not found" });
+      }
+
+      // Create markup
+      const markup = await storage.createLenderMarkup({
+        masterDocId: masterDoc.id,
+        lenderId: user.lenderId,
+        filePath,
+        mimeType,
+        uploadedByUserId: user.id,
+        notes,
+      });
+
+      // Log audit
+      await audit.uploadLenderMarkup(req, dealId, markup.id, docKey, user.lenderId);
+
+      res.status(201).json(markup);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PATCH /api/markups/:markupId - Review markup (internal only)
+  app.patch("/api/markups/:markupId", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { markupId } = req.params;
+      const { status, notes, incorporatedVersionId } = req.body;
+
+      const existingMarkup = await storage.getLenderMarkup(markupId);
+      if (!existingMarkup) {
+        return res.status(404).json({ error: "Markup not found" });
+      }
+
+      const updated = await storage.updateLenderMarkup(markupId, {
+        status,
+        notes,
+        incorporatedVersionId,
+      });
+
+      // Get master doc for deal ID
+      const masterDoc = await storage.getMasterDoc(existingMarkup.masterDocId);
+      if (masterDoc) {
+        await audit.reviewMarkup(req, masterDoc.dealId, markupId, status);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/lender-progress - Enhanced lender progress with markup status (internal only)
+  app.get("/api/deals/:dealId/lender-progress", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+
+      // Get invitations for this deal
+      const invitations = await storage.listInvitationsByDeal(dealId);
+
+      // Get master docs
+      const masterDocs = await storage.listMasterDocsByDeal(dealId);
+
+      // Get Q&A counts
+      const qaItems = await storage.listQAByDeal(dealId);
+
+      // Get syndicate book for IOI status
+      const syndicateEntries = await storage.listSyndicateBookByDeal(dealId);
+
+      // Build progress data
+      const lenderProgress = await Promise.all(
+        invitations.map(async (inv) => {
+          const lender = await storage.getLender(inv.lenderId);
+          if (!lender) return null;
+
+          // Get markup status for each doc
+          const markupStatus: Record<string, { count: number; pending: number }> = {};
+          for (const doc of masterDocs) {
+            const markups = await storage.listMarkupsByLender(doc.id, inv.lenderId);
+            markupStatus[doc.docKey] = {
+              count: markups.length,
+              pending: markups.filter(m => m.status === "uploaded" || m.status === "reviewing").length,
+            };
+          }
+
+          // Get Q&A count for this lender
+          const lenderQAItems = qaItems.filter(q => q.lenderId === inv.lenderId);
+          const openQACount = lenderQAItems.filter(q => q.status === "open").length;
+
+          // Get syndicate entry for IOI status
+          const syndicateEntry = syndicateEntries.find(e => e.lenderId === inv.lenderId);
+
+          return {
+            lenderId: inv.lenderId,
+            lenderName: lender.organization,
+            contactName: `${lender.firstName} ${lender.lastName}`,
+            email: lender.email,
+            ndaStatus: inv.ndaSignedAt ? "signed" : "pending",
+            ndaSignedAt: inv.ndaSignedAt,
+            accessTier: inv.accessTier,
+            ioiStatus: syndicateEntry?.status || "invited",
+            ioiAmount: syndicateEntry?.indicatedAmount || null,
+            markupStatus,
+            openQACount,
+            lastActivity: inv.ndaSignedAt || inv.invitedAt,
+          };
+        })
+      );
+
+      // Filter out null entries
+      const validProgress = lenderProgress.filter(p => p !== null);
+
+      res.json({
+        lenders: validProgress,
+        masterDocs: masterDocs.map(d => ({ docKey: d.docKey, title: d.title })),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

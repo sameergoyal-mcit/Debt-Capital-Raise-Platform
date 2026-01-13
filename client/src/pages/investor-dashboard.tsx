@@ -107,7 +107,8 @@ export default function InvestorDashboard() {
     });
   };
 
-  if (!user || user.role !== "Investor") {
+  const userRole = user?.role?.toLowerCase();
+  if (!user || (userRole !== "investor" && userRole !== "lender")) {
     return (
         <Layout>
             <div className="flex items-center justify-center h-[80vh]">

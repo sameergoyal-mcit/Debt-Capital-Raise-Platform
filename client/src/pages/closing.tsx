@@ -33,7 +33,8 @@ export default function Closing() {
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [customItems, setCustomItems] = useState<ChecklistItem[]>([]);
   
-  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
+  const userRole = user?.role?.toLowerCase();
+  const isInternal = userRole === "bookrunner" || userRole === "issuer";
   const dealDocs = mockDocuments.filter(d => d.dealId === dealId);
 
   const handleExportCPs = () => {

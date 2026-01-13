@@ -10,7 +10,8 @@ export default function CalendarPage() {
   const [, params] = useRoute("/deal/:id/calendar");
   const dealId = params?.id || "101";
   const { user } = useAuth();
-  const isInvestor = user?.role === "Investor";
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
 
   const PageContent = () => (
     <div className="space-y-6 animate-in fade-in duration-500">

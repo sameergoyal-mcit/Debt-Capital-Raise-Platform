@@ -17,7 +17,9 @@
       "Bash(xargs kill -9)",
       "Bash(fuser:*)",
       "Bash(ss:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(grep:*)",
+      "Bash(pgrep:*)"
     ]
   }
 }

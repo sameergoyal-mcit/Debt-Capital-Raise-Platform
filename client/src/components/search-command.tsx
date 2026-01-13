@@ -61,7 +61,7 @@ const quickActions: SearchResult[] = [
     title: "View Calendar",
     description: "Deal timelines and deadlines",
     type: "page",
-    href: "/calendar",
+    href: "/deal/101/calendar",
     icon: <Calendar className="h-4 w-4" />,
   },
 ];

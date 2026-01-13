@@ -102,7 +102,8 @@ export default function DealOverview() {
     (user?.role as "Bookrunner" | "Issuer" | "Investor") || "Bookrunner"
   );
 
-  const isInvestor = user?.role === "Investor";
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
 
   // Handle stage override
   const handleStageOverride = (newStage: string) => {

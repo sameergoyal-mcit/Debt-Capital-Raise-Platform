@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient, setLocation]);
 
   // Demo login (for demo purposes - creates a mock session)
-  const loginAsRole = useCallback((role: string, lenderId?: string) => {
+  const loginAsRole = useCallback(async (role: string, lenderId?: string): Promise<void> => {
     // For demo, use hardcoded credentials based on role
     let email = "";
     let name = "";
@@ -150,8 +150,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name = "Sponsor Representative";
     }
 
-    // Try to login - if fails, just navigate for demo purposes
-    login({ email, password }).catch(() => {
+    // Try to login first
+    const result = await login({ email, password });
+
+    if (!result.success) {
       // Fallback for demo: store in localStorage and navigate
       const mockUser: User = {
         id: "demo-" + normalizedRole,
@@ -171,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLocation("/deals");
       }
-    });
+    }
   }, [login, queryClient, setLocation]);
 
   // Logout

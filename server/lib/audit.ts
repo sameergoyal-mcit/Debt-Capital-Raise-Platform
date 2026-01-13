@@ -53,6 +53,12 @@ export const AuditActions = {
   DELETE_CLOSING_ITEM: "DELETE_CLOSING_ITEM",
   UPLOAD_CLOSING_ITEM: "UPLOAD_CLOSING_ITEM",
   APPROVE_CLOSING_ITEM: "APPROVE_CLOSING_ITEM",
+
+  // Legal Negotiation actions
+  UPLOAD_MASTER_VERSION: "UPLOAD_MASTER_VERSION",
+  UPLOAD_LENDER_MARKUP: "UPLOAD_LENDER_MARKUP",
+  REVIEW_MARKUP: "REVIEW_MARKUP",
+  VIEW_NEGOTIATION_DOC: "VIEW_NEGOTIATION_DOC",
 } as const;
 
 export type AuditAction = (typeof AuditActions)[keyof typeof AuditActions];
@@ -219,6 +225,63 @@ export const audit = {
       resourceType: "indication",
       resourceId: indicationId,
       dealId,
+    });
+  },
+
+  async uploadMasterVersion(
+    req: Request,
+    dealId: string,
+    versionId: string,
+    docKey: string,
+    versionNumber: number
+  ): Promise<void> {
+    await auditLogFromRequest(req, AuditActions.UPLOAD_MASTER_VERSION, {
+      resourceType: "document_version",
+      resourceId: versionId,
+      dealId,
+      metadata: { docKey, versionNumber },
+    });
+  },
+
+  async uploadLenderMarkup(
+    req: Request,
+    dealId: string,
+    markupId: string,
+    docKey: string,
+    lenderId: string
+  ): Promise<void> {
+    await auditLogFromRequest(req, AuditActions.UPLOAD_LENDER_MARKUP, {
+      resourceType: "lender_markup",
+      resourceId: markupId,
+      dealId,
+      lenderId,
+      metadata: { docKey },
+    });
+  },
+
+  async reviewMarkup(
+    req: Request,
+    dealId: string,
+    markupId: string,
+    newStatus: string
+  ): Promise<void> {
+    await auditLogFromRequest(req, AuditActions.REVIEW_MARKUP, {
+      resourceType: "lender_markup",
+      resourceId: markupId,
+      dealId,
+      metadata: { newStatus },
+    });
+  },
+
+  async viewNegotiationDoc(
+    req: Request,
+    dealId: string,
+    docKey: string
+  ): Promise<void> {
+    await auditLogFromRequest(req, AuditActions.VIEW_NEGOTIATION_DOC, {
+      resourceType: "master_document",
+      dealId,
+      metadata: { docKey },
     });
   },
 };

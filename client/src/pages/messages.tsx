@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/context/auth-context";
-import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages } from "@/data/messages";
+import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages, getAllParticipants, Mention } from "@/data/messages";
 import { addQuestion, updateQA, findOpenQAForThread } from "@/data/qa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,18 +9,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Send, 
-  Paperclip, 
-  MoreVertical, 
-  Phone, 
-  Video, 
+import { NewConversationDialog } from "@/components/new-conversation-dialog";
+import { MentionInput } from "@/components/mention-input";
+import { MentionText } from "@/components/mention-text";
+import {
+  Search,
+  Send,
+  Paperclip,
+  MoreVertical,
+  Phone,
+  Video,
   Search as SearchIcon,
   ChevronLeft,
   MessageCircle,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -42,6 +46,11 @@ export default function MessagesPage() {
   const [messageType, setMessageType] = useState<"deal_process" | "due_diligence">("deal_process");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [filterType, setFilterType] = useState<"all" | "due_diligence" | "deal_process">("all");
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [pendingMentions, setPendingMentions] = useState<Mention[]>([]);
+
+  // Get all participants for mention picker
+  const allParticipants = useMemo(() => getAllParticipants(), []);
 
   // Read URL params for deep linking
   useEffect(() => {
@@ -123,7 +132,7 @@ export default function MessagesPage() {
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeThreadId || !user) return;
     
-    const isInvestor = user.role === "Investor";
+    const isInvestor = user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender";
     let newQaId: string | undefined;
 
     // 1. Investor sending Due Diligence Question
@@ -165,18 +174,25 @@ export default function MessagesPage() {
     const newMsg: Message = {
         id: `m-new-${Date.now()}`,
         threadId: activeThreadId,
-        senderId: user.role === "Bookrunner" ? "u1" : "u3", // Mock ID mapping
+        senderId: user.role?.toLowerCase() === "bookrunner" ? "u1" : "u3", // Mock ID mapping
         body: newMessage,
         createdAt: new Date().toISOString(),
         readBy: [],
         category: messageType,
         dealId: activeThread?.dealId,
-        qaId: newQaId
+        qaId: newQaId,
+        mentions: pendingMentions.length > 0 ? pendingMentions : undefined
     };
-    
+
     mockMessages[activeThreadId].push(newMsg);
     setNewMessage("");
+    setPendingMentions([]);
     setMessageType("deal_process"); // Reset to default
+  };
+
+  const handleMessageChange = (value: string, mentions: Mention[]) => {
+    setNewMessage(value);
+    setPendingMentions(mentions);
   };
 
   // Auto-select first thread on desktop
@@ -188,7 +204,7 @@ export default function MessagesPage() {
 
   if (!user) return null;
 
-  const isInvestor = user.role === "Investor";
+  const isInvestor = user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender";
 
   return (
     <Layout>
@@ -200,7 +216,17 @@ export default function MessagesPage() {
           mobileView === "chat" ? "hidden md:flex" : "flex"
         )}>
           <div className="p-4 border-b border-border space-y-4">
-            <h2 className="font-serif text-xl font-bold px-1">Messages</h2>
+            <div className="flex items-center justify-between px-1">
+              <h2 className="font-serif text-xl font-bold">Messages</h2>
+              <Button
+                size="sm"
+                className="h-8 gap-1"
+                onClick={() => setShowNewConversation(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
@@ -333,7 +359,7 @@ export default function MessagesPage() {
                   )}
 
                   {messages.map((msg) => {
-                    const isMe = (user.role === "Bookrunner" && msg.senderId === "u1") || (user.role === "Investor" && msg.senderId === "u3"); // Mock logic
+                    const isMe = (user.role?.toLowerCase() === "bookrunner" && msg.senderId === "u1") || (user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender" && msg.senderId === "u3"); // Mock logic
                     
                     return (
                       <div key={msg.id} id={`msg-${msg.id}`} className={cn("flex gap-3 scroll-mt-24", isMe ? "flex-row-reverse" : "flex-row")}>
@@ -345,7 +371,7 @@ export default function MessagesPage() {
                              "p-3 rounded-2xl text-sm shadow-sm relative",
                              isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-secondary text-secondary-foreground rounded-tl-none"
                            )}>
-                             {msg.body}
+                             <MentionText text={msg.body} mentions={msg.mentions} />
                            </div>
                            
                            {/* Attachments */}
@@ -435,11 +461,12 @@ export default function MessagesPage() {
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground shrink-0 rounded-full hover:bg-secondary/40">
                     <Paperclip className="h-4 w-4" />
                   </Button>
-                  <Input 
-                    className="border-0 bg-transparent focus-visible:ring-0 px-2 h-auto min-h-[36px] py-2 max-h-32 resize-none" 
-                    placeholder={isInvestor && messageType === "due_diligence" ? "Type your due diligence question..." : "Type a message..."}
+                  <MentionInput
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleMessageChange}
+                    participants={allParticipants}
+                    placeholder={isInvestor && messageType === "due_diligence" ? "Type your due diligence question... Use @ to mention" : "Type a message... Use @ to mention"}
+                    className="border-0 bg-transparent focus-visible:ring-0 px-2 h-auto min-h-[36px] py-2"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -463,6 +490,16 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
+
+      {/* New Conversation Dialog */}
+      <NewConversationDialog
+        isOpen={showNewConversation}
+        onClose={() => setShowNewConversation(false)}
+        onThreadCreated={(thread) => {
+          setActiveThreadId(thread.id);
+          setMobileView("chat");
+        }}
+      />
     </Layout>
   );
 }

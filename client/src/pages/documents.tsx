@@ -218,7 +218,8 @@ export default function DocumentsPage() {
     }
   };
 
-  const isInvestor = user?.role === "Investor";
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
   const invitation = isInvestor && user?.lenderId ? getInvitation(dealId, user.lenderId) : null;
   const accessTier = invitation?.accessTier || "early"; // Default if not found
 

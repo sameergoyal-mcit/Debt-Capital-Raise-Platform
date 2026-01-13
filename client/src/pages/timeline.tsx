@@ -65,9 +65,10 @@ export default function Timeline() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const isInvestor = user?.role === "Investor";
-  const isIssuer = user?.role === "Issuer";
-  const isBookrunner = user?.role === "Bookrunner";
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
+  const isIssuer = userRole === "issuer";
+  const isBookrunner = userRole === "bookrunner";
   const canModifyTimeline = isIssuer; // Only issuer can modify
 
   // Get computed blockers from real data

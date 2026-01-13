@@ -71,9 +71,11 @@ export default function Deals() {
   const [sortBy, setSortBy] = useState<string>("updated");
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
 
   // Redirect single deal logic
-  // if (user?.role === "Investor" && user.dealAccess?.length === 1) {
+  // if (isInvestor && user.dealAccess?.length === 1) {
   //   setLocation(`/deal/${user.dealAccess[0]}/overview`);
   //   return null; 
   // }
@@ -82,8 +84,8 @@ export default function Deals() {
   // Filter and sort logic
   const filteredDeals = mockDeals.filter(deal => {
     // Permission filter
-    if (user?.role === "Investor") {
-      if (!user.dealAccess?.includes(deal.id)) {
+    if (isInvestor) {
+      if (!user?.dealAccess?.includes(deal.id)) {
         return false;
       }
     }
@@ -149,10 +151,10 @@ export default function Deals() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-primary tracking-tight">
-               {user?.role === "Investor" ? "My Deals" : "Deals"}
+               {isInvestor ? "My Deals" : "Deals"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {user?.role === "Investor" 
+              {isInvestor 
                 ? "Active deals you are invited to participate in." 
                 : "Track portfolio company debt raises and execution status."}
             </p>
@@ -236,13 +238,13 @@ export default function Deals() {
               {activeDeals.length > 0 ? (
                 <DealsTable deals={activeDeals} type="active" />
               ) : (
-                <EmptyState message={user?.role === "Investor" ? "No active deals found." : "No active deals. Create a new debt raise."} />
+                <EmptyState message={isInvestor ? "No active deals found." : "No active deals. Create a new debt raise."} />
               )}
             </AccordionContent>
           </AccordionItem>
 
           {/* On Hold Section - Usually hidden for investors unless relevant */}
-          {(user?.role !== "Investor" || onHoldDeals.length > 0) && (onHoldDeals.length > 0 || statusFilter === "Paused") && (
+          {(!isInvestor || onHoldDeals.length > 0) && (onHoldDeals.length > 0 || statusFilter === "Paused") && (
             <AccordionItem value="on-hold" className="border border-border rounded-lg bg-card overflow-hidden">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
                 <div className="flex flex-col md:flex-row md:items-center gap-3 w-full text-left">
@@ -250,7 +252,7 @@ export default function Deals() {
                     <span className="font-semibold text-lg">Processes on Hold</span>
                     <Badge variant="secondary" className="rounded-full px-2.5 bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200">{onHoldDeals.length}</Badge>
                   </div>
-                  {user?.role !== "Investor" && (
+                  {!isInvestor && (
                     <span className="text-sm text-muted-foreground font-normal md:ml-auto md:mr-4">
                       Most common reason: Pricing too wide
                     </span>
@@ -293,12 +295,14 @@ export default function Deals() {
 function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold' | 'closed' }) {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
+
   // Decide where to send investor vs internal
   // Investors usually go straight to Documents or Overview (which might be their landing)
   // For now we send everyone to Overview, but Overview will be different for Investors
   const handleRowClick = (dealId: string) => {
-    if (user?.role === "Investor") {
+    if (isInvestor) {
        setLocation(`/deal/${dealId}/documents`);
     } else {
        setLocation(`/deal/${dealId}/overview`);
@@ -317,7 +321,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
           {/* Dynamic Columns based on type */}
           {type === 'active' && (
             <>
-              {user?.role !== "Investor" && <TableHead className="w-[20%]">Committed</TableHead>}
+              {!isInvestor && <TableHead className="w-[20%]">Committed</TableHead>}
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Timeline</TableHead>
             </>
@@ -368,7 +372,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
             {/* Active Columns */}
             {type === 'active' && (
               <>
-                {user?.role !== "Investor" && (
+                {!isInvestor && (
                   <TableCell>
                     <div className="space-y-1.5 w-full max-w-[140px]">
                       <div className="flex justify-between text-xs">
@@ -390,7 +394,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                     </Badge>
                     {(() => {
                       const risk = computeDealRisk(deal);
-                      if (risk.label !== "Normal" && user?.role !== "Investor") {
+                      if (risk.label !== "Normal" && !isInvestor) {
                         return (
                           <Badge variant="outline" className={`text-[10px] w-fit px-1.5 py-0 h-5 ${risk.color}`}>
                             {risk.label}
@@ -479,7 +483,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                 <DropdownMenuContent align="end" className="w-[180px]">
                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {user?.role !== "Investor" && (
+                  {!isInvestor && (
                     <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/overview`)}>
                       <TrendingUp className="mr-2 h-4 w-4" /> Overview
                     </DropdownMenuItem>
@@ -487,7 +491,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                   
                   {type === 'active' && (
                     <>
-                      {user?.role !== "Investor" && (
+                      {!isInvestor && (
                         <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/book`)}>
                           <Users className="mr-2 h-4 w-4" /> Investor Book
                         </DropdownMenuItem>
@@ -498,7 +502,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                       <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/qa`)}>
                         <HelpCircle className="mr-2 h-4 w-4" /> Due Diligence
                       </DropdownMenuItem>
-                      {user?.role !== "Investor" && (
+                      {!isInvestor && (
                         <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/closing`)}>
                           <CheckSquare className="mr-2 h-4 w-4" /> Closing
                         </DropdownMenuItem>
@@ -506,7 +510,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                     </>
                   )}
 
-                  {type === 'on-hold' && user?.role !== "Investor" && (
+                  {type === 'on-hold' && !isInvestor && (
                     <>
                       <DropdownMenuItem>
                         <FileText className="mr-2 h-4 w-4" /> View Hold Notes

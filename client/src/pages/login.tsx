@@ -56,7 +56,7 @@ export default function Login() {
 
     if (!result.success) {
       // Fall back to demo mode
-      loginAsRole(role, lenderId);
+      await loginAsRole(role, lenderId);
     }
 
     setIsLoading(false);

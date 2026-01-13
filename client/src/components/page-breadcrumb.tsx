@@ -99,7 +99,7 @@ export function AutoBreadcrumb() {
   const [matchDealClosing, closingParams] = useRoute("/deal/:id/closing");
   const [matchDealAudit, auditParams] = useRoute("/deal/:id/audit-trail");
   const [matchModel] = useRoute("/deal/:id/model");
-  const [matchCalendar] = useRoute("/calendar");
+  const [matchCalendar, calendarParams] = useRoute("/deal/:id/calendar");
   const [matchAnalytics] = useRoute("/analytics");
   const [matchMessages] = useRoute("/messages");
 

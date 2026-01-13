@@ -21,7 +21,9 @@ import {
   FlaskConical,
   Calculator,
   X,
-  BookOpen
+  BookOpen,
+  Scale,
+  UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,9 +67,10 @@ export function Layout({ children }: LayoutProps) {
 
   const isActive = (path: string) => location.startsWith(path);
 
-  // Determine Nav Items based on Role
-  const isInvestor = user?.role === "Investor";
-  const isInternal = user?.role === "Bookrunner" || user?.role === "Issuer";
+  // Determine Nav Items based on Role (case-insensitive comparison)
+  const userRole = user?.role?.toLowerCase();
+  const isInvestor = userRole === "investor" || userRole === "lender";
+  const isInternal = userRole === "bookrunner" || userRole === "issuer";
 
   // Shared sidebar content component
   const SidebarContent = ({ onNavClick }: { onNavClick?: () => void }) => (
@@ -128,6 +131,15 @@ export function Layout({ children }: LayoutProps) {
                     Modeling
                   </h4>
                   <NavItem href={`/deal/${dealId}/model`} icon={<Calculator size={18} />} label="Financial Model" active={isActive(`/deal/${dealId}/model`)} onClick={onNavClick} />
+                </div>
+
+                {/* Execution Section */}
+                <div className="mt-6 pt-4 border-t border-sidebar-border/50">
+                  <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                    Execution
+                  </h4>
+                  <NavItem href={`/deal/${dealId}/execution/lenders`} icon={<UserCheck size={18} />} label="Lender Progress" active={isActive(`/deal/${dealId}/execution/lenders`)} onClick={onNavClick} />
+                  <NavItem href={`/deal/${dealId}/legal/negotiation`} icon={<Scale size={18} />} label="Legal Workspace" active={isActive(`/deal/${dealId}/legal`)} onClick={onNavClick} />
                 </div>
 
                 {/* Actions Section */}

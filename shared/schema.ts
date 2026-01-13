@@ -331,3 +331,65 @@ export const insertIndicationSchema = createInsertSchema(indications).omit({
 });
 export type InsertIndication = z.infer<typeof insertIndicationSchema>;
 export type Indication = typeof indications.$inferSelect;
+
+// Master Documents Table - Legal negotiation documents (Financing Grid, Term Sheet, Credit Agreement)
+export const masterDocuments = pgTable("master_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  docKey: text("doc_key").notNull(), // "financing_grid" | "term_sheet" | "credit_agreement"
+  title: text("title").notNull(),
+  currentVersionId: varchar("current_version_id"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMasterDocumentSchema = createInsertSchema(masterDocuments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertMasterDocument = z.infer<typeof insertMasterDocumentSchema>;
+export type MasterDocument = typeof masterDocuments.$inferSelect;
+
+// Document Versions Table - Version history for master documents
+export const documentVersions = pgTable("document_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  masterDocId: varchar("master_doc_id").notNull().references(() => masterDocuments.id),
+  versionNumber: integer("version_number").notNull().default(1),
+  filePath: text("file_path").notNull(),
+  mimeType: text("mime_type"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  changeSummary: text("change_summary"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+
+// Lender Markups Table - Lender counsel submissions for master documents
+export const lenderMarkups = pgTable("lender_markups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  masterDocId: varchar("master_doc_id").notNull().references(() => masterDocuments.id),
+  lenderId: varchar("lender_id").notNull().references(() => lenders.id),
+  filePath: text("file_path").notNull(),
+  mimeType: text("mime_type"),
+  uploadedByUserId: varchar("uploaded_by_user_id").references(() => users.id),
+  status: text("status").notNull().default("uploaded"), // uploaded, reviewing, incorporated, rejected
+  incorporatedVersionId: varchar("incorporated_version_id").references(() => documentVersions.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertLenderMarkupSchema = createInsertSchema(lenderMarkups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertLenderMarkup = z.infer<typeof insertLenderMarkupSchema>;
+export type LenderMarkup = typeof lenderMarkups.$inferSelect;

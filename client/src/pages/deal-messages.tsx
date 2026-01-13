@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/context/auth-context";
-import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages } from "@/data/messages";
+import { getThreadsForUser, getMessages, MessageThread, Message, mockMessages, getAllParticipants, Mention } from "@/data/messages";
 import { addQuestion, updateQA, findOpenQAForThread } from "@/data/qa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,19 +10,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  Send, 
-  Paperclip, 
-  MoreVertical, 
-  Phone, 
-  Video, 
+import { NewConversationDialog } from "@/components/new-conversation-dialog";
+import { MentionInput } from "@/components/mention-input";
+import { MentionText } from "@/components/mention-text";
+import {
+  Search,
+  Send,
+  Paperclip,
+  MoreVertical,
+  Phone,
+  Video,
   ChevronLeft,
   MessageCircle,
   HelpCircle,
   Users,
   Building2,
-  Scale
+  Scale,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -49,6 +53,11 @@ export default function DealMessagesPage() {
   const [messageType, setMessageType] = useState<"deal_process" | "due_diligence">("deal_process");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [filterType, setFilterType] = useState<"all" | "due_diligence" | "deal_process">("all");
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [pendingMentions, setPendingMentions] = useState<Mention[]>([]);
+
+  // Get all participants for mention picker
+  const allParticipants = useMemo(() => getAllParticipants(), []);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -124,7 +133,7 @@ export default function DealMessagesPage() {
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeThreadId || !user) return;
     
-    const isInvestor = user.role === "Investor";
+    const isInvestor = user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender";
     let newQaId: string | undefined;
 
     if (isInvestor && messageType === "due_diligence") {
@@ -162,21 +171,28 @@ export default function DealMessagesPage() {
     const newMsg: Message = {
         id: `m-new-${Date.now()}`,
         threadId: activeThreadId,
-        senderId: user.role === "Bookrunner" ? "u1" : "u3",
+        senderId: user.role?.toLowerCase() === "bookrunner" ? "u1" : "u3",
         body: newMessage,
         createdAt: new Date().toISOString(),
         readBy: [],
         category: messageType,
         dealId: dealId,
-        qaId: newQaId
+        qaId: newQaId,
+        mentions: pendingMentions.length > 0 ? pendingMentions : undefined
     };
-    
+
     if (!mockMessages[activeThreadId]) {
         mockMessages[activeThreadId] = [];
     }
     mockMessages[activeThreadId].push(newMsg);
     setNewMessage("");
+    setPendingMentions([]);
     setMessageType("deal_process");
+  };
+
+  const handleMessageChange = (value: string, mentions: Mention[]) => {
+    setNewMessage(value);
+    setPendingMentions(mentions);
   };
 
   useEffect(() => {
@@ -187,7 +203,7 @@ export default function DealMessagesPage() {
 
   if (!user) return null;
 
-  const isInvestor = user.role === "Investor";
+  const isInvestor = user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender";
 
   const getCategoryIcon = (category: string) => {
     switch(category) {
@@ -207,9 +223,19 @@ export default function DealMessagesPage() {
           mobileView === "chat" ? "hidden md:flex" : "flex"
         )}>
           <div className="p-4 border-b border-border space-y-3">
-            <div>
-              <h2 className="font-serif text-xl font-bold">Messages</h2>
-              <p className="text-xs text-muted-foreground">{deal?.dealName || "Deal"}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-serif text-xl font-bold">Messages</h2>
+                <p className="text-xs text-muted-foreground">{deal?.dealName || "Deal"}</p>
+              </div>
+              <Button
+                size="sm"
+                className="h-8 gap-1"
+                onClick={() => setShowNewConversation(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New
+              </Button>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -347,7 +373,7 @@ export default function DealMessagesPage() {
                   )}
 
                   {messages.map((msg) => {
-                    const isMe = (user.role === "Bookrunner" && msg.senderId === "u1") || (user.role === "Investor" && msg.senderId === "u3");
+                    const isMe = (user.role?.toLowerCase() === "bookrunner" && msg.senderId === "u1") || (user.role?.toLowerCase() === "investor" || user.role?.toLowerCase() === "lender" && msg.senderId === "u3");
                     
                     return (
                       <div key={msg.id} id={`msg-${msg.id}`} className={cn("flex gap-3 scroll-mt-24", isMe ? "flex-row-reverse" : "flex-row")}>
@@ -359,7 +385,7 @@ export default function DealMessagesPage() {
                              "p-3 rounded-2xl text-sm shadow-sm relative",
                              isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-secondary text-secondary-foreground rounded-tl-none"
                            )}>
-                             {msg.body}
+                             <MentionText text={msg.body} mentions={msg.mentions} />
                            </div>
                            
                            {msg.attachments && msg.attachments.length > 0 && (
@@ -443,18 +469,18 @@ export default function DealMessagesPage() {
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground shrink-0 rounded-full hover:bg-secondary/40">
                     <Paperclip className="h-4 w-4" />
                   </Button>
-                  <Input 
-                    className="border-0 bg-transparent focus-visible:ring-0 px-2 h-auto min-h-[36px] py-2 max-h-32 resize-none" 
-                    placeholder={isInvestor && messageType === "due_diligence" ? "Type your due diligence question..." : "Type a message..."}
+                  <MentionInput
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleMessageChange}
+                    participants={allParticipants}
+                    placeholder={isInvestor && messageType === "due_diligence" ? "Type your due diligence question... Use @ to mention" : "Type a message... Use @ to mention"}
+                    className="border-0 bg-transparent focus-visible:ring-0 px-2 h-auto min-h-[36px] py-2"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             handleSendMessage();
                         }
                     }}
-                    data-testid="input-new-message"
                   />
                   <Button size="icon" className="h-8 w-8 shrink-0 rounded-full" onClick={handleSendMessage} disabled={!newMessage.trim()} data-testid="button-send-message">
                     <Send className="h-4 w-4" />
@@ -472,6 +498,18 @@ export default function DealMessagesPage() {
           )}
         </div>
       </div>
+
+      {/* New Conversation Dialog */}
+      <NewConversationDialog
+        isOpen={showNewConversation}
+        onClose={() => setShowNewConversation(false)}
+        dealId={dealId}
+        dealName={deal?.dealName}
+        onThreadCreated={(thread) => {
+          setActiveThreadId(thread.id);
+          setMobileView("chat");
+        }}
+      />
     </Layout>
   );
 }

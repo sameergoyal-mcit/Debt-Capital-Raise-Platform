@@ -195,8 +195,9 @@ export default function SubmitCommitment() {
   const hasActiveIndication = existingIndication && existingIndication.status !== "withdrawn";
   const isSubmitting = submitMutation.isPending || withdrawMutation.isPending;
 
+  const userRole = user?.role?.toLowerCase();
   const PageContent = () => {
-      if (!user || user.role !== "Investor") {
+      if (!user || (userRole !== "investor" && userRole !== "lender")) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] text-center">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />

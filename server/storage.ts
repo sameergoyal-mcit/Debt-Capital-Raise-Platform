@@ -27,6 +27,12 @@ import type {
   InsertSyndicateBook,
   Indication,
   InsertIndication,
+  MasterDocument,
+  InsertMasterDocument,
+  DocumentVersion,
+  InsertDocumentVersion,
+  LenderMarkup,
+  InsertLenderMarkup,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -123,6 +129,26 @@ export interface IStorage {
   listIndicationsByDeal(dealId: string): Promise<Indication[]>;
   upsertIndication(dealId: string, lenderId: string, indication: Partial<InsertIndication>): Promise<Indication>;
   withdrawIndication(dealId: string, lenderId: string): Promise<Indication | undefined>;
+
+  // Master Documents (Legal Negotiation)
+  listMasterDocsByDeal(dealId: string): Promise<MasterDocument[]>;
+  getMasterDoc(id: string): Promise<MasterDocument | undefined>;
+  getMasterDocByKey(dealId: string, docKey: string): Promise<MasterDocument | undefined>;
+  createMasterDoc(doc: InsertMasterDocument): Promise<MasterDocument>;
+  updateMasterDoc(id: string, doc: Partial<InsertMasterDocument>): Promise<MasterDocument | undefined>;
+  ensureMasterDocsForDeal(dealId: string, userId?: string): Promise<MasterDocument[]>;
+
+  // Document Versions
+  listVersionsByMasterDoc(masterDocId: string): Promise<DocumentVersion[]>;
+  getDocumentVersion(id: string): Promise<DocumentVersion | undefined>;
+  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+
+  // Lender Markups
+  listMarkupsByMasterDoc(masterDocId: string): Promise<LenderMarkup[]>;
+  listMarkupsByLender(masterDocId: string, lenderId: string): Promise<LenderMarkup[]>;
+  getLenderMarkup(id: string): Promise<LenderMarkup | undefined>;
+  createLenderMarkup(markup: InsertLenderMarkup): Promise<LenderMarkup>;
+  updateLenderMarkup(id: string, markup: Partial<InsertLenderMarkup>): Promise<LenderMarkup | undefined>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -651,6 +677,132 @@ export class DrizzleStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(schema.indications.id, existing.id))
+      .returning();
+    return results[0];
+  }
+
+  // Master Documents (Legal Negotiation)
+  async listMasterDocsByDeal(dealId: string): Promise<MasterDocument[]> {
+    return db
+      .select()
+      .from(schema.masterDocuments)
+      .where(eq(schema.masterDocuments.dealId, dealId))
+      .orderBy(schema.masterDocuments.docKey);
+  }
+
+  async getMasterDoc(id: string): Promise<MasterDocument | undefined> {
+    const results = await db.select().from(schema.masterDocuments).where(eq(schema.masterDocuments.id, id));
+    return results[0];
+  }
+
+  async getMasterDocByKey(dealId: string, docKey: string): Promise<MasterDocument | undefined> {
+    const results = await db
+      .select()
+      .from(schema.masterDocuments)
+      .where(and(eq(schema.masterDocuments.dealId, dealId), eq(schema.masterDocuments.docKey, docKey)));
+    return results[0];
+  }
+
+  async createMasterDoc(doc: InsertMasterDocument): Promise<MasterDocument> {
+    const results = await db.insert(schema.masterDocuments).values(doc).returning();
+    return results[0];
+  }
+
+  async updateMasterDoc(id: string, doc: Partial<InsertMasterDocument>): Promise<MasterDocument | undefined> {
+    const results = await db
+      .update(schema.masterDocuments)
+      .set({ ...doc, updatedAt: new Date() })
+      .where(eq(schema.masterDocuments.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async ensureMasterDocsForDeal(dealId: string, userId?: string): Promise<MasterDocument[]> {
+    const existing = await this.listMasterDocsByDeal(dealId);
+
+    const docKeys = [
+      { key: "financing_grid", title: "Financing Grid" },
+      { key: "term_sheet", title: "Term Sheet" },
+      { key: "credit_agreement", title: "Credit Agreement" },
+    ];
+
+    const existingKeys = new Set(existing.map(d => d.docKey));
+    const toCreate = docKeys.filter(d => !existingKeys.has(d.key));
+
+    for (const doc of toCreate) {
+      await this.createMasterDoc({
+        dealId,
+        docKey: doc.key,
+        title: doc.title,
+        createdBy: userId,
+      });
+    }
+
+    return this.listMasterDocsByDeal(dealId);
+  }
+
+  // Document Versions
+  async listVersionsByMasterDoc(masterDocId: string): Promise<DocumentVersion[]> {
+    return db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.masterDocId, masterDocId))
+      .orderBy(desc(schema.documentVersions.versionNumber));
+  }
+
+  async getDocumentVersion(id: string): Promise<DocumentVersion | undefined> {
+    const results = await db.select().from(schema.documentVersions).where(eq(schema.documentVersions.id, id));
+    return results[0];
+  }
+
+  async createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion> {
+    // Auto-increment version number
+    const existing = await this.listVersionsByMasterDoc(version.masterDocId);
+    const nextVersion = existing.length > 0 ? Math.max(...existing.map(v => v.versionNumber)) + 1 : 1;
+
+    const results = await db
+      .insert(schema.documentVersions)
+      .values({ ...version, versionNumber: nextVersion })
+      .returning();
+
+    // Update master doc's currentVersionId
+    await this.updateMasterDoc(version.masterDocId, { currentVersionId: results[0].id });
+
+    return results[0];
+  }
+
+  // Lender Markups
+  async listMarkupsByMasterDoc(masterDocId: string): Promise<LenderMarkup[]> {
+    return db
+      .select()
+      .from(schema.lenderMarkups)
+      .where(eq(schema.lenderMarkups.masterDocId, masterDocId))
+      .orderBy(desc(schema.lenderMarkups.createdAt));
+  }
+
+  async listMarkupsByLender(masterDocId: string, lenderId: string): Promise<LenderMarkup[]> {
+    return db
+      .select()
+      .from(schema.lenderMarkups)
+      .where(and(eq(schema.lenderMarkups.masterDocId, masterDocId), eq(schema.lenderMarkups.lenderId, lenderId)))
+      .orderBy(desc(schema.lenderMarkups.createdAt));
+  }
+
+  async getLenderMarkup(id: string): Promise<LenderMarkup | undefined> {
+    const results = await db.select().from(schema.lenderMarkups).where(eq(schema.lenderMarkups.id, id));
+    return results[0];
+  }
+
+  async createLenderMarkup(markup: InsertLenderMarkup): Promise<LenderMarkup> {
+    const results = await db.insert(schema.lenderMarkups).values(markup).returning();
+    return results[0];
+  }
+
+  async updateLenderMarkup(id: string, markup: Partial<InsertLenderMarkup>): Promise<LenderMarkup | undefined> {
+    const results = await db
+      .update(schema.lenderMarkups)
+      .set({ ...markup, updatedAt: new Date() })
+      .where(eq(schema.lenderMarkups.id, id))
       .returning();
     return results[0];
   }

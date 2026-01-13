@@ -12,20 +12,24 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
-type EmptyStateType = 
+type EmptyStateType =
   | "commitments"
   | "qa"
   | "documents"
   | "invitations"
   | "messages"
-  | "activity";
+  | "activity"
+  | "lenders"
+  | "markups";
 
 interface EmptyStateProps {
   type: EmptyStateType;
-  role?: "Investor" | "Issuer" | "Bookrunner";
+  role?: "Investor" | "Issuer" | "Bookrunner" | "Lender";
   actionHref?: string;
   actionLabel?: string;
   onAction?: () => void;
+  title?: string;
+  description?: string;
 }
 
 const emptyStateConfig: Record<EmptyStateType, {
@@ -83,23 +87,54 @@ const emptyStateConfig: Record<EmptyStateType, {
     title: "No Recent Activity",
     description: {
       Investor: "Your activity on this deal will be tracked here.",
+      Lender: "Your activity on this deal will be tracked here.",
       Issuer: "Lender activity will be logged here.",
       Bookrunner: "Lender activity will be logged here."
+    }
+  },
+  lenders: {
+    icon: <Users className="h-10 w-10 text-muted-foreground/40" />,
+    title: "No Lenders Added",
+    description: {
+      Investor: "",
+      Lender: "",
+      Issuer: "Invite lenders to begin diligence and document review.",
+      Bookrunner: "Invite lenders to begin diligence and document review."
+    }
+  },
+  markups: {
+    icon: <FileText className="h-10 w-10 text-muted-foreground/40" />,
+    title: "No Markups Received",
+    description: {
+      Investor: "",
+      Lender: "Upload your firm's markup for review by the issuer and bookrunner.",
+      Issuer: "Markups from lender counsel will appear here once uploaded.",
+      Bookrunner: "Markups from lender counsel will appear here once uploaded."
     }
   }
 };
 
-export function EmptyState({ type, role = "Investor", actionHref, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({
+  type,
+  role = "Investor",
+  actionHref,
+  actionLabel,
+  onAction,
+  title: customTitle,
+  description: customDescription
+}: EmptyStateProps) {
   const config = emptyStateConfig[type];
-  const description = config.description[role] || config.description.Investor;
+  const configDescription = config.description[role] || config.description.Investor || config.description.Lender;
+  const displayTitle = customTitle || config.title;
+  const displayDescription = customDescription || configDescription;
 
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center" data-testid={`empty-state-${type}`}>
       <div className="mb-4 p-4 rounded-full bg-secondary/30">
         {config.icon}
       </div>
-      <h3 className="text-lg font-semibold text-foreground mb-2">{config.title}</h3>
-      <p className="text-sm text-muted-foreground max-w-sm mb-6">{description}</p>
+      <h3 className="text-lg font-semibold text-foreground mb-2">{displayTitle}</h3>
+      <p className="text-sm text-muted-foreground max-w-sm mb-6">{displayDescription}</p>
       
       {actionHref && actionLabel && (
         <Link href={actionHref}>

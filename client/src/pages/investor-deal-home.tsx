@@ -48,7 +48,8 @@ export default function InvestorDealHome() {
     }
   }, [dealId, user]);
 
-  if (!user || user.role !== "Investor") return null; // Or redirect
+  const userRole = user?.role?.toLowerCase();
+  if (!user || (userRole !== "investor" && userRole !== "lender")) return null; // Or redirect
   if (!data) return <Layout><div className="p-8">Loading deal data...</div></Layout>;
 
   const { deal, invitation, stats } = data;
