@@ -10,6 +10,8 @@ export interface User {
   email: string;
   role: string;
   lenderId?: string;
+  organizationId?: string;
+  organizationType?: string; // "issuer" | "bank" | "lender" | "law_firm"
   firstName?: string;
   lastName?: string;
   // Computed/backwards compatible properties

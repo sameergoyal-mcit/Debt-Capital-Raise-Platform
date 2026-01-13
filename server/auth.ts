@@ -353,7 +353,7 @@ export function setupAuthRoutes(app: Express): void {
   });
 
   // Get current user
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({
         error: "Not authenticated",
@@ -362,11 +362,21 @@ export function setupAuthRoutes(app: Express): void {
     }
 
     const user = req.user as SessionUser;
+
+    // Fetch organization type if user has an organization
+    let organizationType: string | null = null;
+    if (user.organizationId) {
+      const org = await storage.getOrganization(user.organizationId);
+      organizationType = org?.orgType || null;
+    }
+
     return res.json({
       id: user.id,
       email: user.email,
       role: user.role,
       lenderId: user.lenderId,
+      organizationId: user.organizationId,
+      organizationType,
       firstName: user.firstName,
       lastName: user.lastName,
     });

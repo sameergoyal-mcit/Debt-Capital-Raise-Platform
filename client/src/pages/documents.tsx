@@ -22,18 +22,54 @@ import {
   X,
   Shield
 } from "lucide-react";
-import { mockDocuments, Document, DocumentCategory } from "@/data/documents";
 import { parseISO, formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { NDAGate } from "@/components/nda-gate";
-import { getInvitation } from "@/data/invitations";
-import { getMarkups, getLenderMarkups, uploadMarkup, Markup } from "@/data/markups";
+import { useLenderInvitations } from "@/hooks/api-hooks";
+
+// Document category type
+type DocumentCategory = "Lender Presentation" | "Supplemental Information" | "Lender Paydown Model" | "KYC & Compliance" | "Legal" | "Prior Process Q&A";
+
+// Extended Document interface for UI
+interface Document {
+  id: string;
+  name: string;
+  category: string;
+  type: string;
+  version: string;
+  status: string;
+  accessTier?: string;
+  lastUpdatedAt: string;
+  updatedBy?: string;
+  fileKey?: string;
+  changeSummary?: string;
+  isNew?: boolean;
+  isUpdated?: boolean;
+  isAutomated?: boolean;
+  owner?: string;
+  openCommentsCount?: number;
+  dealId?: string;
+}
+
+// Markup interface
+interface Markup {
+  id: string;
+  documentId: string;
+  lenderId: string;
+  lenderName?: string;
+  fileName: string;
+  uploadedAt: string;
+  uploadedBy?: string;
+  status: string;
+  notes?: string;
+}
 import {
   Dialog,
   DialogContent,
@@ -54,7 +90,6 @@ import { DocumentFilterPanel, DocumentFilters, defaultDocumentFilters } from "@/
 import { DealSandbox } from "@/components/deal-sandbox";
 import { useEffect } from "react";
 import { DocumentVersionBadge, generateMockVersions, DocumentVersion } from "@/components/document-versions";
-import { autoMarkMilestone } from "@/data/timeline";
 
 interface GranularAssumptions {
   ltmRevenue: number;
@@ -133,6 +168,9 @@ export default function DocumentsPage() {
   const [filters, setFilters] = useState<DocumentFilters>(defaultDocumentFilters);
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const [apiDocs, setApiDocs] = useState<Document[]>([]);
+  const [isExtractingQA, setIsExtractingQA] = useState(false);
+  const [extractQADialogOpen, setExtractQADialogOpen] = useState(false);
+  const [csvContent, setCsvContent] = useState<string>("");
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -168,20 +206,22 @@ export default function DocumentsPage() {
           "Legal": "Legal",
           "Supplemental Information": "Supplemental Information",
           "KYC & Compliance": "KYC & Compliance",
+          "Prior Process Q&A": "Prior Process Q&A",
+          "prior_process_qa": "Prior Process Q&A",
         };
-        const mapped = docs.map(d => ({
+        const mapped: Document[] = docs.map(d => ({
           id: d.id,
           name: d.name || "Untitled",
-          category: (categoryMap[d.category] || "Lender Paydown Model") as DocumentCategory,
-          status: "Issuer Approved" as const,
+          category: (categoryMap[d.category] || "Lender Paydown Model") as string,
+          status: "Issuer Approved",
           version: `v${d.version || 1}`,
           lastUpdatedAt: d.uploadedAt || d.updatedAt || new Date().toISOString(),
-          owner: "Deal Team" as const,
+          owner: "Deal Team",
           openCommentsCount: 0,
           dealId: d.dealId,
           changeSummary: d.changeSummary || "",
           accessTier: (d.visibilityTier || "full") as "early" | "full" | "legal",
-          type: d.type as "document" | "interactive_model" | undefined,
+          type: d.type || "document",
           fileKey: d.fileKey,
           isNew: true,
         }));
@@ -211,16 +251,96 @@ export default function DocumentsPage() {
 
   const handleNewDocUpload = (doc: UploadedDocument) => {
     setUploadedDocs(prev => [...prev, doc]);
+  };
 
-    // Auto-mark Lender Presentation Drafting milestone if a Lender Presentation is uploaded
-    if (doc.category === "Lender Presentation") {
-      autoMarkMilestone(dealId, "lender_presentation_uploaded");
+  // Parse CSV content and extract Q&A
+  const handleExtractQA = async () => {
+    if (!selectedDoc || !csvContent.trim()) {
+      toast({ title: "Error", description: "Please paste CSV content with question,answer columns.", variant: "destructive" });
+      return;
+    }
+
+    setIsExtractingQA(true);
+    try {
+      // Parse CSV - simple parser for question,answer,topic,source_process,shareable columns
+      const lines = csvContent.trim().split("\n");
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
+
+      const questionIdx = headers.findIndex(h => h === "question");
+      const answerIdx = headers.findIndex(h => h === "answer");
+      const topicIdx = headers.findIndex(h => h === "topic");
+      const sourceIdx = headers.findIndex(h => h === "source_process" || h === "sourceprocess" || h === "source");
+      const shareableIdx = headers.findIndex(h => h === "shareable");
+
+      if (questionIdx === -1 || answerIdx === -1) {
+        toast({ title: "Invalid CSV", description: "CSV must have 'question' and 'answer' columns.", variant: "destructive" });
+        setIsExtractingQA(false);
+        return;
+      }
+
+      const csvData = lines.slice(1).map(line => {
+        // Handle quoted values with commas
+        const values: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (const char of line) {
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === "," && !inQuotes) {
+            values.push(current.trim());
+            current = "";
+          } else {
+            current += char;
+          }
+        }
+        values.push(current.trim());
+
+        return {
+          question: values[questionIdx]?.replace(/^"|"$/g, "") || "",
+          answer: values[answerIdx]?.replace(/^"|"$/g, "") || "",
+          topic: topicIdx >= 0 ? values[topicIdx]?.replace(/^"|"$/g, "") : null,
+          source_process: sourceIdx >= 0 ? values[sourceIdx]?.replace(/^"|"$/g, "") : null,
+          shareable: shareableIdx >= 0 ? values[shareableIdx]?.toLowerCase() !== "false" : true,
+        };
+      }).filter(row => row.question && row.answer);
+
+      const res = await fetch(`/api/deals/${dealId}/prior-qa/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          uploadedDocumentId: selectedDoc.id,
+          csvData,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to import Q&A");
+      }
+
+      const result = await res.json();
+      toast({
+        title: "Q&A Extracted",
+        description: `Successfully imported ${result.imported} Q&A items.`
+      });
+      setExtractQADialogOpen(false);
+      setCsvContent("");
+      // Navigate to Prior Process Q&A tab
+      navigate(`/deal/${dealId}/qa?tab=prior`);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExtractingQA(false);
     }
   };
 
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";
-  const invitation = isInvestor && user?.lenderId ? getInvitation(dealId, user.lenderId) : null;
+
+  // Fetch lender invitations from API
+  const { data: lenderInvitations = [] } = useLenderInvitations(user?.lenderId);
+  const invitation = lenderInvitations.find(inv => inv.dealId === dealId) || null;
   const accessTier = invitation?.accessTier || "early"; // Default if not found
 
   // Define tier permissions
@@ -231,9 +351,9 @@ export default function DocumentsPage() {
   const getAllowedCategories = (tier: string) => {
     switch(tier) {
       case "legal":
-        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance", "Legal"];
+        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance", "Legal", "Prior Process Q&A"];
       case "full":
-        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance"];
+        return ["Lender Presentation", "Supplemental Information", "Lender Paydown Model", "KYC & Compliance", "Prior Process Q&A"];
       case "early":
       default:
         return ["Lender Presentation"];
@@ -242,7 +362,7 @@ export default function DocumentsPage() {
 
   const allowedCategories = isInvestor ? getAllowedCategories(accessTier) : null;
 
-  const allDocuments = [...mockDocuments, ...apiDocs.filter(d => !mockDocuments.some(m => m.id === d.id))];
+  const allDocuments = apiDocs;
 
   const baseAccessibleDocs = isInvestor 
     ? allDocuments.filter(d => 
@@ -317,7 +437,7 @@ export default function DocumentsPage() {
   };
 
   // Required document categories for the deal
-  const REQUIRED_DOC_CATEGORIES: DocumentCategory[] = ["Lender Presentation", "Legal"];
+  const REQUIRED_DOC_CATEGORIES: string[] = ["Lender Presentation", "Legal"];
 
   // Check for missing required categories
   const existingCategories = new Set(baseAccessibleDocs.map(d => d.category));
@@ -347,10 +467,10 @@ export default function DocumentsPage() {
     if (!acc[doc.category]) acc[doc.category] = [];
     acc[doc.category].push(doc);
     return acc;
-  }, {} as Record<DocumentCategory, Document[]>);
+  }, {} as Record<string, Document[]>);
 
   // Grouped Docs helper to safely get array
-  const getDocs = (cat: DocumentCategory) => groupedDocs[cat] || [];
+  const getDocs = (cat: string) => groupedDocs[cat] || [];
   
   // Check if any filters are active
   const hasActiveFilters = filters.categories.length > 0 || 
@@ -366,13 +486,33 @@ export default function DocumentsPage() {
     d.status !== "Ready to Sign" && d.status !== "Lender Approved"
   );
 
-  // Markups logic
-  const [markupsVersion, setMarkupsVersion] = useState(0); // Trigger re-render
-  const docMarkups = selectedDoc 
-    ? (isInvestor 
-        ? getLenderMarkups(dealId, selectedDoc.id, user?.lenderId || "") 
-        : getMarkups(dealId, selectedDoc.id))
-    : [];
+  // Markups state and logic
+  const [docMarkups, setDocMarkups] = useState<Markup[]>([]);
+
+  // Fetch markups when selected doc changes
+  useEffect(() => {
+    if (!selectedDoc) {
+      setDocMarkups([]);
+      return;
+    }
+
+    const fetchMarkups = async () => {
+      try {
+        const url = isInvestor && user?.lenderId
+          ? `/api/deals/${dealId}/documents/${selectedDoc.id}/markups?lenderId=${user.lenderId}`
+          : `/api/deals/${dealId}/documents/${selectedDoc.id}/markups`;
+        const res = await fetch(url, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setDocMarkups(data);
+        }
+      } catch (error) {
+        // Markups endpoint may not exist yet - silently fail
+        setDocMarkups([]);
+      }
+    };
+    fetchMarkups();
+  }, [selectedDoc?.id, dealId, isInvestor, user?.lenderId]);
   
   const isLegalDoc = selectedDoc && ["Credit Agreement", "Security", "Intercreditor"].includes(selectedDoc.category);
 
@@ -390,22 +530,27 @@ export default function DocumentsPage() {
     try {
       // Use Storage Service (Abstracted S3/Box/Mock)
       const uploadResult = await storageService.uploadFile(file, `markups/${dealId}/${selectedDoc.id}`);
-      
+
       const filename = file.name;
 
-      const newMarkup: Markup = {
-        id: `m${Date.now()}`,
-        documentId: selectedDoc.id,
-        lenderId: user.lenderId || "unknown",
-        dealId: dealId,
-        uploadedAt: new Date().toISOString(),
-        filename: filename,
-        status: "Pending Review",
-        uploadedBy: user.name || user.email
-      };
+      // Create markup via API
+      const markupRes = await fetch(`/api/deals/${dealId}/documents/${selectedDoc.id}/markups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          lenderId: user.lenderId || "unknown",
+          fileName: filename,
+          status: "Pending Review",
+          notes: ""
+        })
+      });
 
-      uploadMarkup(newMarkup);
-      setMarkupsVersion(v => v + 1);
+      if (markupRes.ok) {
+        const newMarkup = await markupRes.json();
+        setDocMarkups(prev => [...prev, newMarkup]);
+      }
+
       setIsUploadOpen(false);
 
       toast({
@@ -534,6 +679,7 @@ export default function DocumentsPage() {
                             <>
                               <FolderGroup title="Financials & Model" docs={[...getDocs("Supplemental Information"), ...getDocs("Lender Paydown Model")]} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
                               <FolderGroup title="KYC" docs={getDocs("KYC & Compliance")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                              <FolderGroup title="Prior Process Q&A" docs={getDocs("Prior Process Q&A")} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} dealId={dealId} />
                             </>
                           )}
 
@@ -550,7 +696,7 @@ export default function DocumentsPage() {
                         </>
                       ) : (
                         Object.entries(groupedDocs).map(([category, docs]) => (
-                          <FolderGroup key={category} title={category} docs={docs} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} />
+                          <FolderGroup key={category} title={category} docs={docs} selectedId={selectedDoc?.id} onSelect={setSelectedDocId} dealId={dealId} />
                         ))
                       )}
                     </div>
@@ -607,6 +753,50 @@ export default function DocumentsPage() {
                           <Button size="sm" variant="outline" className="gap-2" onClick={() => handleDownloadDoc(selectedDoc)} data-testid="button-download-doc">
                             <Download className="h-4 w-4" /> Download
                           </Button>
+                        )}
+                        {/* Extract Q&A button for Prior Process Q&A documents */}
+                        {!isInvestor && selectedDoc.category === "Prior Process Q&A" && (
+                          <Dialog open={extractQADialogOpen} onOpenChange={setExtractQADialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="secondary" className="gap-2">
+                                <FileText className="h-4 w-4" /> Extract Q&A
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[600px]">
+                              <DialogHeader>
+                                <DialogTitle>Extract Q&A from CSV</DialogTitle>
+                                <DialogDescription>
+                                  Paste CSV content with Q&A data. Required columns: question, answer.
+                                  Optional columns: topic, source_process, shareable.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded">
+                                  Source document: {selectedDoc.name}
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>CSV Content</Label>
+                                  <Textarea
+                                    placeholder="question,answer,topic,source_process,shareable&#10;What is the EBITDA?,The EBITDA is $50MM.,Financials,2023 Financing,true"
+                                    value={csvContent}
+                                    onChange={(e) => setCsvContent(e.target.value)}
+                                    className="min-h-[200px] font-mono text-xs"
+                                  />
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Example format: question,answer,topic,source_process,shareable
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setExtractQADialogOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleExtractQA} disabled={isExtractingQA}>
+                                  {isExtractingQA ? "Importing..." : "Import Q&A"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     )}
@@ -665,12 +855,12 @@ export default function DocumentsPage() {
                                       <FileText className="h-8 w-8 text-primary/40 mt-1" />
                                       <div>
                                         <div className="font-medium text-primary flex items-center gap-2">
-                                          {markup.filename}
+                                          {markup.fileName}
                                           {markup.status === "Reviewed" && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">Reviewed</Badge>}
                                           {markup.status === "Pending Review" && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>}
                                         </div>
                                         <div className="text-xs text-muted-foreground mt-0.5">
-                                          Uploaded by {markup.uploadedBy} • {formatDistanceToNow(parseISO(markup.uploadedAt))} ago
+                                          Uploaded by {markup.uploadedBy || "Unknown"} • {formatDistanceToNow(parseISO(markup.uploadedAt))} ago
                                         </div>
                                       </div>
                                     </div>
@@ -678,7 +868,7 @@ export default function DocumentsPage() {
                                       {!isInvestor && (
                                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => toast({ title: "Coming Soon", description: "Markup review feature is in development." })} data-testid="button-review-markup">Review</Button>
                                       )}
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { downloadPlaceholderDoc(markup.filename, "v1"); toast({ title: "Download Started", description: `Downloading ${markup.filename}...` }); }} data-testid="button-download-markup"><Download className="h-4 w-4" /></Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { downloadPlaceholderDoc(markup.fileName, "v1"); toast({ title: "Download Started", description: `Downloading ${markup.fileName}...` }); }} data-testid="button-download-markup"><Download className="h-4 w-4" /></Button>
                                     </div>
                                   </div>
                                 ))}
@@ -870,15 +1060,24 @@ export default function DocumentsPage() {
   );
 }
 
-function FolderGroup({ title, docs, selectedId, onSelect }: { title: string, docs: Document[], selectedId?: string, onSelect: (id: string) => void }) {
+function FolderGroup({ title, docs, selectedId, onSelect, dealId }: { title: string, docs: Document[], selectedId?: string, onSelect: (id: string) => void, dealId?: string }) {
   if (docs.length === 0) return null;
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 sticky top-0 bg-card py-1 z-10">
-        {title}
-      </h3>
-      <div className="space-y-1">
+      <div className="flex items-center justify-between sticky top-0 bg-card py-1 z-10">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          {title}
+        </h3>
+        {title === "Prior Process Q&A" && dealId && (
+          <Link href={`/deal/${dealId}/qa?tab=prior`}>
+            <span className="text-xs text-primary hover:underline cursor-pointer">
+              View Extracted Q&A →
+            </span>
+          </Link>
+        )}
+      </div>
+      <div className="space-y-1 mt-2">
         {docs.map(doc => {
           const versions = generateMockVersions(doc.name);
           const currentVersionNum = parseInt(doc.version.replace('v', '')) || versions.find(v => v.isCurrentVersion)?.version || 1;
@@ -912,7 +1111,7 @@ function FolderGroup({ title, docs, selectedId, onSelect }: { title: string, doc
                       // Would download specific version
                     }}
                   />
-                  {doc.openCommentsCount > 0 && (
+                  {(doc.openCommentsCount ?? 0) > 0 && (
                     <Badge variant="secondary" className="h-4 px-1 text-[10px] gap-1">
                       <MessageSquare className="h-2 w-2" /> {doc.openCommentsCount}
                     </Badge>

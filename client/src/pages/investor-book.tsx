@@ -73,10 +73,84 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useRole } from "@/context/role";
-import { mockLenders, Lender, LenderStatus, LenderType, computeSeriousnessScore } from "@/data/lenders";
-import { getDealInvitations, Invitation } from "@/data/invitations";
+import { useInvitations, useSyndicateBook } from "@/hooks/api-hooks";
+import type { Invitation, Lender } from "@shared/schema";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+
+// Lender status and type definitions
+type LenderStatus = "invited" | "interested" | "ioi_submitted" | "soft_circled" | "firm_committed" | "allocated" | "declined" | "pitching";
+type LenderType = "CLO" | "Direct Lender" | "Bank" | "Insurance" | "Pension" | "Family Office" | "Asset Manager" | "Other";
+
+// IOI object structure for UI
+interface IOI {
+  lenderId: string;
+  submittedAt: string;
+  ticketMin: number;
+  ticketMax: number;
+  pricingBps: number;
+  conditions: string;
+  isFirm: boolean;
+}
+
+// UI Lender interface with all properties needed for display
+interface UILender {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  organization: string;
+  fundType: string | null;
+  name: string;
+  owner: string;
+  type: LenderType;
+  status: LenderStatus;
+  seriousnessScore: number;
+  syndicateEntry: SyndicateBookEntry & { lender: Lender };
+  // Mapped from syndicateEntry
+  indicatedAmount: string | null;
+  firmCommitmentAmount: string | null;
+  allocatedAmount: string | null;
+  spreadBps: number | null;
+  notes: string | null;
+  // UI compatibility - ioi as object for form handling
+  ioi: IOI | null;
+  ticketMin: number;
+  ticketMax: number;
+  pricingBps: number;
+  lastContactAt: string | null;
+  nextAction: { type: string; dueDate: string } | null;
+  interactions: { type: string; date: string; note: string; id?: string; user?: string }[];
+}
+
+// Import the type for syndicate book entry
+type SyndicateBookEntry = {
+  id: string;
+  createdAt: Date;
+  status: string;
+  dealId: string;
+  lenderId: string;
+  indicatedAmount: string | null;
+  firmCommitmentAmount: string | null;
+  allocatedAmount: string | null;
+  spreadBps: number | null;
+  internalNotes: string | null;
+  lastUpdatedBy: string | null;
+  lastUpdatedAt: Date;
+};
+
+// Compute seriousness score locally
+function computeSeriousnessScore(entry: { status?: string; indicatedAmount?: string | null; firmCommitmentAmount?: string | null }): number {
+  let score = 0;
+  const status = entry.status || "invited";
+  if (status === "firm_committed" || status === "allocated") score += 40;
+  else if (status === "soft_circled") score += 30;
+  else if (status === "ioi_submitted") score += 20;
+  else if (status === "interested") score += 10;
+  if (entry.indicatedAmount) score += 10;
+  if (entry.firmCommitmentAmount) score += 20;
+  return score;
+}
 
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -115,13 +189,59 @@ export default function InvestorBook() {
     navigate(`/deal/${dealId}/book`);
   };
 
-  // Get invitations for this deal and filter lenders to only show invited ones
-  const [invitations, setInvitations] = useState<Invitation[]>(() => getDealInvitations(dealId));
-  const [lenders, setLenders] = useState<Lender[]>(() => {
-    const dealInvitations = getDealInvitations(dealId);
-    const invitedLenderIds = new Set(dealInvitations.map(inv => inv.lenderId));
-    return mockLenders.filter(l => invitedLenderIds.has(l.id));
-  });
+  // Fetch invitations and syndicate book from API
+  const { data: invitationsData = [], refetch: refetchInvitations } = useInvitations(dealId);
+  const { data: syndicateBookData = [], refetch: refetchSyndicateBook } = useSyndicateBook(dealId);
+
+  // Transform API data to component format
+  const invitations = invitationsData;
+  const lenders: UILender[] = useMemo(() => {
+    return syndicateBookData.map(entry => {
+      const seriousnessScore = computeSeriousnessScore(entry);
+      const indicatedAmountNum = entry.indicatedAmount ? Number(entry.indicatedAmount) : 0;
+      const spreadBpsNum = entry.spreadBps || 0;
+
+      // Build IOI object if there's an indication
+      const ioi: IOI | null = entry.indicatedAmount ? {
+        lenderId: entry.lenderId,
+        submittedAt: new Date(entry.lastUpdatedAt).toISOString(),
+        ticketMin: indicatedAmountNum,
+        ticketMax: indicatedAmountNum,
+        pricingBps: spreadBpsNum,
+        conditions: "",
+        isFirm: entry.status === "firm_committed",
+      } : null;
+
+      return {
+        id: entry.lender.id,
+        firstName: entry.lender.firstName,
+        lastName: entry.lender.lastName,
+        email: entry.lender.email,
+        organization: entry.lender.organization,
+        fundType: entry.lender.fundType,
+        name: `${entry.lender.firstName} ${entry.lender.lastName}`,
+        owner: entry.lender.organization,
+        type: (entry.lender.fundType || "Other") as LenderType,
+        status: entry.status as LenderStatus,
+        seriousnessScore,
+        syndicateEntry: entry,
+        indicatedAmount: entry.indicatedAmount,
+        firmCommitmentAmount: entry.firmCommitmentAmount,
+        allocatedAmount: entry.allocatedAmount,
+        spreadBps: entry.spreadBps,
+        notes: entry.internalNotes,
+        // UI compatibility
+        ioi,
+        ticketMin: indicatedAmountNum,
+        ticketMax: indicatedAmountNum,
+        pricingBps: spreadBpsNum,
+        lastContactAt: entry.lastUpdatedAt ? new Date(entry.lastUpdatedAt).toISOString() : null,
+        nextAction: null,
+        interactions: [],
+      };
+    });
+  }, [syndicateBookData]);
+
   const [selectedLenderId, setSelectedLenderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -129,17 +249,11 @@ export default function InvestorBook() {
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-  // Refresh lenders when dealId changes or invitations are updated
+  // Refresh data
   const refreshLenders = () => {
-    const dealInvitations = getDealInvitations(dealId);
-    setInvitations(dealInvitations);
-    const invitedLenderIds = new Set(dealInvitations.map(inv => inv.lenderId));
-    setLenders(mockLenders.filter(l => invitedLenderIds.has(l.id)));
+    refetchInvitations();
+    refetchSyndicateBook();
   };
-
-  useEffect(() => {
-    refreshLenders();
-  }, [dealId]);
 
   const selectedLender = useMemo(() => 
     lenders.find(l => l.id === selectedLenderId), 
@@ -168,13 +282,14 @@ export default function InvestorBook() {
     }).sort((a, b) => b.seriousnessScore - a.seriousnessScore); // Default sort by score
   }, [lenders, searchQuery, statusFilter, typeFilter, urlFilter, invitations]);
 
-  const handleUpdateLender = (updatedLender: Lender) => {
-    setLenders(prev => prev.map(l => l.id === updatedLender.id ? updatedLender : l));
+  const handleUpdateLender = (_updatedLender: any) => {
+    // Trigger a refetch to get updated data from server
+    refreshLenders();
   };
 
   // View Switching based on Role
   if (role === "investor") {
-    return <InvestorView lenders={lenders} onUpdateLender={handleUpdateLender} />;
+    return <InvestorView lenders={lenders as any} onUpdateLender={handleUpdateLender} />;
   }
 
   return (
@@ -347,7 +462,7 @@ function SendReminderModal({
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
-  lenders: Lender[]; 
+  lenders: UILender[]; 
   dealName: string; 
 }) {
   const { toast } = useToast();
@@ -516,7 +631,7 @@ CapitalFlow Team`);
 
 // --- Views & Components ---
 
-function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdateLender: (l: Lender) => void }) {
+function InvestorView({ lenders, onUpdateLender }: { lenders: UILender[], onUpdateLender: (l: UILender) => void }) {
   // Mocking the "current user" as BlackRock (ID 1)
   const myLender = lenders.find(l => l.id === "1");
   const [showIOIForm, setShowIOIForm] = useState(false);
@@ -602,7 +717,7 @@ function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdate
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-xl">Status: {myLender.status}</CardTitle>
-                  <CardDescription className="mt-1">Last updated {formatDistanceToNow(parseISO(myLender.lastContactAt))} ago</CardDescription>
+                  <CardDescription className="mt-1">Last updated {myLender.lastContactAt ? formatDistanceToNow(parseISO(myLender.lastContactAt)) : "N/A"} ago</CardDescription>
                 </div>
                 <StatusBadge status={myLender.status} />
               </div>
@@ -687,7 +802,7 @@ function InvestorView({ lenders, onUpdateLender }: { lenders: Lender[], onUpdate
   )
 }
 
-function BookrunnerTable({ lenders, onSelectLender }: { lenders: Lender[], onSelectLender: (id: string) => void }) {
+function BookrunnerTable({ lenders, onSelectLender }: { lenders: UILender[], onSelectLender: (id: string) => void }) {
   return (
     <Table>
       <TableHeader>
@@ -766,7 +881,7 @@ function BookrunnerTable({ lenders, onSelectLender }: { lenders: Lender[], onSel
   )
 }
 
-function IssuerTable({ lenders }: { lenders: Lender[] }) {
+function IssuerTable({ lenders }: { lenders: UILender[] }) {
   // Simplified view for Issuer - Top interested lenders only
   const topLenders = lenders.filter(l => l.seriousnessScore > 20).slice(0, 8);
 
@@ -811,7 +926,7 @@ function IssuerTable({ lenders }: { lenders: Lender[] }) {
   )
 }
 
-function LenderDetailDrawer({ lender, onUpdateLender }: { lender: Lender, onUpdateLender: (l: Lender) => void }) {
+function LenderDetailDrawer({ lender, onUpdateLender }: { lender: UILender, onUpdateLender: (l: UILender) => void }) {
   const [noteText, setNoteText] = useState("");
 
   const handleSaveNote = () => {
@@ -957,7 +1072,7 @@ function LenderDetailDrawer({ lender, onUpdateLender }: { lender: Lender, onUpda
   )
 }
 
-function BookStats({ lenders }: { lenders: Lender[] }) {
+function BookStats({ lenders }: { lenders: UILender[] }) {
   const totalCommitted = lenders.reduce((acc, l) => acc + (["firm_committed", "allocated"].includes(l.status) ? (l.ticketMin || 0) : 0), 0);
   const softCircle = lenders.reduce((acc, l) => acc + (["soft_circled", "ioi_submitted"].includes(l.status) ? (l.ticketMin || 0) : 0), 0);
   const activeCount = lenders.filter(l => ["interested", "ioi_submitted", "soft_circled"].includes(l.status)).length;

@@ -608,6 +608,117 @@ export async function registerRoutes(
     }
   });
 
+  // ========== PRIOR PROCESS Q&A ==========
+  // List Prior Q&A - internal sees all, lenders see only shareable items (NDA required)
+  app.get("/api/deals/:dealId/prior-qa", requireAuth, requireDealAccess, async (req, res) => {
+    try {
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const dealId = req.params.dealId;
+
+      // Internal users see all items
+      if (role === "bookrunner" || role === "issuer" || role === "sponsor") {
+        const items = await storage.listPriorQaByDeal(dealId, false);
+        return res.json(items);
+      }
+
+      // Lenders require NDA, see only shareable items
+      if (role === "lender" || role === "investor") {
+        const accessContext = await getLenderAccessContext(req, dealId);
+        if (!accessContext || accessContext.ndaWall) {
+          return res.status(403).json({ error: "NDA required to view Prior Q&A", code: "NDA_REQUIRED" });
+        }
+        const items = await storage.listPriorQaByDeal(dealId, true); // shareable only
+        return res.json(items);
+      }
+
+      return res.json([]);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Import Prior Q&A from CSV - internal users only
+  app.post("/api/deals/:dealId/prior-qa/import", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const dealId = req.params.dealId;
+      const { uploadedDocumentId, csvData } = req.body;
+
+      if (!csvData || !Array.isArray(csvData)) {
+        return res.status(400).json({ error: "csvData array required" });
+      }
+
+      // Validate the document exists and belongs to this deal
+      if (uploadedDocumentId) {
+        const doc = await storage.getDocument(uploadedDocumentId);
+        if (!doc || doc.dealId !== dealId) {
+          return res.status(400).json({ error: "Invalid uploaded document" });
+        }
+      }
+
+      // Parse and validate CSV rows
+      const items = csvData.map((row: any) => ({
+        dealId,
+        uploadedDocumentId: uploadedDocumentId || null,
+        question: String(row.question || "").trim(),
+        answer: String(row.answer || "").trim(),
+        topic: row.topic ? String(row.topic).trim() : null,
+        sourceProcess: row.source_process || row.sourceProcess ? String(row.source_process || row.sourceProcess).trim() : null,
+        shareable: row.shareable !== false && row.shareable !== "false",
+      })).filter((item: any) => item.question && item.answer);
+
+      if (items.length === 0) {
+        return res.status(400).json({ error: "No valid Q&A items found in data" });
+      }
+
+      const created = await storage.createPriorQaItems(items);
+
+      res.status(201).json({
+        imported: created.length,
+        items: created,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update Prior Q&A item - internal users only
+  app.patch("/api/prior-qa/:id", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const { question, answer, topic, sourceProcess, shareable } = req.body;
+
+      const updates: any = {};
+      if (question !== undefined) updates.question = question;
+      if (answer !== undefined) updates.answer = answer;
+      if (topic !== undefined) updates.topic = topic;
+      if (sourceProcess !== undefined) updates.sourceProcess = sourceProcess;
+      if (shareable !== undefined) updates.shareable = shareable;
+
+      const item = await storage.updatePriorQaItem(req.params.id, updates);
+      if (!item) {
+        return res.status(404).json({ error: "Prior Q&A item not found" });
+      }
+
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete Prior Q&A item - internal users only
+  app.delete("/api/prior-qa/:id", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const success = await storage.deletePriorQaItem(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Prior Q&A item not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ========== AUDIT LOGS ==========
   // View logs - internal users only
   app.get("/api/deals/:dealId/logs", requireAuth, ensureInternalOnly, async (req, res) => {
@@ -1466,59 +1577,67 @@ export async function registerRoutes(
     return res.status(403).json({ error: "Access denied to this RFP" });
   }
 
-  // GET /api/deals/:dealId/rfp - RFP dashboard
-  app.get("/api/deals/:dealId/rfp", requireAuth, requireRfpAccess, async (req, res) => {
+  // GET /api/deals/:dealId/rfp - RFP dashboard (ISSUER ONLY)
+  app.get("/api/deals/:dealId/rfp", requireAuth, requireRole("issuer", "sponsor"), async (req, res) => {
     try {
       const { dealId } = req.params;
-      const user = req.user as SessionUser;
-      const role = user.role.toLowerCase();
-      const bankOrgId = (req as any).bankOrgId;
 
       const deal = await storage.getDeal(dealId);
       if (!deal) {
         return res.status(404).json({ error: "Deal not found" });
       }
 
-      // For issuers: return all candidates and proposals summary
-      if (role === "issuer" || role === "sponsor") {
-        const candidates = await storage.listCandidatesByDeal(dealId);
-        const proposals = await storage.listProposalsByDeal(dealId);
+      const candidates = await storage.listCandidatesByDeal(dealId);
+      const proposals = await storage.listProposalsByDeal(dealId);
 
-        // Enrich candidates with org info and proposal status
-        const enrichedCandidates = await Promise.all(
-          candidates.map(async (c) => {
-            const org = await storage.getOrganization(c.bankOrgId);
-            const proposal = proposals.find(p => p.bankOrgId === c.bankOrgId);
-            return {
-              ...c,
-              bankName: org?.name || "Unknown",
-              hasProposal: !!proposal,
-              proposalStatus: proposal?.status || null,
-            };
-          })
-        );
+      // Enrich candidates with org info and proposal status
+      const enrichedCandidates = await Promise.all(
+        candidates.map(async (c) => {
+          const org = await storage.getOrganization(c.bankOrgId);
+          const proposal = proposals.find(p => p.bankOrgId === c.bankOrgId);
+          return {
+            ...c,
+            bankName: org?.name || "Unknown",
+            hasProposal: !!proposal,
+            proposalStatus: proposal?.status || null,
+          };
+        })
+      );
 
-        return res.json({
-          deal: {
-            id: deal.id,
-            dealName: deal.dealName,
-            borrowerName: deal.borrowerName,
-            status: deal.status,
-            mandatedBankOrgId: deal.mandatedBankOrgId,
-          },
-          candidates: enrichedCandidates,
-          proposalCount: proposals.filter(p => p.status === "submitted").length,
-        });
+      return res.json({
+        deal: {
+          id: deal.id,
+          dealName: deal.dealName,
+          borrowerName: deal.borrowerName,
+          status: deal.status,
+          mandatedBankOrgId: deal.mandatedBankOrgId,
+        },
+        candidates: enrichedCandidates,
+        proposalCount: proposals.filter(p => p.status === "submitted").length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/proposal - Bank's own proposal and deal teaser (BANK CANDIDATES ONLY)
+  app.get("/api/deals/:dealId/proposal", requireAuth, requireBankCandidate, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const bankOrgId = (req as any).bankOrgId;
+      const candidate = (req as any).bankCandidate;
+
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
       }
 
-      // For bank candidates: return deal teaser + their own candidate/proposal
-      const candidate = (req as any).bankCandidate;
       const proposal = await storage.getProposalByDealAndBank(dealId, bankOrgId);
 
       // Mark as viewed if first access
       if (candidate.status === "invited") {
         await storage.setCandidateStatus(dealId, bankOrgId, "viewed");
-        await auditLogFromRequest(req, "VIEW_RFP", {
+        await auditLogFromRequest(req, "OPEN_PROPOSAL_LINK", {
           resourceType: "deal",
           resourceId: dealId,
           dealId,
@@ -1526,6 +1645,7 @@ export async function registerRoutes(
         });
       }
 
+      // Return deal teaser (NO status, NO mandatedBankOrgId - banks don't see RFP stage info)
       return res.json({
         deal: {
           id: deal.id,
@@ -1535,12 +1655,10 @@ export async function registerRoutes(
           sponsor: deal.sponsor,
           facilityType: deal.facilityType,
           facilitySize: deal.facilitySize,
-          status: deal.status,
           closeDate: deal.closeDate,
         },
         candidate: {
           status: candidate.status,
-          viewedAt: candidate.viewedAt,
         },
         proposal: proposal || null,
       });

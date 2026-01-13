@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { mockDeals } from "@/data/deals";
 import {
   Sheet,
   SheetContent,
@@ -65,16 +64,19 @@ export function Layout({ children }: LayoutProps) {
   const dealIdMatch = location.match(/^\/(?:deal|investor\/deal)\/([^/]+)/);
   const dealId = dealIdMatch?.[1];
   const isDealWorkspace = !!dealId;
-  const currentDeal = dealId ? mockDeals.find(d => d.id === dealId) : null;
 
-  // Fetch real deal data for stage-aware navigation
-  const { data: dealData } = useQuery<{ status: string; mandatedBankOrgId: string | null }>({
+  // Fetch deal data for stage-aware navigation and deal name display
+  const { data: dealData } = useQuery<{ dealName: string; status: string; mandatedBankOrgId: string | null }>({
     queryKey: ["deal-nav", dealId],
     queryFn: async () => {
       const res = await fetch(`/api/deals/${dealId}`, { credentials: "include" });
-      if (!res.ok) return { status: "live_syndication", mandatedBankOrgId: null };
+      if (!res.ok) return { dealName: "Deal Workspace", status: "live_syndication", mandatedBankOrgId: null };
       const data = await res.json();
-      return { status: data.status || "live_syndication", mandatedBankOrgId: data.mandatedBankOrgId };
+      return {
+        dealName: data.dealName || "Deal Workspace",
+        status: data.status || "live_syndication",
+        mandatedBankOrgId: data.mandatedBankOrgId
+      };
     },
     enabled: !!dealId,
     staleTime: 30000, // Cache for 30 seconds
@@ -88,8 +90,10 @@ export function Layout({ children }: LayoutProps) {
   // Determine Nav Items based on Role (case-insensitive comparison)
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";
-  const isInternal = userRole === "bookrunner" || userRole === "issuer";
-  const isBank = userRole === "bank";
+  // Bank candidates are bookrunners with organization type "bank"
+  const isBankCandidate = userRole === "bookrunner" && user?.organizationType === "bank";
+  // Internal users are issuers or bookrunners who are not from bank organizations
+  const isInternal = (userRole === "bookrunner" && user?.organizationType !== "bank") || userRole === "issuer";
 
   // Shared sidebar content component
   const SidebarContent = ({ onNavClick }: { onNavClick?: () => void }) => (
@@ -108,8 +112,8 @@ export function Layout({ children }: LayoutProps) {
           <NavItem href="/investor" icon={<LayoutDashboard size={18} />} label="Lender Dashboard" active={location === "/investor"} onClick={onNavClick} />
         )}
 
-        {/* Bank users - show deals they're invited to */}
-        {isBank && !isDealWorkspace && (
+        {/* Bank candidate users - show deals they're invited to */}
+        {isBankCandidate && !isDealWorkspace && (
           <NavItem href="/deals" icon={<Briefcase size={18} />} label="RFP Invitations" active={location === "/deals"} onClick={onNavClick} />
         )}
 
@@ -117,7 +121,7 @@ export function Layout({ children }: LayoutProps) {
           <div className={`mt-${isInvestor ? '2' : '8'} pt-4 border-t border-sidebar-border`}>
             <div className="px-4 mb-4">
               <h4 className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-1">
-                {currentDeal ? currentDeal.dealName : "Deal Workspace"}
+                {dealData?.dealName || "Deal Workspace"}
               </h4>
               {isInvestor && <Badge variant="outline" className="text-[10px] text-sidebar-foreground/70 border-sidebar-foreground/20">Lender Portal</Badge>}
             </div>
@@ -130,13 +134,13 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={18} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} onClick={onNavClick} />
             )}
 
-            {/* Bank users see their proposal submission page */}
-            {isBank && (
+            {/* Bank candidate users see their proposal submission page */}
+            {isBankCandidate && (
               <NavItem href={`/deal/${dealId}/proposal`} icon={<Trophy size={18} />} label="Submit Proposal" active={isActive(`/deal/${dealId}/proposal`)} onClick={onNavClick} />
             )}
 
-            {/* RFP / Beauty Contest - shown in RFP stage, or as history in live syndication */}
-            {isInternal && (
+            {/* RFP / Beauty Contest - ISSUER ONLY */}
+            {userRole === "issuer" && (
               <NavItem
                 href={`/deal/${dealId}/rfp`}
                 icon={<Trophy size={18} />}

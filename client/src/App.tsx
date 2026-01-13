@@ -178,12 +178,12 @@ function Router() {
 
       {/* RFP / Beauty Contest - Internal Only */}
       <Route path="/deal/:id/rfp">
-        <ProtectedRoute component={DealRfpPage} allowedRoles={["Issuer", "Bookrunner"]} />
+        <ProtectedRoute component={DealRfpPage} allowedRoles={["Issuer"]} />
       </Route>
 
-      {/* Bank Proposal Submission - For Banks in RFP */}
+      {/* Bank Proposal Submission - For Banks in RFP (bank users have role="bookrunner" with org_type="bank") */}
       <Route path="/deal/:id/proposal">
-        <ProtectedRoute component={BankProposalPage} allowedRoles={["Bank"]} />
+        <ProtectedRoute component={BankProposalPage} allowedRoles={["Bookrunner"]} />
       </Route>
 
       {/* Legal Negotiation - Internal Only */}

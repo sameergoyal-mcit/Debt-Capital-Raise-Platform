@@ -36,11 +36,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell, Legend } from "recharts";
-import { mockDeals, computeDealRisk, Covenant } from "@/data/deals";
 import { differenceInDays, parseISO, format } from "date-fns";
-import { getDealInvitations, Invitation, updateAccessTier } from "@/data/invitations";
-import { mockLenders } from "@/data/lenders";
-import { getNDATemplate, mockNDATemplates } from "@/data/nda-templates";
+import { useDeal, useInvitations, useLenders, useUpdateInvitationTier } from "@/hooks/api-hooks";
+import { enrichDeal, computeDealRisk } from "@/lib/deal-utils";
+import type { Invitation, Lender } from "@shared/schema";
+
+// Covenant type for exports
+interface Covenant {
+  name: string;
+  threshold: string;
+  proForma: string;
+  unit: string;
+}
+
+// NDA Template placeholder
+const NDA_TEMPLATES = [
+  { id: "nda_std_v1", name: "Standard NDA", version: "1.0" },
+  { id: "nda_ltd_v1", name: "Limited NDA", version: "1.0" }
+];
+const getNDATemplate = (id: string) => NDA_TEMPLATES.find(t => t.id === id);
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,7 +80,18 @@ import { EngagementAnalytics } from "@/components/engagement-analytics";
 import { downloadCsvFromRecords } from "@/lib/download";
 import { buildExportFilename } from "@/lib/export-names";
 import { format as formatDate } from "date-fns";
-import { getTimelineProgress, getDealTimeline } from "@/data/timeline";
+// Timeline helpers - would be API calls in production
+const getTimelineProgress = (dealId: string) => ({
+  completedMilestones: 0,
+  totalMilestones: 0,
+  percentComplete: 0,
+  percentage: 0,
+  completed: 0,
+  total: 0
+});
+const getDealTimeline = (dealId: string) => ({
+  milestones: [] as { id: string; status: string; label: string }[]
+});
 import { getDealBlockers, DealBlocker, GetDealBlockersParams } from "@/lib/deal-blockers";
 import { getDealStageResultForRole, DEAL_STAGES, STAGE_ORDER, DealStageId } from "@/lib/deal-stage-engine";
 import { useAuth } from "@/context/auth-context";
@@ -74,14 +99,22 @@ import { useAuth } from "@/context/auth-context";
 export default function DealOverview() {
   const [, params] = useRoute("/deal/:id/overview");
   const dealId = params?.id || "101";
-  const deal = mockDeals.find(d => d.id === dealId) || mockDeals[0];
-  const risk = computeDealRisk(deal);
-  const daysToClose = differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date());
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
-  const [invitations, setInvitations] = useState(getDealInvitations(dealId));
-  const [activeNdaId, setActiveNdaId] = useState(deal.ndaTemplateId || "nda_std_v1");
+  // Fetch deal, invitations, and lenders from API
+  const { data: rawDeal, isLoading: dealLoading } = useDeal(dealId);
+  const { data: invitationsData = [], refetch: refetchInvitations } = useInvitations(dealId);
+  const { data: lendersData = [] } = useLenders();
+  const updateTierMutation = useUpdateInvitationTier();
+
+  // Enrich deal with computed properties
+  const deal = rawDeal ? enrichDeal(rawDeal) : null;
+  const risk = deal ? computeDealRisk(deal) : { label: "Normal", color: "", description: "" };
+  const daysToClose = deal ? differenceInDays(parseISO(deal.hardCloseDate || deal.closeDate), new Date()) : 0;
+
+  const invitations = invitationsData;
+  const [activeNdaId, setActiveNdaId] = useState(deal?.ndaTemplateId || "nda_std_v1");
   const [isNdaDialogOpen, setIsNdaDialogOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isRemindersModalOpen, setIsRemindersModalOpen] = useState(false);
@@ -125,21 +158,30 @@ export default function DealOverview() {
     });
   };
 
-  const handleTierChange = (lenderId: string, newTier: "early" | "full" | "legal") => {
-    const success = updateAccessTier(dealId, lenderId, newTier);
-    if (success) {
-      setInvitations(getDealInvitations(dealId)); // refresh
+  const handleTierChange = async (lenderId: string, newTier: "early" | "full" | "legal") => {
+    try {
+      await updateTierMutation.mutateAsync({
+        dealId,
+        lenderId,
+        accessTier: newTier,
+        changedBy: user?.name || "System"
+      });
+      refetchInvitations();
       toast({
         title: "Access Tier Updated",
         description: `Lender access upgraded to ${newTier.toUpperCase()}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update access tier.",
+        variant: "destructive",
       });
     }
   };
 
   const handleNdaChange = (templateId: string) => {
     setActiveNdaId(templateId);
-    // In a real app, we would update the deal object here
-    deal.ndaTemplateId = templateId; 
     setIsNdaDialogOpen(false);
     toast({
       title: "NDA Template Updated",
@@ -148,6 +190,7 @@ export default function DealOverview() {
   };
 
   const handleExportCovenants = () => {
+    if (!deal) return;
     const covenantData = (deal as any).covenants || [];
     downloadCsvFromRecords(
       buildExportFilename(deal.dealName, "DealSummary", "csv"),
@@ -159,14 +202,15 @@ export default function DealOverview() {
       }))
     );
   };
-  
+
   const handleInvitationCreated = () => {
-    setInvitations(getDealInvitations(dealId));
+    refetchInvitations();
   };
 
   const handleExportDealSummary = () => {
+    if (!deal) return;
     const signedCount = invitations.filter(i => i.ndaSignedAt).length;
-    
+
     downloadCsvFromRecords(
       buildExportFilename(deal.dealName, "DealSummary", "csv"),
       [{
@@ -174,8 +218,8 @@ export default function DealOverview() {
         Borrower: deal.borrowerName,
         Sector: deal.sector,
         Instrument: deal.instrument,
-        Stage: deal.stage,
-        FacilitySizeMM: (deal.facilitySize / 1_000_000).toFixed(1),
+        Stage: deal.displayStage,
+        FacilitySizeMM: (Number(deal.facilitySize) / 1_000_000).toFixed(1),
         SpreadLowBps: deal.pricing.spreadLowBps,
         SpreadHighBps: deal.pricing.spreadHighBps,
         OID: deal.pricing.oid,
@@ -192,11 +236,13 @@ export default function DealOverview() {
   };
 
   const handleDownloadIOIReport = () => {
+    if (!deal) return;
     const reportRows = invitations.map(inv => {
-      const lender = mockLenders.find(l => l.id === inv.lenderId);
+      // Get lender info - invitations may include lender object
+      const lender = (inv as any).lender || lendersData.find(l => l.id === inv.lenderId);
       const ndaStatus = inv.ndaSignedAt ? "signed" : (inv.ndaRequired ? "pending" : "not_required");
       return {
-        Organization: lender?.name || inv.lenderId,
+        Organization: lender?.organization || `${lender?.firstName} ${lender?.lastName}` || inv.lenderId,
         NDAStatus: ndaStatus,
         AccessTier: inv.accessTier,
         NDASignedAt: inv.ndaSignedAt ? formatDate(new Date(inv.ndaSignedAt), "yyyy-MM-dd") : "",
@@ -204,7 +250,7 @@ export default function DealOverview() {
         InvitedBy: inv.invitedBy
       };
     });
-    
+
     downloadCsvFromRecords(buildExportFilename(deal.dealName, "TermsReport", "csv"), reportRows);
     toast({ title: "Terms Report Downloaded", description: "CSV with lender details exported." });
   };
@@ -212,6 +258,17 @@ export default function DealOverview() {
   const handlePrintEngagement = () => {
     window.open(`/deal/${dealId}/print`, "_blank");
   };
+
+  // Loading state
+  if (dealLoading || !deal) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-pulse text-muted-foreground">Loading deal...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -224,7 +281,7 @@ export default function DealOverview() {
                 {deal.instrument}
               </Badge>
               <Badge variant="secondary" className="font-normal">
-                {deal.stage}
+                {deal.displayStage}
               </Badge>
               {risk.label !== "Normal" && (
                 <Badge variant="outline" className={`font-normal ${risk.color}`}>
@@ -239,7 +296,7 @@ export default function DealOverview() {
               </span>
             </div>
             <h1 className="text-2xl font-semibold text-primary tracking-tight">{deal.dealName}</h1>
-            <p className="text-muted-foreground mt-1">{deal.sector} • ${(deal.facilitySize / 1000000).toFixed(1)}M {deal.instrument}</p>
+            <p className="text-muted-foreground mt-1">{deal.sector} • ${(Number(deal.facilitySize) / 1000000).toFixed(1)}M {deal.instrument}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="gap-2" onClick={handlePrintEngagement} data-testid="button-print-engagement">
@@ -333,7 +390,7 @@ export default function DealOverview() {
                          </DialogHeader>
                          <div className="py-4">
                             <RadioGroup value={activeNdaId} onValueChange={setActiveNdaId} className="gap-4">
-                              {mockNDATemplates.map(t => (
+                              {NDA_TEMPLATES.map(t => (
                                 <div key={t.id} className="flex items-start space-x-3 space-y-0 border p-3 rounded-md hover:bg-secondary/20 transition-colors">
                                   <RadioGroupItem value={t.id} id={t.id} className="mt-1" />
                                   <div className="grid gap-1.5 leading-none">
@@ -383,12 +440,14 @@ export default function DealOverview() {
                   </TableHeader>
                   <TableBody>
                     {invitations.map(invite => {
-                      const lender = mockLenders.find(l => l.id === invite.lenderId);
+                      // Get lender from included data or lookup
+                      const lender = (invite as any).lender || lendersData.find(l => l.id === invite.lenderId);
+                      const lenderName = lender ? `${lender.firstName} ${lender.lastName}` : "Unknown Lender";
                       return (
                         <TableRow key={invite.lenderId} className="text-sm">
-                          <TableCell className="font-medium">{lender?.name || "Unknown Lender"}</TableCell>
+                          <TableCell className="font-medium">{lenderName}</TableCell>
                           <TableCell className="text-muted-foreground">
-                            {format(parseISO(invite.invitedAt), "MMM d")}
+                            {format(new Date(invite.invitedAt), "MMM d")}
                           </TableCell>
                           <TableCell>
                             {invite.ndaRequired ? (
@@ -401,7 +460,7 @@ export default function DealOverview() {
                                           <CheckCircle2 className="h-3 w-3" /> Signed v{invite.ndaVersion}
                                         </Badge>
                                         <span className="text-[10px] text-muted-foreground">
-                                          {format(parseISO(invite.ndaSignedAt), "MMM d, h:mm a")}
+                                          {format(new Date(invite.ndaSignedAt), "MMM d, h:mm a")}
                                         </span>
                                       </div>
                                     </TooltipTrigger>
@@ -626,19 +685,19 @@ export default function DealOverview() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-foreground border-b pb-1">Financial Covenants</h4>
-                    {deal.covenants?.filter(c => c.type === "Maintenance").map(c => (
+                    {(deal as any).covenants?.filter((c: any) => c.type === "Maintenance").map((c: any) => (
                       <CovenantRow key={c.id} covenant={c} />
                     ))}
-                    {!deal.covenants && (
+                    {!(deal as any).covenants && (
                       <div className="text-sm text-muted-foreground italic">No covenants defined.</div>
                     )}
                   </div>
                    <div className="space-y-3">
                     <h4 className="text-sm font-medium text-foreground border-b pb-1">Baskets & Incurrence</h4>
-                    {deal.covenants?.filter(c => c.type === "Incurrence").map(c => (
+                    {(deal as any).covenants?.filter((c: any) => c.type === "Incurrence").map((c: any) => (
                       <CovenantRow key={c.id} covenant={c} />
                     ))}
-                     {!deal.covenants && (
+                     {!(deal as any).covenants && (
                       <div className="text-sm text-muted-foreground italic">No baskets defined.</div>
                     )}
                   </div>
@@ -903,14 +962,16 @@ export default function DealOverview() {
 
 function CovenantRow({ covenant }: { covenant: Covenant }) {
   const isMaxTest = covenant.name.includes("Max") || covenant.name.includes("Capex") || covenant.name.includes("Leverage");
-  const headroom = isMaxTest 
-    ? covenant.threshold - covenant.proForma 
-    : covenant.proForma - covenant.threshold;
-  
+  const threshold = Number(covenant.threshold);
+  const proForma = Number(covenant.proForma);
+  const headroom = isMaxTest
+    ? threshold - proForma
+    : proForma - threshold;
+
   // Risk logic
   let isTight = false;
   let isWarning = false;
-  
+
   if (covenant.unit === "x") {
     if (headroom < 0.25) isTight = true;
     else if (headroom < 0.50) isWarning = true;
@@ -918,7 +979,7 @@ function CovenantRow({ covenant }: { covenant: Covenant }) {
     if (headroom < 5) isTight = true;
   } else if (covenant.unit === "$") {
     // e.g. Liquidity < 10% buffer
-    if (headroom < covenant.threshold * 0.1) isTight = true; 
+    if (headroom < threshold * 0.1) isTight = true;
   }
 
   return (
@@ -935,10 +996,10 @@ function CovenantRow({ covenant }: { covenant: Covenant }) {
       </div>
       <div className="text-right">
         <div className="font-medium font-serif">
-          {covenant.unit === "$" ? "$" + (covenant.proForma/1000000).toFixed(1) + "M" : covenant.proForma.toFixed(2) + covenant.unit}
+          {covenant.unit === "$" ? "$" + (proForma/1000000).toFixed(1) + "M" : proForma.toFixed(2) + covenant.unit}
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Limit: {covenant.unit === "$" ? "$" + (covenant.threshold/1000000).toFixed(1) + "M" : covenant.threshold.toFixed(2) + covenant.unit}
+          Limit: {covenant.unit === "$" ? "$" + (threshold/1000000).toFixed(1) + "M" : threshold.toFixed(2) + covenant.unit}
         </div>
       </div>
     </div>

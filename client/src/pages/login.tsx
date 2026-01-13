@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { mockLenders } from "@/data/lenders";
+import { useLenders } from "@/hooks/api-hooks";
 
 export default function Login() {
   const { login, loginAsRole, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { data: lenders = [] } = useLenders();
   const [role, setRole] = useState<UserRole>("Bookrunner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("demo123");
@@ -37,17 +38,26 @@ export default function Login() {
 
     if (role === "Investor") {
       const emailDomain = email.toLowerCase().split('@')[1] || email.toLowerCase();
-      const matchedLender = mockLenders.find(l =>
-        emailDomain.includes(l.name.toLowerCase().split(' ')[0]) ||
-        email.toLowerCase().includes(l.name.toLowerCase().replace(/\s/g, ""))
-      );
+      const emailLower = email.toLowerCase();
+
+      // Try to match lender by name or organization in email
+      const matchedLender = lenders.find(l => {
+        const firstName = l.firstName?.toLowerCase() || "";
+        const lastName = l.lastName?.toLowerCase() || "";
+        const org = l.organization?.toLowerCase() || "";
+        return emailDomain.includes(firstName) ||
+               emailDomain.includes(lastName) ||
+               emailDomain.includes(org.split(' ')[0]) ||
+               emailLower.includes(org.replace(/\s/g, ""));
+      });
 
       lenderId = matchedLender?.id;
 
+      // Fallback for common demo emails
       if (!lenderId) {
-        if (email.includes("blackrock")) lenderId = "1";
-        else if (email.includes("apollo")) lenderId = "2";
-        else if (email.includes("oak")) lenderId = "3";
+        if (email.includes("blackrock")) lenderId = lenders.find(l => l.organization?.toLowerCase().includes("blackrock"))?.id;
+        else if (email.includes("apollo")) lenderId = lenders.find(l => l.organization?.toLowerCase().includes("apollo"))?.id;
+        else if (email.includes("oak")) lenderId = lenders.find(l => l.organization?.toLowerCase().includes("oak"))?.id;
       }
     }
 

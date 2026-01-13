@@ -13,13 +13,15 @@ import {
   RefreshCw,
   Save,
   FileText,
-  AlertCircle
+  AlertCircle,
+  History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -56,6 +58,7 @@ import { mockDeals } from "@/data/deals";
 import { formatDistanceToNow, parseISO, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { downloadCSV } from "@/lib/download";
+import { PriorProcessQA } from "@/components/prior-process-qa";
 
 export type QAFilter = "all" | "open" | "draft_ready" | "answered" | "awaiting_draft";
 
@@ -70,7 +73,14 @@ export default function QACenter() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(prev => prev + 1);
 
-  // Parse filter from URL query params
+  // Parse tab and filter from URL query params
+  const getTabFromUrl = (): "live" | "prior" => {
+    const params = new URLSearchParams(searchString);
+    const tab = params.get("tab");
+    if (tab === "prior") return "prior";
+    return "live";
+  };
+
   const getFilterFromUrl = (): QAFilter => {
     const params = new URLSearchParams(searchString);
     const filter = params.get("filter");
@@ -80,12 +90,24 @@ export default function QACenter() {
     return "all";
   };
 
+  const [activeTab, setActiveTab] = useState<"live" | "prior">(getTabFromUrl());
   const [activeFilter, setActiveFilter] = useState<QAFilter>(getFilterFromUrl());
 
-  // Sync filter state with URL changes
+  // Sync state with URL changes
   useEffect(() => {
+    setActiveTab(getTabFromUrl());
     setActiveFilter(getFilterFromUrl());
   }, [searchString]);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as "live" | "prior");
+    if (tab === "prior") {
+      navigate(`/deal/${dealId}/qa?tab=prior`);
+    } else {
+      navigate(`/deal/${dealId}/qa`);
+    }
+  };
 
   // Update URL when filter changes
   const handleFilterChange = (filter: QAFilter) => {
@@ -185,31 +207,33 @@ export default function QACenter() {
                 </SelectContent>
               </Select>
             )}
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => {
-                const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "MaterialSource", "OriginSource"];
-                const rows = qaItems.map(q => [
-                  currentDeal?.dealName || dealId,
-                  q.asker || "Investor",
-                  q.topic || "General",
-                  q.status,
-                  q.question,
-                  q.questionCreatedAt ? format(parseISO(q.questionCreatedAt), "yyyy-MM-dd HH:mm") : "",
-                  q.submittedAnswer || q.answer || "",
-                  q.submittedAt || q.answerUpdatedAt ? format(parseISO(q.submittedAt || q.answerUpdatedAt || ""), "yyyy-MM-dd HH:mm") : "",
-                  MaterialSourceLabels[q.materialSource] || q.materialSource,
-                  q.originSource || "direct"
-                ]);
-                downloadCSV(`${currentDeal?.dealName || "deal"}_qa_export.csv`, headers, rows);
-                toast({ title: "Export Complete", description: `Exported ${qaItems.length} Q&A items to CSV.` });
-              }}
-              data-testid="button-export-qa"
-            >
-              <Download className="h-4 w-4" /> Export Q&A Log
-            </Button>
-            {isInvestor && (
+            {activeTab === "live" && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  const headers = ["Deal", "Lender", "Category", "Status", "Question", "AskedAt", "Answer", "AnsweredAt", "MaterialSource", "OriginSource"];
+                  const rows = qaItems.map(q => [
+                    currentDeal?.dealName || dealId,
+                    q.asker || "Investor",
+                    q.topic || "General",
+                    q.status,
+                    q.question,
+                    q.questionCreatedAt ? format(parseISO(q.questionCreatedAt), "yyyy-MM-dd HH:mm") : "",
+                    q.submittedAnswer || q.answer || "",
+                    q.submittedAt || q.answerUpdatedAt ? format(parseISO(q.submittedAt || q.answerUpdatedAt || ""), "yyyy-MM-dd HH:mm") : "",
+                    MaterialSourceLabels[q.materialSource] || q.materialSource,
+                    q.originSource || "direct"
+                  ]);
+                  downloadCSV(`${currentDeal?.dealName || "deal"}_qa_export.csv`, headers, rows);
+                  toast({ title: "Export Complete", description: `Exported ${qaItems.length} Q&A items to CSV.` });
+                }}
+                data-testid="button-export-qa"
+              >
+                <Download className="h-4 w-4" /> Export Q&A Log
+              </Button>
+            )}
+            {isInvestor && activeTab === "live" && (
               <Link href={`/deal/${dealId}/messages`}>
                 <Button className="gap-2">
                     <MessageCircle className="h-4 w-4" /> Ask Question
@@ -219,7 +243,22 @@ export default function QACenter() {
           </div>
         </div>
 
-        {/* Status Summary Chips - Clickable filters */}
+        {/* Tab Navigation */}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="live" className="gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Live Q&A
+            </TabsTrigger>
+            <TabsTrigger value="prior" className="gap-2">
+              <History className="h-4 w-4" />
+              Prior Process Q&A
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Live Q&A Tab */}
+          <TabsContent value="live" className="mt-6">
+            {/* Status Summary Chips - Clickable filters */}
         <div className="flex flex-wrap gap-2">
           <StatusChip
             label="All"
@@ -360,6 +399,13 @@ export default function QACenter() {
             )}
           </div>
         </div>
+          </TabsContent>
+
+          {/* Prior Process Q&A Tab */}
+          <TabsContent value="prior" className="mt-6">
+            <PriorProcessQA dealId={dealId} />
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );

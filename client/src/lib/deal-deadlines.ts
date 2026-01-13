@@ -1,5 +1,4 @@
-import { Deal } from "@/data/deals";
-import { parseISO, addDays, isBefore, format } from "date-fns";
+import { parseISO, addDays, isBefore } from "date-fns";
 
 export type DeadlineType = "NDA" | "IOI" | "Commitment" | "Closing";
 
@@ -11,8 +10,17 @@ export interface DealDeadline {
   daysRemaining: number;
 }
 
+// Minimal interface for deal deadline computation
+interface DealForDeadlines {
+  launchDate: string;
+  closeDate: string;
+  hardCloseDate?: string;
+  ioiDate?: string;
+  commitmentDate?: string;
+}
+
 export const dealDeadlines = {
-  getDeadlines(deal: Deal, ndaSignedAt?: string): DealDeadline[] {
+  getDeadlines(deal: DealForDeadlines, ndaSignedAt?: string): DealDeadline[] {
     const deadlines: DealDeadline[] = [];
     const now = new Date();
 
@@ -70,7 +78,7 @@ export const dealDeadlines = {
     return deadlines.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   },
 
-  getNextDeadline(deal: Deal, ndaSignedAt?: string): DealDeadline | null {
+  getNextDeadline(deal: DealForDeadlines, ndaSignedAt?: string): DealDeadline | null {
     const deadlines = this.getDeadlines(deal, ndaSignedAt);
     const upcoming = deadlines.filter(d => !d.isOverdue);
     return upcoming.length > 0 ? upcoming[0] : (deadlines[deadlines.length - 1] || null);

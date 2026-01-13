@@ -81,18 +81,18 @@ export function SubmitProposal({ dealId }: SubmitProposalProps) {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch RFP data (deal info + own proposal)
+  // Fetch proposal data (deal teaser + own proposal)
   const { data: rfpData, isLoading, isError } = useQuery<RfpData>({
-    queryKey: ["rfp", dealId],
+    queryKey: ["proposal", dealId],
     queryFn: async () => {
-      const res = await fetch(`/api/deals/${dealId}/rfp`, {
+      const res = await fetch(`/api/deals/${dealId}/proposal`, {
         credentials: "include",
       });
       if (!res.ok) {
         if (res.status === 403) {
-          throw new Error("You are not invited to this RFP");
+          throw new Error("You are not invited to submit a proposal for this deal");
         }
-        throw new Error("Failed to fetch RFP data");
+        throw new Error("Failed to fetch proposal data");
       }
       return res.json();
     },
@@ -149,7 +149,7 @@ export function SubmitProposal({ dealId }: SubmitProposalProps) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["rfp", dealId] });
+      queryClient.invalidateQueries({ queryKey: ["proposal", dealId] });
       toast({
         title: "Draft Saved",
         description: "Your proposal has been saved as a draft.",
@@ -178,7 +178,7 @@ export function SubmitProposal({ dealId }: SubmitProposalProps) {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["rfp", dealId] });
+      queryClient.invalidateQueries({ queryKey: ["proposal", dealId] });
       toast({
         title: "Proposal Submitted",
         description: "Your financing proposal has been submitted to the issuer.",
@@ -243,12 +243,11 @@ export function SubmitProposal({ dealId }: SubmitProposalProps) {
 
   return (
     <div className="space-y-6">
-      {/* RFP Stage Banner */}
+      {/* Confidential Submission Banner */}
       <Alert>
         <Lock className="h-4 w-4" />
         <AlertDescription>
-          <strong>RFP Stage</strong> - Your proposal is visible only to the Issuer.
-          Other candidate banks cannot view your submission.
+          <strong>Confidential Submission</strong> - Your proposal is visible only to the Issuer.
         </AlertDescription>
       </Alert>
 

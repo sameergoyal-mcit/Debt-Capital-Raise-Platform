@@ -1,10 +1,11 @@
 // Debt capital markets document folder terminology
-export type DocumentCategory = 
-  | "Lender Presentation" 
-  | "Supplemental Information" 
-  | "KYC & Compliance" 
-  | "Lender Paydown Model" 
-  | "Legal";
+export type DocumentCategory =
+  | "Lender Presentation"
+  | "Supplemental Information"
+  | "KYC & Compliance"
+  | "Lender Paydown Model"
+  | "Legal"
+  | "Prior Process Q&A";
 export type DocumentStatus = "Draft" | "In Review" | "Comments Outstanding" | "Issuer Approved" | "Lender Approved" | "Ready to Sign";
 
 export interface DocumentVersion {

@@ -1,24 +1,21 @@
-import React, { useState } from "react";
-import { Link, useLocation } from "wouter";
-import { 
-  Briefcase, 
-  Search, 
-  Filter, 
-  Plus, 
-  Download, 
-  MoreHorizontal, 
-  ChevronDown, 
-  Clock, 
-  AlertTriangle, 
-  PauseCircle, 
-  CheckCircle2, 
-  FileText, 
-  Users, 
-  HelpCircle, 
-  CheckSquare, 
-  ArrowRight,
+import React, { useState, useMemo } from "react";
+import { useLocation } from "wouter";
+import {
+  Briefcase,
+  Search,
+  Download,
+  MoreHorizontal,
+  Clock,
+  AlertTriangle,
+  PauseCircle,
+  CheckCircle2,
+  FileText,
+  Users,
+  HelpCircle,
+  CheckSquare,
   TrendingUp,
-  History
+  History,
+  Loader2
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -55,7 +52,6 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { mockDeals, Deal, DealStatus, computeDealRisk } from "@/data/deals";
 import { cn } from "@/lib/utils";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useAuth } from "@/context/auth-context";
@@ -63,6 +59,16 @@ import { AccessNotice } from "@/components/access-notice";
 import { CreateDealWizard } from "@/components/create-deal-wizard";
 import { can } from "@/lib/capabilities";
 import { downloadCsvFromRecords } from "@/lib/download";
+import { useDeals } from "@/hooks/api-hooks";
+import {
+  enrichDeal,
+  computeDealRisk,
+  filterDeals,
+  sortDeals,
+  categorizeDeals,
+  getUniqueSectors,
+  type EnrichedDeal
+} from "@/lib/deal-utils";
 
 export default function Deals() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,56 +80,31 @@ export default function Deals() {
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";
 
-  // Redirect single deal logic
-  // if (isInvestor && user.dealAccess?.length === 1) {
-  //   setLocation(`/deal/${user.dealAccess[0]}/overview`);
-  //   return null; 
-  // }
-  // Commented out to prevent loops or bad UX during testing, usually good for prod.
+  // Fetch deals from API
+  const { data: rawDeals, isLoading, error } = useDeals();
+
+  // Enrich deals with computed fields
+  const enrichedDeals = useMemo(() => {
+    if (!rawDeals) return [];
+    return rawDeals.map(enrichDeal);
+  }, [rawDeals]);
 
   // Filter and sort logic
-  const filteredDeals = mockDeals.filter(deal => {
-    // Permission filter
-    if (isInvestor) {
-      if (!user?.dealAccess?.includes(deal.id)) {
-        return false;
-      }
-    }
-
-    const matchesSearch = 
-      deal.dealName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      deal.borrowerName.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || deal.status === statusFilter;
-    const matchesSector = sectorFilter === "all" || deal.sector === sectorFilter;
-
-    return matchesSearch && matchesStatus && matchesSector;
-  });
-
-  const sortDeals = (deals: Deal[]) => {
-    return [...deals].sort((a, b) => {
-      switch (sortBy) {
-        case "closeDate":
-          return new Date(a.closeDate).getTime() - new Date(b.closeDate).getTime();
-        case "committed":
-          return b.committedPct - a.committedPct;
-        case "size":
-          return b.facilitySize - a.facilitySize;
-        case "closedDate":
-          if (a.closedDate && b.closedDate) {
-            return new Date(b.closedDate).getTime() - new Date(a.closedDate).getTime();
-          }
-          return 0;
-        case "updated":
-        default:
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      }
+  const filteredDeals = useMemo(() => {
+    const filtered = filterDeals(enrichedDeals, {
+      searchQuery,
+      statusFilter,
+      sectorFilter,
+      dealAccess: user?.dealAccess,
+      isInvestor,
     });
-  };
+    return sortDeals(filtered, sortBy);
+  }, [enrichedDeals, searchQuery, statusFilter, sectorFilter, user?.dealAccess, isInvestor, sortBy]);
 
-  const activeDeals = sortDeals(filteredDeals.filter(d => ["Active", "Diligence", "Closing", "At Risk"].includes(d.status)));
-  const onHoldDeals = sortDeals(filteredDeals.filter(d => d.status === "Paused"));
-  const closedDeals = sortDeals(filteredDeals.filter(d => d.status === "Closed"));
+  // Categorize deals
+  const { activeDeals, onHoldDeals, closedDeals } = useMemo(() => {
+    return categorizeDeals(filteredDeals);
+  }, [filteredDeals]);
 
   // Export deals as CSV
   const handleExport = () => {
@@ -131,8 +112,8 @@ export default function Deals() {
       "Deal Name": deal.dealName,
       "Borrower": deal.borrowerName,
       "Sector": deal.sector,
-      "Size ($M)": (deal.facilitySize / 1000000).toFixed(1),
-      "Status": deal.status,
+      "Size ($M)": (parseFloat(deal.facilitySize) / 1000000).toFixed(1),
+      "Status": deal.displayStatus,
       "Stage": deal.stage,
       "Close Date": deal.closeDate ? format(parseISO(deal.closeDate), "MM/dd/yyyy") : "",
       "Committed %": `${deal.committedPct.toFixed(1)}%`
@@ -141,7 +122,29 @@ export default function Deals() {
   };
 
   // Unique sectors for filter
-  const sectors = Array.from(new Set(mockDeals.map(d => d.sector)));
+  const sectors = useMemo(() => getUniqueSectors(enrichedDeals), [enrichedDeals]);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <AlertTriangle className="h-10 w-10 text-destructive mb-4" />
+          <p className="text-lg font-medium">Failed to load deals</p>
+          <p className="text-muted-foreground">Please try refreshing the page.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -154,8 +157,8 @@ export default function Deals() {
                {isInvestor ? "My Deals" : "Deals"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isInvestor 
-                ? "Active deals you are invited to participate in." 
+              {isInvestor
+                ? "Active deals you are invited to participate in."
                 : "Track portfolio company debt raises and execution status."}
             </p>
           </div>
@@ -173,8 +176,8 @@ export default function Deals() {
         <div className="flex flex-col md:flex-row gap-4 bg-background p-4 rounded-lg border border-border shadow-sm">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search deals, borrowers..." 
+            <Input
+              placeholder="Search deals, borrowers..."
               className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -225,7 +228,7 @@ export default function Deals() {
 
         {/* Sections */}
         <Accordion type="multiple" defaultValue={["active", "on-hold"]} className="space-y-4">
-          
+
           {/* Active Deals Section */}
           <AccordionItem value="active" className="border border-border rounded-lg bg-card overflow-hidden">
             <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
@@ -243,7 +246,7 @@ export default function Deals() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* On Hold Section - Usually hidden for investors unless relevant */}
+          {/* On Hold Section */}
           {(!isInvestor || onHoldDeals.length > 0) && (onHoldDeals.length > 0 || statusFilter === "Paused") && (
             <AccordionItem value="on-hold" className="border border-border rounded-lg bg-card overflow-hidden">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
@@ -292,15 +295,12 @@ export default function Deals() {
   );
 }
 
-function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold' | 'closed' }) {
+function DealsTable({ deals, type }: { deals: EnrichedDeal[], type: 'active' | 'on-hold' | 'closed' }) {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";
 
-  // Decide where to send investor vs internal
-  // Investors usually go straight to Documents or Overview (which might be their landing)
-  // For now we send everyone to Overview, but Overview will be different for Investors
   const handleRowClick = (dealId: string) => {
     if (isInvestor) {
        setLocation(`/deal/${dealId}/documents`);
@@ -317,8 +317,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
           <TableHead>Sector</TableHead>
           <TableHead>Size</TableHead>
           <TableHead>Status</TableHead>
-          
-          {/* Dynamic Columns based on type */}
+
           {type === 'active' && (
             <>
               {!isInvestor && <TableHead className="w-[20%]">Committed</TableHead>}
@@ -326,7 +325,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
               <TableHead className="text-right">Timeline</TableHead>
             </>
           )}
-          
+
           {type === 'on-hold' && (
             <>
                <TableHead className="w-[20%]">Hold Reason</TableHead>
@@ -363,13 +362,12 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
               </Badge>
             </TableCell>
             <TableCell className="font-mono text-sm">
-              {(deal.facilitySize / 1000000).toFixed(1)}M {deal.currency}
+              {(parseFloat(deal.facilitySize) / 1000000).toFixed(1)}M {deal.currency}
             </TableCell>
             <TableCell>
-              <StatusBadge status={deal.status} />
+              <StatusBadge status={deal.displayStatus} />
             </TableCell>
 
-            {/* Active Columns */}
             {type === 'active' && (
               <>
                 {!isInvestor && (
@@ -377,7 +375,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                     <div className="space-y-1.5 w-full max-w-[140px]">
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">
-                          ${(deal.committed / 1000000).toFixed(1)}M
+                          ${(parseFloat(deal.committed) / 1000000).toFixed(1)}M
                         </span>
                         <span className={cn("font-medium", deal.committedPct >= 100 ? "text-green-600" : "text-foreground")}>
                           {(deal.coverageRatio * 100).toFixed(0)}%
@@ -390,7 +388,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     <Badge variant="secondary" className="font-normal text-xs w-fit">
-                      {deal.stage}
+                      {deal.displayStage}
                     </Badge>
                     {(() => {
                       const risk = computeDealRisk(deal);
@@ -419,40 +417,38 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
               </>
             )}
 
-            {/* On Hold Columns */}
             {type === 'on-hold' && (
               <>
                  <TableCell>
                    <TooltipProvider>
                      <Tooltip>
                        <TooltipTrigger asChild>
-                         <span className="truncate max-w-[150px] block text-sm">{deal.holdReason}</span>
+                         <span className="truncate max-w-[150px] block text-sm">{deal.holdReason || "N/A"}</span>
                        </TooltipTrigger>
                        <TooltipContent>
-                         <p>{deal.holdReason}</p>
+                         <p>{deal.holdReason || "No reason provided"}</p>
                        </TooltipContent>
                      </Tooltip>
                    </TooltipProvider>
                  </TableCell>
                  <TableCell className="text-sm text-muted-foreground">
-                   {deal.holdSince && (
+                   {deal.holdSince ? (
                      <div className="flex flex-col">
                         <span>{format(parseISO(deal.holdSince), "MMM d, yyyy")}</span>
                         <span className="text-[10px]">
                           {differenceInDays(new Date(), parseISO(deal.holdSince))} days on hold
                         </span>
                      </div>
-                   )}
+                   ) : "-"}
                  </TableCell>
                  <TableCell>
                    <Badge variant="outline" className="text-xs text-muted-foreground">
-                     {deal.lastStageBeforeHold}
+                     {deal.lastStageBeforeHold || deal.stage}
                    </Badge>
                  </TableCell>
               </>
             )}
 
-             {/* Closed Columns */}
              {type === 'closed' && (
               <>
                  <TableCell className="text-sm">
@@ -464,7 +460,7 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                      deal.outcome === "Pulled" && "border-red-200 bg-red-50 text-red-700",
                      deal.outcome === "Refinanced" && "border-blue-200 bg-blue-50 text-blue-700"
                    )}>
-                     {deal.outcome}
+                     {deal.outcome || "Funded"}
                    </Badge>
                  </TableCell>
                  <TableCell className="text-xs text-muted-foreground">
@@ -488,12 +484,12 @@ function DealsTable({ deals, type }: { deals: Deal[], type: 'active' | 'on-hold'
                       <TrendingUp className="mr-2 h-4 w-4" /> Overview
                     </DropdownMenuItem>
                   )}
-                  
+
                   {type === 'active' && (
                     <>
                       {!isInvestor && (
                         <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/book`)}>
-                          <Users className="mr-2 h-4 w-4" /> Investor Book
+                          <Users className="mr-2 h-4 w-4" /> Lender Book
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => setLocation(`/deal/${deal.id}/documents`)}>
@@ -549,6 +545,7 @@ function StatusBadge({ status }: { status: string }) {
 
   switch (status) {
     case "Active":
+    case "Pre-Launch":
       className = "bg-green-100 text-green-700 hover:bg-green-100 border-green-200";
       break;
     case "Diligence":

@@ -24,7 +24,7 @@ import {
   Clock,
   Landmark,
 } from "lucide-react";
-import { mockDeals } from "@/data/deals";
+import { useDeals } from "@/hooks/api-hooks";
 import { useAuth } from "@/context/auth-context";
 import { can } from "@/lib/capabilities";
 
@@ -105,6 +105,7 @@ export function SearchCommand({ open: controlledOpen, onOpenChange }: SearchComm
   const [, navigate] = useLocation();
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const { user } = useAuth();
+  const { data: deals = [] } = useDeals();
 
   const isOpen = controlledOpen !== undefined ? controlledOpen : open;
   const setIsOpen = onOpenChange || setOpen;
@@ -136,10 +137,10 @@ export function SearchCommand({ open: controlledOpen, onOpenChange }: SearchComm
 
   // Search deals
   const dealResults = useMemo<SearchResult[]>(() => {
-    if (!search) return [];
+    if (!search || !deals.length) return [];
 
     const searchLower = search.toLowerCase();
-    return mockDeals
+    return deals
       .filter(
         (deal) =>
           deal.dealName.toLowerCase().includes(searchLower) ||
@@ -157,7 +158,7 @@ export function SearchCommand({ open: controlledOpen, onOpenChange }: SearchComm
         icon: <Briefcase className="h-4 w-4" />,
         badge: deal.stage,
       }));
-  }, [search]);
+  }, [search, deals]);
 
   // Filter actions and pages based on user capabilities
   const filteredActions = useMemo(() => {

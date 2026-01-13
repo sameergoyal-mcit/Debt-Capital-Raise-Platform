@@ -39,6 +39,8 @@ import type {
   InsertOrganization,
   BookrunnerCandidate,
   InsertBookrunnerCandidate,
+  PriorQaItem,
+  InsertPriorQaItem,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -183,6 +185,14 @@ export interface IStorage {
 
   // Award mandate
   awardMandate(dealId: string, winnerBankOrgId: string): Promise<Deal | undefined>;
+
+  // Prior Q&A Items
+  listPriorQaByDeal(dealId: string, shareableOnly?: boolean): Promise<PriorQaItem[]>;
+  getPriorQaItem(id: string): Promise<PriorQaItem | undefined>;
+  createPriorQaItem(item: InsertPriorQaItem): Promise<PriorQaItem>;
+  createPriorQaItems(items: InsertPriorQaItem[]): Promise<PriorQaItem[]>;
+  updatePriorQaItem(id: string, item: Partial<InsertPriorQaItem>): Promise<PriorQaItem | undefined>;
+  deletePriorQaItem(id: string): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -1018,6 +1028,67 @@ export class DrizzleStorage implements IStorage {
       .returning();
 
     return results[0];
+  }
+
+  // Prior Q&A Items
+  async listPriorQaByDeal(dealId: string, shareableOnly: boolean = false): Promise<PriorQaItem[]> {
+    if (shareableOnly) {
+      return db
+        .select()
+        .from(schema.priorQaItems)
+        .where(and(
+          eq(schema.priorQaItems.dealId, dealId),
+          eq(schema.priorQaItems.shareable, true)
+        ))
+        .orderBy(desc(schema.priorQaItems.createdAt));
+    }
+    return db
+      .select()
+      .from(schema.priorQaItems)
+      .where(eq(schema.priorQaItems.dealId, dealId))
+      .orderBy(desc(schema.priorQaItems.createdAt));
+  }
+
+  async getPriorQaItem(id: string): Promise<PriorQaItem | undefined> {
+    const results = await db
+      .select()
+      .from(schema.priorQaItems)
+      .where(eq(schema.priorQaItems.id, id));
+    return results[0];
+  }
+
+  async createPriorQaItem(item: InsertPriorQaItem): Promise<PriorQaItem> {
+    const results = await db
+      .insert(schema.priorQaItems)
+      .values(item)
+      .returning();
+    return results[0];
+  }
+
+  async createPriorQaItems(items: InsertPriorQaItem[]): Promise<PriorQaItem[]> {
+    if (items.length === 0) return [];
+    const results = await db
+      .insert(schema.priorQaItems)
+      .values(items)
+      .returning();
+    return results;
+  }
+
+  async updatePriorQaItem(id: string, item: Partial<InsertPriorQaItem>): Promise<PriorQaItem | undefined> {
+    const results = await db
+      .update(schema.priorQaItems)
+      .set({ ...item, updatedAt: new Date() })
+      .where(eq(schema.priorQaItems.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deletePriorQaItem(id: string): Promise<boolean> {
+    const results = await db
+      .delete(schema.priorQaItems)
+      .where(eq(schema.priorQaItems.id, id))
+      .returning();
+    return results.length > 0;
   }
 }
 

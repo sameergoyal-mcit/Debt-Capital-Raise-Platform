@@ -61,8 +61,8 @@ export const deals = pgTable("deals", {
   facilityType: text("facility_type").notNull(),
   facilitySize: numeric("facility_size").notNull(),
   currency: text("currency").notNull().default("USD"),
-  stage: text("stage").notNull(), // Pre-Launch, Structuring, Marketing, Documentation, Closing
-  status: text("status").notNull(), // rfp_stage, live_syndication, closed, paused
+  stage: text("stage").notNull().default("Pre-Launch"), // Pre-Launch, Structuring, Marketing, Documentation, Closing
+  status: text("status").notNull().default("rfp_stage"), // rfp_stage, live_syndication, closed, paused
   targetSize: numeric("target_size").notNull(),
   committed: numeric("committed").notNull().default("0"),
   pricingBenchmark: text("pricing_benchmark").notNull().default("SOFR"),
