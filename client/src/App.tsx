@@ -34,6 +34,8 @@ import SyndicateBookPage from "@/pages/syndicate-book";
 import ExecutionLenders from "@/pages/execution-lenders";
 import LegalNegotiation from "@/pages/legal-negotiation";
 import LegalDocWorkspace from "@/pages/legal-doc-workspace";
+import DealRfpPage from "@/pages/deal-rfp";
+import BankProposalPage from "@/pages/bank-proposal";
 import { getUnauthorizedRedirect, getInvestorDealRedirect, getRedirectWithReason } from "@/lib/auth-redirects";
 
 // Helper to check if role matches allowed roles (case insensitive)
@@ -172,6 +174,16 @@ function Router() {
       {/* Syndicate Book - Internal Only */}
       <Route path="/deal/:id/syndicate-book">
         <ProtectedRoute component={SyndicateBookPage} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* RFP / Beauty Contest - Internal Only */}
+      <Route path="/deal/:id/rfp">
+        <ProtectedRoute component={DealRfpPage} allowedRoles={["Issuer", "Bookrunner"]} />
+      </Route>
+
+      {/* Bank Proposal Submission - For Banks in RFP */}
+      <Route path="/deal/:id/proposal">
+        <ProtectedRoute component={BankProposalPage} allowedRoles={["Bank"]} />
       </Route>
 
       {/* Legal Negotiation - Internal Only */}

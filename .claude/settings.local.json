@@ -19,7 +19,9 @@
       "Bash(ss:*)",
       "Bash(netstat:*)",
       "Bash(grep:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(npm run db:push:*)"
     ]
   }
 }

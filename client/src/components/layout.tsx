@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
 import {
   LayoutDashboard,
@@ -23,7 +24,8 @@ import {
   X,
   BookOpen,
   Scale,
-  UserCheck
+  UserCheck,
+  Trophy
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,12 +67,29 @@ export function Layout({ children }: LayoutProps) {
   const isDealWorkspace = !!dealId;
   const currentDeal = dealId ? mockDeals.find(d => d.id === dealId) : null;
 
+  // Fetch real deal data for stage-aware navigation
+  const { data: dealData } = useQuery<{ status: string; mandatedBankOrgId: string | null }>({
+    queryKey: ["deal-nav", dealId],
+    queryFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}`, { credentials: "include" });
+      if (!res.ok) return { status: "live_syndication", mandatedBankOrgId: null };
+      const data = await res.json();
+      return { status: data.status || "live_syndication", mandatedBankOrgId: data.mandatedBankOrgId };
+    },
+    enabled: !!dealId,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  const isRfpStage = dealData?.status === "rfp_stage";
+  const isLiveSyndication = !isRfpStage;
+
   const isActive = (path: string) => location.startsWith(path);
 
   // Determine Nav Items based on Role (case-insensitive comparison)
   const userRole = user?.role?.toLowerCase();
   const isInvestor = userRole === "investor" || userRole === "lender";
   const isInternal = userRole === "bookrunner" || userRole === "issuer";
+  const isBank = userRole === "bank";
 
   // Shared sidebar content component
   const SidebarContent = ({ onNavClick }: { onNavClick?: () => void }) => (
@@ -87,6 +106,11 @@ export function Layout({ children }: LayoutProps) {
 
         {isInvestor && !isDealWorkspace && (
           <NavItem href="/investor" icon={<LayoutDashboard size={18} />} label="Lender Dashboard" active={location === "/investor"} onClick={onNavClick} />
+        )}
+
+        {/* Bank users - show deals they're invited to */}
+        {isBank && !isDealWorkspace && (
+          <NavItem href="/deals" icon={<Briefcase size={18} />} label="RFP Invitations" active={location === "/deals"} onClick={onNavClick} />
         )}
 
         {isDealWorkspace && dealId && (
@@ -106,16 +130,36 @@ export function Layout({ children }: LayoutProps) {
               <NavItem href={`/deal/${dealId}/overview`} icon={<LayoutDashboard size={18} />} label="Overview" active={isActive(`/deal/${dealId}/overview`)} onClick={onNavClick} />
             )}
 
+            {/* Bank users see their proposal submission page */}
+            {isBank && (
+              <NavItem href={`/deal/${dealId}/proposal`} icon={<Trophy size={18} />} label="Submit Proposal" active={isActive(`/deal/${dealId}/proposal`)} onClick={onNavClick} />
+            )}
+
+            {/* RFP / Beauty Contest - shown in RFP stage, or as history in live syndication */}
+            {isInternal && (
+              <NavItem
+                href={`/deal/${dealId}/rfp`}
+                icon={<Trophy size={18} />}
+                label={isRfpStage ? "RFP / Beauty Contest" : "RFP History"}
+                active={isActive(`/deal/${dealId}/rfp`)}
+                onClick={onNavClick}
+              />
+            )}
+
             <NavItem href={`/deal/${dealId}/timeline`} icon={<Clock size={18} />} label="Timeline" active={isActive(`/deal/${dealId}/timeline`)} onClick={onNavClick} />
 
-            {isInternal && (
+            {/* Lender-oriented tabs - only shown in live syndication */}
+            {isInternal && isLiveSyndication && (
               <>
                 <NavItem href={`/deal/${dealId}/book`} icon={<Users size={18} />} label="Lender Book" active={isActive(`/deal/${dealId}/book`)} onClick={onNavClick} />
                 <NavItem href={`/deal/${dealId}/syndicate-book`} icon={<BookOpen size={18} />} label="Syndicate Book" active={isActive(`/deal/${dealId}/syndicate-book`)} onClick={onNavClick} />
               </>
             )}
 
-            <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={18} />} label="Lender Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
+            {/* Q&A - only shown in live syndication for investors */}
+            {isLiveSyndication && (
+              <NavItem href={`/deal/${dealId}/qa`} icon={<HelpCircle size={18} />} label="Lender Q&A" active={isActive(`/deal/${dealId}/qa`)} onClick={onNavClick} />
+            )}
             <NavItem href={`/deal/${dealId}/documents`} icon={<FileText size={18} />} label="Data Room & Docs" active={isActive(`/deal/${dealId}/documents`)} onClick={onNavClick} />
             <NavItem href={`/deal/${dealId}/messages`} icon={<MessageSquare size={18} />} label="Messages" active={isActive(`/deal/${dealId}/messages`)} onClick={onNavClick} />
 
@@ -133,23 +177,27 @@ export function Layout({ children }: LayoutProps) {
                   <NavItem href={`/deal/${dealId}/model`} icon={<Calculator size={18} />} label="Financial Model" active={isActive(`/deal/${dealId}/model`)} onClick={onNavClick} />
                 </div>
 
-                {/* Execution Section */}
-                <div className="mt-6 pt-4 border-t border-sidebar-border/50">
-                  <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-                    Execution
-                  </h4>
-                  <NavItem href={`/deal/${dealId}/execution/lenders`} icon={<UserCheck size={18} />} label="Lender Progress" active={isActive(`/deal/${dealId}/execution/lenders`)} onClick={onNavClick} />
-                  <NavItem href={`/deal/${dealId}/legal/negotiation`} icon={<Scale size={18} />} label="Legal Workspace" active={isActive(`/deal/${dealId}/legal`)} onClick={onNavClick} />
-                </div>
+                {/* Execution Section - only shown in live syndication */}
+                {isLiveSyndication && (
+                  <div className="mt-6 pt-4 border-t border-sidebar-border/50">
+                    <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                      Execution
+                    </h4>
+                    <NavItem href={`/deal/${dealId}/execution/lenders`} icon={<UserCheck size={18} />} label="Lender Progress" active={isActive(`/deal/${dealId}/execution/lenders`)} onClick={onNavClick} />
+                    <NavItem href={`/deal/${dealId}/legal/negotiation`} icon={<Scale size={18} />} label="Legal Workspace" active={isActive(`/deal/${dealId}/legal`)} onClick={onNavClick} />
+                  </div>
+                )}
 
-                {/* Actions Section */}
-                <div className="mt-6 pt-4 border-t border-sidebar-border/50">
-                  <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-                    Actions
-                  </h4>
-                  <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={18} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
-                  <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={18} />} label="Publish Deal" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
-                </div>
+                {/* Actions Section - only shown in live syndication */}
+                {isLiveSyndication && (
+                  <div className="mt-6 pt-4 border-t border-sidebar-border/50">
+                    <h4 className="px-3 mb-2 text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
+                      Actions
+                    </h4>
+                    <NavItem href={`/deal/${dealId}/closing`} icon={<CheckSquare size={18} />} label="Closing Checklist" active={isActive(`/deal/${dealId}/closing`)} onClick={onNavClick} />
+                    <NavItem href={`/deal/${dealId}/publish`} icon={<Megaphone size={18} />} label="Publish Deal" active={isActive(`/deal/${dealId}/publish`)} onClick={onNavClick} />
+                  </div>
+                )}
               </>
             )}
           </div>

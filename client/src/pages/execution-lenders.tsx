@@ -55,12 +55,13 @@ interface LenderProgress {
   ndaStatus: "signed" | "pending";
   ndaSignedAt: string | null;
   accessTier: "early" | "full" | "legal";
-  kycStatus: "received" | "pending" | "not_received";
+  kycStatus?: "received" | "pending" | "not_received";
   ioiStatus: string;
   ioiAmount: string | null;
-  markupStatus: Record<string, { status: string; count: number; pending: number }>;
+  markupStatus: Record<string, { status?: string; count: number; pending: number }>;
   openQACount: number;
   lastActivity: string | null;
+  documentsViewed: number;
 }
 
 interface MasterDocInfo {
@@ -71,6 +72,7 @@ interface MasterDocInfo {
 interface LenderProgressResponse {
   lenders: LenderProgress[];
   masterDocs: MasterDocInfo[];
+  totalDocuments: number;
 }
 
 export default function ExecutionLenders() {
@@ -83,14 +85,14 @@ export default function ExecutionLenders() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   // Fetch lender progress data
-  const { data, isLoading, refetch } = useQuery<LenderProgressResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<LenderProgressResponse>({
     queryKey: ["lender-progress", dealId],
     queryFn: async () => {
       const res = await fetch(`/api/deals/${dealId}/lender-progress`, {
         credentials: "include",
       });
       if (!res.ok) {
-        return getMockData();
+        throw new Error("Failed to fetch lender progress");
       }
       return res.json();
     },
@@ -116,6 +118,7 @@ export default function ExecutionLenders() {
     { docKey: "term_sheet", title: "Term Sheet" },
     { docKey: "credit_agreement", title: "Credit Agreement" },
   ];
+  const totalDocuments = data?.totalDocuments || 0;
 
   // Filter lenders
   const filteredLenders = lenders.filter((l) => {
@@ -171,6 +174,20 @@ export default function ExecutionLenders() {
       <Layout>
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">Loading lender progress...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <div className="text-muted-foreground">Failed to load lender progress data.</div>
+          <Button variant="outline" onClick={() => refetch()}>
+            Try Again
+          </Button>
         </div>
       </Layout>
     );
@@ -345,13 +362,25 @@ export default function ExecutionLenders() {
                         ))}
                         <TableHead>KYC</TableHead>
                         <TableHead>Indication (IOI)</TableHead>
+                        <TableHead className="text-center">Docs Viewed</TableHead>
                         <TableHead className="text-center">Open Q&A</TableHead>
                         <TableHead>Last Activity</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredLenders.map((lender) => (
-                        <TableRow key={lender.lenderId}>
+                      {filteredLenders.map((lender) => {
+                        // Determine row styling based on status
+                        const isInactive = lender.ioiStatus === 'invited' && !lender.lastActivity;
+                        const isCommitted = lender.ioiStatus === 'firm_committed' || lender.ioiStatus === 'allocated';
+
+                        return (
+                        <TableRow
+                          key={lender.lenderId}
+                          className={cn(
+                            isInactive && "bg-muted/50 opacity-70",
+                            isCommitted && "bg-green-50 dark:bg-green-950/20"
+                          )}
+                        >
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
                               <span>{lender.lenderName}</span>
@@ -408,6 +437,14 @@ export default function ExecutionLenders() {
                             />
                           </TableCell>
                           <TableCell className="text-center">
+                            <span className={cn(
+                              "text-sm",
+                              lender.documentsViewed === 0 && "text-muted-foreground"
+                            )}>
+                              {lender.documentsViewed}/{totalDocuments}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
                             <QaCountCell
                               count={lender.openQACount}
                               onClick={() => handleQaClick(lender.lenderId)}
@@ -417,11 +454,12 @@ export default function ExecutionLenders() {
                             <LastActivityCell activity={lender.lastActivity} />
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                       {filteredLenders.length === 0 && (
                         <TableRow>
                           <TableCell
-                            colSpan={8 + masterDocs.length}
+                            colSpan={9 + masterDocs.length}
                             className="text-center py-8 text-muted-foreground"
                           >
                             No lenders found matching filters
@@ -518,7 +556,7 @@ function MarkupStatusCell({
   canSubmit,
   onClick,
 }: {
-  markupInfo?: { status: string; count: number; pending: number };
+  markupInfo?: { status?: string; count: number; pending: number };
   canSubmit: boolean;
   onClick: () => void;
 }) {
@@ -558,7 +596,7 @@ function MarkupStatusCell({
     rejected: { label: "Not Incorporated", className: "bg-red-50 text-red-600 border-red-200" },
   };
 
-  const statusInfo = statusLabels[markupInfo.status] || statusLabels.uploaded;
+  const statusInfo = statusLabels[markupInfo.status || 'uploaded'] || statusLabels.uploaded;
 
   return (
     <TooltipProvider>
@@ -589,7 +627,7 @@ function KycStatusCell({
   status,
   onClick,
 }: {
-  status: "received" | "pending" | "not_received";
+  status?: "received" | "pending" | "not_received";
   onClick: () => void;
 }) {
   if (status === "received") {
@@ -744,7 +782,7 @@ function QaCountCell({
   );
 }
 
-// Last Activity Cell
+// Last Activity Cell - shows relative time
 function LastActivityCell({ activity }: { activity: string | null }) {
   if (!activity) {
     return (
@@ -761,97 +799,40 @@ function LastActivityCell({ activity }: { activity: string | null }) {
     );
   }
 
+  // Calculate relative time
+  const activityDate = new Date(activity);
+  const now = new Date();
+  const diffMs = now.getTime() - activityDate.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  let relativeTime: string;
+  if (diffMins < 1) {
+    relativeTime = "Just now";
+  } else if (diffMins < 60) {
+    relativeTime = `${diffMins} min${diffMins === 1 ? '' : 's'} ago`;
+  } else if (diffHours < 24) {
+    relativeTime = `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  } else if (diffDays < 7) {
+    relativeTime = `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  } else {
+    relativeTime = format(activityDate, "MMM d");
+  }
+
   return (
-    <span className="text-sm text-muted-foreground">
-      {format(new Date(activity), "MMM d")}
-    </span>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-sm text-muted-foreground cursor-help">
+            {relativeTime}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {format(activityDate, "MMM d, yyyy 'at' h:mm a")}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
-function getMockData(): LenderProgressResponse {
-  return {
-    lenders: [
-      {
-        lenderId: "1",
-        lenderName: "BlackRock Capital",
-        contactName: "John Smith",
-        email: "john@blackrock.com",
-        ndaStatus: "signed",
-        ndaSignedAt: "2024-01-15T10:00:00Z",
-        accessTier: "legal",
-        kycStatus: "received",
-        ioiStatus: "ioi_submitted",
-        ioiAmount: "50000000",
-        markupStatus: {
-          financing_grid: { status: "uploaded", count: 2, pending: 1 },
-          term_sheet: { status: "incorporated", count: 1, pending: 0 },
-          credit_agreement: { status: "uploaded", count: 0, pending: 0 },
-        },
-        openQACount: 3,
-        lastActivity: "2024-01-20T14:30:00Z",
-      },
-      {
-        lenderId: "2",
-        lenderName: "Apollo Global",
-        contactName: "Sarah Johnson",
-        email: "sarah@apollo.com",
-        ndaStatus: "signed",
-        ndaSignedAt: "2024-01-14T09:00:00Z",
-        accessTier: "legal",
-        kycStatus: "pending",
-        ioiStatus: "soft_circled",
-        ioiAmount: "75000000",
-        markupStatus: {
-          financing_grid: { status: "reviewing", count: 1, pending: 1 },
-          term_sheet: { status: "incorporated", count: 2, pending: 0 },
-          credit_agreement: { status: "uploaded", count: 1, pending: 1 },
-        },
-        openQACount: 0,
-        lastActivity: "2024-01-19T11:00:00Z",
-      },
-      {
-        lenderId: "3",
-        lenderName: "Ares Management",
-        contactName: "Michael Chen",
-        email: "mchen@ares.com",
-        ndaStatus: "signed",
-        ndaSignedAt: "2024-01-16T15:00:00Z",
-        accessTier: "full",
-        kycStatus: "not_received",
-        ioiStatus: "interested",
-        ioiAmount: null,
-        markupStatus: {
-          financing_grid: { status: "uploaded", count: 0, pending: 0 },
-          term_sheet: { status: "uploaded", count: 0, pending: 0 },
-          credit_agreement: { status: "uploaded", count: 0, pending: 0 },
-        },
-        openQACount: 5,
-        lastActivity: "2024-01-18T09:30:00Z",
-      },
-      {
-        lenderId: "4",
-        lenderName: "Golub Capital",
-        contactName: "Emily Davis",
-        email: "emily@golub.com",
-        ndaStatus: "pending",
-        ndaSignedAt: null,
-        accessTier: "early",
-        kycStatus: "not_received",
-        ioiStatus: "invited",
-        ioiAmount: null,
-        markupStatus: {
-          financing_grid: { status: "uploaded", count: 0, pending: 0 },
-          term_sheet: { status: "uploaded", count: 0, pending: 0 },
-          credit_agreement: { status: "uploaded", count: 0, pending: 0 },
-        },
-        openQACount: 0,
-        lastActivity: null,
-      },
-    ],
-    masterDocs: [
-      { docKey: "financing_grid", title: "Financing Grid" },
-      { docKey: "term_sheet", title: "Term Sheet" },
-      { docKey: "credit_agreement", title: "Credit Agreement" },
-    ],
-  };
-}

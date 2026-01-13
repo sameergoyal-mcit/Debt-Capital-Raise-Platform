@@ -15,6 +15,7 @@ export interface SessionUser {
   email: string;
   role: string;
   lenderId?: string;
+  organizationId?: string;
   firstName?: string;
   lastName?: string;
 }
@@ -96,6 +97,7 @@ export function setupAuth(app: Express): void {
             email: user.email,
             role: user.role,
             lenderId,
+            organizationId: user.organizationId || undefined,
             firstName: user.firstName || undefined,
             lastName: user.lastName || undefined,
           };
@@ -133,6 +135,7 @@ export function setupAuth(app: Express): void {
         email: user.email,
         role: user.role,
         lenderId,
+        organizationId: user.organizationId || undefined,
         firstName: user.firstName || undefined,
         lastName: user.lastName || undefined,
       };

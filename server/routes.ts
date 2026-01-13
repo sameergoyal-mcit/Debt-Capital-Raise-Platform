@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { PDFDocument, rgb, degrees } from "pdf-lib";
 import { storage } from "./storage";
-import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema, insertDealModelSchema, insertClosingItemSchema, insertSyndicateBookSchema, insertIndicationSchema } from "@shared/schema";
+import { insertDealSchema, insertLenderSchema, insertInvitationSchema, insertDocumentSchema, insertCommitmentSchema, insertQAItemSchema, insertLogSchema, insertDealModelSchema, insertClosingItemSchema, insertSyndicateBookSchema, insertIndicationSchema, insertFinancingProposalSchema } from "@shared/schema";
 import { runCreditModel, calculateQuickSummary, type CreditModelAssumptions } from "./lib/credit-engine";
 import { z } from "zod";
 
@@ -230,8 +230,15 @@ export async function registerRoutes(
   // Create invitation - internal users only
   app.post("/api/invitations", requireAuth, ensureInternalOnly, async (req, res) => {
     try {
+      const user = req.user as SessionUser;
       const validated = insertInvitationSchema.parse(req.body);
       const invitation = await storage.createInvitation(validated);
+
+      // Create syndicate book entry with 'invited' status
+      await storage.upsertSyndicateBookEntry(invitation.dealId, invitation.lenderId, {
+        status: 'invited',
+        lastUpdatedBy: user.id,
+      });
 
       await auditLogFromRequest(req, AuditActions.CREATE_INVITATION, {
         resourceType: "invitation",
@@ -1176,56 +1183,9 @@ export async function registerRoutes(
       // Get deal to verify it exists
       const deal = await storage.getDeal(dealId);
 
-      // If deal not found, return mock demo data for prototype purposes
+      // If deal not found, return 404
       if (!deal) {
-        // Generate mock analytics for demo
-        const mockTrend = [];
-        for (let i = days - 1; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          mockTrend.push({
-            date: d.toISOString().split('T')[0],
-            count: Math.floor(Math.random() * 15) + 2
-          });
-        }
-
-        return res.json({
-          dealId,
-          dealName: "Demo Deal",
-          period: `Last ${days} days`,
-          summary: {
-            totalActivity: mockTrend.reduce((sum, d) => sum + d.count, 0),
-            avgDailyActivity: Math.round(mockTrend.reduce((sum, d) => sum + d.count, 0) / days),
-            documentViews: 47,
-            uniqueDocuments: 8
-          },
-          documentViews: [
-            { documentId: "doc1", documentName: "Confidential IM", viewCount: 18 },
-            { documentId: "doc2", documentName: "Financial Model", viewCount: 14 },
-            { documentId: "doc3", documentName: "Term Sheet", viewCount: 9 },
-            { documentId: "doc4", documentName: "Due Diligence Report", viewCount: 4 },
-            { documentId: "doc5", documentName: "Legal Docs", viewCount: 2 }
-          ],
-          engagementByTier: [
-            { tier: "early", count: 28 },
-            { tier: "full", count: 45 },
-            { tier: "legal", count: 12 }
-          ],
-          activityTrend: mockTrend,
-          topLenders: showTopLenders ? [
-            { lenderId: "l1", lenderName: anonymize ? "Lender 1" : "BlackRock", activityCount: 24 },
-            { lenderId: "l2", lenderName: anonymize ? "Lender 2" : "Apollo", activityCount: 18 },
-            { lenderId: "l3", lenderName: anonymize ? "Lender 3" : "Ares", activityCount: 15 }
-          ] : [],
-          recentActivity: [
-            { id: "a1", action: "view_document", description: "A lender viewed Confidential IM", timestamp: new Date().toISOString(), resourceType: "document", resourceId: "doc1" },
-            { id: "a2", action: "download_doc", description: "A lender downloaded Financial Model", timestamp: new Date(Date.now() - 3600000).toISOString(), resourceType: "document", resourceId: "doc2" },
-            { id: "a3", action: "sign_nda", description: "A lender signed NDA", timestamp: new Date(Date.now() - 7200000).toISOString(), resourceType: "nda", resourceId: "nda1" },
-            { id: "a4", action: "ask_question", description: "A lender asked a question", timestamp: new Date(Date.now() - 10800000).toISOString(), resourceType: "qa", resourceId: "q1" },
-            { id: "a5", action: "view_document", description: "A lender viewed Term Sheet", timestamp: new Date(Date.now() - 14400000).toISOString(), resourceType: "document", resourceId: "doc3" }
-          ],
-          generatedAt: new Date().toISOString()
-        });
+        return res.status(404).json({ error: "Deal not found" });
       }
 
       // Get analytics data
@@ -1248,24 +1208,26 @@ export async function registerRoutes(
           : (log.metadata as any)?.lenderName || "Unknown";
 
         switch (log.action) {
-          case "view_document":
-          case "download_doc":
+          case "VIEW_DOC":
+          case "DOWNLOAD_DOC":
+          case "WATERMARK_STREAM":
             description = `${lenderLabel} viewed ${(log.metadata as any)?.documentName || "a document"}`;
             break;
-          case "sign_nda":
+          case "SIGN_NDA":
             description = `${lenderLabel} signed NDA`;
             break;
-          case "submit_commitment":
+          case "SUBMIT_COMMITMENT":
             description = `${lenderLabel} submitted commitment`;
             break;
-          case "ask_question":
+          case "SUBMIT_QA":
             description = `${lenderLabel} asked a question`;
             break;
-          case "download_credit_memo":
-            description = `${lenderLabel} downloaded credit memo`;
+          case "SUBMIT_IOI":
+          case "UPDATE_IOI":
+            description = `${lenderLabel} submitted indication of interest`;
             break;
           default:
-            description = `${lenderLabel} - ${log.action.replace(/_/g, " ")}`;
+            description = `${lenderLabel} - ${log.action.replace(/_/g, " ").toLowerCase()}`;
         }
 
         return {
@@ -1394,6 +1356,475 @@ export async function registerRoutes(
       });
 
       res.json(memoData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========== ORGANIZATIONS ==========
+
+  // GET /api/organizations - List all organizations
+  app.get("/api/organizations", requireAuth, async (req, res) => {
+    try {
+      const organizations = await storage.listOrganizations();
+      res.json(organizations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/organizations/banks - List bank organizations
+  app.get("/api/organizations/banks", requireAuth, async (req, res) => {
+    try {
+      const banks = await storage.listOrganizationsByType("bank");
+      res.json(banks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/organizations - Create organization
+  app.post("/api/organizations", requireAuth, ensureInternalOnly, async (req, res) => {
+    try {
+      const validated = z.object({
+        name: z.string().min(1),
+        orgType: z.enum(["issuer", "bank", "lender", "law_firm"]),
+        logoUrl: z.string().optional(),
+        website: z.string().optional(),
+      }).parse(req.body);
+
+      const org = await storage.createOrganization(validated);
+      res.status(201).json(org);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ========== RFP / BEAUTY CONTEST ==========
+
+  // Middleware: Check if user is a bank candidate for this deal
+  async function requireBankCandidate(req: Request, res: Response, next: NextFunction) {
+    const user = req.user as SessionUser | undefined;
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { dealId } = req.params;
+    if (!dealId) {
+      return res.status(400).json({ error: "Deal ID required" });
+    }
+
+    // Get user's organization
+    if (!user.organizationId) {
+      return res.status(403).json({ error: "User must belong to an organization" });
+    }
+
+    // Check if org is a bank
+    const org = await storage.getOrganization(user.organizationId);
+    if (!org || org.orgType !== "bank") {
+      return res.status(403).json({ error: "Only bank users can access RFP proposals" });
+    }
+
+    // Check if bank is a candidate for this deal
+    const candidate = await storage.getCandidateByDealAndBank(dealId, user.organizationId);
+    if (!candidate) {
+      return res.status(403).json({ error: "Your bank is not invited to this RFP" });
+    }
+
+    // Attach candidate info to request
+    (req as any).bankCandidate = candidate;
+    (req as any).bankOrgId = user.organizationId;
+    (req as any).bankOrg = org;
+    next();
+  }
+
+  // Middleware: Check RFP access (issuer OR invited bank)
+  async function requireRfpAccess(req: Request, res: Response, next: NextFunction) {
+    const user = req.user as SessionUser | undefined;
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { dealId } = req.params;
+    const role = user.role.toLowerCase();
+
+    // Issuers have full RFP access
+    if (role === "issuer" || role === "sponsor") {
+      return next();
+    }
+
+    // Bookrunners (banks) need to check if they're candidates
+    if (role === "bookrunner" && user.organizationId) {
+      const candidate = await storage.getCandidateByDealAndBank(dealId, user.organizationId);
+      if (candidate) {
+        (req as any).bankCandidate = candidate;
+        (req as any).bankOrgId = user.organizationId;
+        return next();
+      }
+    }
+
+    return res.status(403).json({ error: "Access denied to this RFP" });
+  }
+
+  // GET /api/deals/:dealId/rfp - RFP dashboard
+  app.get("/api/deals/:dealId/rfp", requireAuth, requireRfpAccess, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const bankOrgId = (req as any).bankOrgId;
+
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+
+      // For issuers: return all candidates and proposals summary
+      if (role === "issuer" || role === "sponsor") {
+        const candidates = await storage.listCandidatesByDeal(dealId);
+        const proposals = await storage.listProposalsByDeal(dealId);
+
+        // Enrich candidates with org info and proposal status
+        const enrichedCandidates = await Promise.all(
+          candidates.map(async (c) => {
+            const org = await storage.getOrganization(c.bankOrgId);
+            const proposal = proposals.find(p => p.bankOrgId === c.bankOrgId);
+            return {
+              ...c,
+              bankName: org?.name || "Unknown",
+              hasProposal: !!proposal,
+              proposalStatus: proposal?.status || null,
+            };
+          })
+        );
+
+        return res.json({
+          deal: {
+            id: deal.id,
+            dealName: deal.dealName,
+            borrowerName: deal.borrowerName,
+            status: deal.status,
+            mandatedBankOrgId: deal.mandatedBankOrgId,
+          },
+          candidates: enrichedCandidates,
+          proposalCount: proposals.filter(p => p.status === "submitted").length,
+        });
+      }
+
+      // For bank candidates: return deal teaser + their own candidate/proposal
+      const candidate = (req as any).bankCandidate;
+      const proposal = await storage.getProposalByDealAndBank(dealId, bankOrgId);
+
+      // Mark as viewed if first access
+      if (candidate.status === "invited") {
+        await storage.setCandidateStatus(dealId, bankOrgId, "viewed");
+        await auditLogFromRequest(req, "VIEW_RFP", {
+          resourceType: "deal",
+          resourceId: dealId,
+          dealId,
+          metadata: { bankOrgId },
+        });
+      }
+
+      return res.json({
+        deal: {
+          id: deal.id,
+          dealName: deal.dealName,
+          borrowerName: deal.borrowerName,
+          sector: deal.sector,
+          sponsor: deal.sponsor,
+          facilityType: deal.facilityType,
+          facilitySize: deal.facilitySize,
+          status: deal.status,
+          closeDate: deal.closeDate,
+        },
+        candidate: {
+          status: candidate.status,
+          viewedAt: candidate.viewedAt,
+        },
+        proposal: proposal || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/rfp/invite - Invite banks to RFP (issuer only)
+  app.post("/api/deals/:dealId/rfp/invite", requireAuth, requireRole("issuer", "sponsor"), async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const { bankOrgIds } = req.body;
+
+      if (!Array.isArray(bankOrgIds) || bankOrgIds.length === 0) {
+        return res.status(400).json({ error: "bankOrgIds array is required" });
+      }
+
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+
+      if (deal.status !== "rfp_stage") {
+        return res.status(400).json({ error: "Deal must be in RFP stage to invite banks" });
+      }
+
+      const invited = [];
+      for (const bankOrgId of bankOrgIds) {
+        // Verify it's a bank org
+        const org = await storage.getOrganization(bankOrgId);
+        if (!org || org.orgType !== "bank") {
+          continue; // Skip non-bank orgs
+        }
+
+        // Check if already invited
+        const existing = await storage.getCandidateByDealAndBank(dealId, bankOrgId);
+        if (existing) {
+          invited.push({ bankOrgId, status: "already_invited" });
+          continue;
+        }
+
+        // Create candidate
+        await storage.createCandidate({
+          dealId,
+          bankOrgId,
+          invitedByUserId: user.id,
+          status: "invited",
+        });
+
+        invited.push({ bankOrgId, status: "invited" });
+      }
+
+      await auditLogFromRequest(req, "INVITE_BANK_RFP", {
+        resourceType: "deal",
+        resourceId: dealId,
+        dealId,
+        metadata: { bankOrgIds, invitedBy: user.id },
+      });
+
+      res.json({ success: true, invited });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/proposals - List proposals (issuer: all, bank: own only)
+  app.get("/api/deals/:dealId/proposals", requireAuth, requireRfpAccess, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const role = user.role.toLowerCase();
+      const bankOrgId = (req as any).bankOrgId;
+
+      // Issuers see all proposals
+      if (role === "issuer" || role === "sponsor") {
+        const proposals = await storage.listProposalsByDeal(dealId);
+
+        // Enrich with bank info
+        const enrichedProposals = await Promise.all(
+          proposals.map(async (proposal) => {
+            const org = await storage.getOrganization(proposal.bankOrgId);
+            const submitter = proposal.submittedByUserId
+              ? await storage.getUser(proposal.submittedByUserId)
+              : null;
+            return {
+              ...proposal,
+              bankName: org?.name || "Unknown",
+              submittedByName: submitter ? `${submitter.firstName} ${submitter.lastName}` : null,
+            };
+          })
+        );
+
+        return res.json(enrichedProposals);
+      }
+
+      // Bank candidates see only their own
+      const proposal = await storage.getProposalByDealAndBank(dealId, bankOrgId);
+      return res.json(proposal ? [proposal] : []);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/deals/:dealId/proposals/compare - Compare all submitted proposals (issuer only)
+  app.get("/api/deals/:dealId/proposals/compare", requireAuth, requireRole("issuer", "sponsor"), async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const proposals = await storage.listProposalsByDeal(dealId);
+      const submittedProposals = proposals.filter(p => p.status === "submitted" || p.status === "selected");
+
+      // Enrich with bank info and calculate all-in cost
+      const enrichedProposals = await Promise.all(
+        submittedProposals.map(async (proposal) => {
+          const org = await storage.getOrganization(proposal.bankOrgId);
+
+          // Calculate all-in yield: margin + (OID + upfront fee) / tenor
+          const margin = proposal.interestMarginBps || 0;
+          const oid = proposal.oidBps || 0;
+          const fee = proposal.upfrontFeeBps || 0;
+          const tenor = proposal.tenorYears ? parseFloat(proposal.tenorYears) : 0;
+          const allInBps = tenor > 0
+            ? Math.round(margin + (oid + fee) / tenor)
+            : margin;
+
+          return {
+            ...proposal,
+            bankName: org?.name || "Unknown",
+            allInBps,
+          };
+        })
+      );
+
+      // Sort by all-in cost (lowest first)
+      enrichedProposals.sort((a, b) => a.allInBps - b.allInBps);
+
+      res.json(enrichedProposals);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/proposals - Create/update proposal (bank candidate only)
+  app.post("/api/deals/:dealId/proposals", requireAuth, requireBankCandidate, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const bankOrgId = (req as any).bankOrgId;
+
+      // Check if deal is in RFP stage
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+      if (deal.status !== "rfp_stage") {
+        return res.status(400).json({ error: "Deal is not in RFP stage" });
+      }
+
+      // Check for existing proposal
+      const existing = await storage.getProposalByDealAndBank(dealId, bankOrgId);
+      if (existing) {
+        // Update existing proposal (only if still draft)
+        if (existing.status !== "draft") {
+          return res.status(400).json({ error: "Cannot modify submitted proposal" });
+        }
+        const validated = insertFinancingProposalSchema.partial().parse(req.body);
+        const updated = await storage.updateProposal(existing.id, validated);
+
+        await storage.setCandidateStatus(dealId, bankOrgId, "drafting");
+
+        await auditLogFromRequest(req, "SAVE_PROPOSAL_DRAFT", {
+          resourceType: "financing_proposal",
+          resourceId: existing.id,
+          dealId,
+          metadata: { bankOrgId },
+        });
+
+        return res.json(updated);
+      }
+
+      // Create new proposal
+      const validated = insertFinancingProposalSchema.parse({
+        ...req.body,
+        dealId,
+        bankOrgId,
+        submittedByUserId: user.id,
+        status: "draft",
+      });
+
+      const proposal = await storage.createProposal(validated);
+      await storage.setCandidateStatus(dealId, bankOrgId, "drafting");
+
+      await auditLogFromRequest(req, "SAVE_PROPOSAL_DRAFT", {
+        resourceType: "financing_proposal",
+        resourceId: proposal.id,
+        dealId,
+        metadata: { bankOrgId },
+      });
+
+      res.status(201).json(proposal);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/proposals/submit - Submit proposal (bank candidate only)
+  app.post("/api/deals/:dealId/proposals/submit", requireAuth, requireBankCandidate, async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const bankOrgId = (req as any).bankOrgId;
+
+      const proposal = await storage.getProposalByDealAndBank(dealId, bankOrgId);
+      if (!proposal) {
+        return res.status(404).json({ error: "No proposal found. Save a draft first." });
+      }
+
+      if (proposal.status !== "draft") {
+        return res.status(400).json({ error: "Proposal already submitted" });
+      }
+
+      const updated = await storage.submitProposal(proposal.id);
+      await storage.setCandidateStatus(dealId, bankOrgId, "submitted");
+
+      await auditLogFromRequest(req, "SUBMIT_PROPOSAL", {
+        resourceType: "financing_proposal",
+        resourceId: proposal.id,
+        dealId,
+        metadata: { bankOrgId },
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/deals/:dealId/rfp/award - Award mandate (issuer only)
+  app.post("/api/deals/:dealId/rfp/award", requireAuth, requireRole("issuer", "sponsor"), async (req, res) => {
+    try {
+      const { dealId } = req.params;
+      const user = req.user as SessionUser;
+      const { bankOrgId } = req.body;
+
+      if (!bankOrgId) {
+        return res.status(400).json({ error: "bankOrgId is required" });
+      }
+
+      const deal = await storage.getDeal(dealId);
+      if (!deal) {
+        return res.status(404).json({ error: "Deal not found" });
+      }
+
+      if (deal.status !== "rfp_stage") {
+        return res.status(400).json({ error: "Deal is not in RFP stage" });
+      }
+
+      // Verify bank is a candidate with submitted proposal
+      const candidate = await storage.getCandidateByDealAndBank(dealId, bankOrgId);
+      if (!candidate) {
+        return res.status(400).json({ error: "Bank is not a candidate for this deal" });
+      }
+
+      const proposal = await storage.getProposalByDealAndBank(dealId, bankOrgId);
+      if (!proposal || proposal.status !== "submitted") {
+        return res.status(400).json({ error: "Bank has not submitted a proposal" });
+      }
+
+      // Award mandate
+      const updatedDeal = await storage.awardMandate(dealId, bankOrgId);
+
+      await auditLogFromRequest(req, "AWARD_MANDATE", {
+        resourceType: "deal",
+        resourceId: dealId,
+        dealId,
+        metadata: { bankOrgId, awardedBy: user.id },
+      });
+
+      res.json({
+        success: true,
+        message: "Mandate awarded successfully",
+        deal: updatedDeal,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1860,6 +2291,16 @@ export async function registerRoutes(
       // Get syndicate book for IOI status
       const syndicateEntries = await storage.listSyndicateBookByDeal(dealId);
 
+      // Get all logs for the deal (for activity tracking)
+      const allLogs = await storage.listLogsByDeal(dealId, 1000);
+
+      // Get total document count for the deal
+      const allDocuments = await storage.listDocumentsByDeal(dealId);
+      const totalDocuments = allDocuments.length;
+
+      // Document view action types
+      const docViewActions = ['DOWNLOAD_DOC', 'VIEW_DOC', 'WATERMARK_STREAM'];
+
       // Build progress data
       const lenderProgress = await Promise.all(
         invitations.map(async (inv) => {
@@ -1883,6 +2324,21 @@ export async function registerRoutes(
           // Get syndicate entry for IOI status
           const syndicateEntry = syndicateEntries.find(e => e.lenderId === inv.lenderId);
 
+          // Get lender's activity from logs
+          const lenderLogs = allLogs.filter(log => log.lenderId === inv.lenderId);
+
+          // Get documents viewed (unique document IDs from view/download actions)
+          const viewedDocIds = new Set(
+            lenderLogs
+              .filter(log => docViewActions.includes(log.action) && log.resourceId)
+              .map(log => log.resourceId)
+          );
+          const documentsViewed = viewedDocIds.size;
+
+          // Get last activity timestamp from logs (most recent)
+          const lastActivityLog = lenderLogs.length > 0 ? lenderLogs[0] : null;
+          const lastActivity = lastActivityLog?.createdAt || inv.ndaSignedAt || inv.invitedAt;
+
           return {
             lenderId: inv.lenderId,
             lenderName: lender.organization,
@@ -1895,7 +2351,8 @@ export async function registerRoutes(
             ioiAmount: syndicateEntry?.indicatedAmount || null,
             markupStatus,
             openQACount,
-            lastActivity: inv.ndaSignedAt || inv.invitedAt,
+            lastActivity,
+            documentsViewed,
           };
         })
       );
@@ -1906,6 +2363,7 @@ export async function registerRoutes(
       res.json({
         lenders: validProgress,
         masterDocs: masterDocs.map(d => ({ docKey: d.docKey, title: d.title })),
+        totalDocuments,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

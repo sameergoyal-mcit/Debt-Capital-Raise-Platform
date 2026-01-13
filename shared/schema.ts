@@ -1,7 +1,26 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, numeric, boolean, timestamp, integer, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, numeric, boolean, timestamp, integer, jsonb, real, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Organizations Table - Banks, Issuers, Lenders, Law Firms
+export const organizations = pgTable("organizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  orgType: text("org_type").notNull(), // issuer, bank, lender, law_firm
+  logoUrl: text("logo_url"),
+  website: text("website"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type Organization = typeof organizations.$inferSelect;
 
 // Users Table (for authentication)
 export const users = pgTable("users", {
@@ -9,7 +28,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
-  role: text("role").notNull().default("lender"), // sponsor, lender, borrower, bookrunner
+  role: text("role").notNull().default("lender"), // issuer, bookrunner, lender
+  organizationId: varchar("organization_id").references(() => organizations.id),
   fundName: text("fund_name"),
   isAccredited: boolean("is_accredited").default(false),
   firstName: text("first_name"),
@@ -34,12 +54,15 @@ export const deals = pgTable("deals", {
   sector: text("sector").notNull(),
   sponsor: text("sponsor").notNull(),
   sponsorId: varchar("sponsor_id").references(() => users.id),
+  // RFP/Mandate tracking
+  mandatedBankOrgId: varchar("mandated_bank_org_id").references(() => organizations.id), // Awarded bank after RFP
+  bookrunnerUserId: varchar("bookrunner_user_id").references(() => users.id), // Primary contact user from awarded bank
   instrument: text("instrument").notNull(),
   facilityType: text("facility_type").notNull(),
   facilitySize: numeric("facility_size").notNull(),
   currency: text("currency").notNull().default("USD"),
-  stage: text("stage").notNull(),
-  status: text("status").notNull(), // live, closed, paused
+  stage: text("stage").notNull(), // Pre-Launch, Structuring, Marketing, Documentation, Closing
+  status: text("status").notNull(), // rfp_stage, live_syndication, closed, paused
   targetSize: numeric("target_size").notNull(),
   committed: numeric("committed").notNull().default("0"),
   pricingBenchmark: text("pricing_benchmark").notNull().default("SOFR"),
@@ -281,7 +304,7 @@ export const syndicateBook = pgTable("syndicate_book", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id").notNull().references(() => deals.id),
   lenderId: varchar("lender_id").notNull().references(() => lenders.id),
-  status: text("status").notNull().default("invited"), // invited, interested, ioi_submitted, soft_circled, firm_committed, allocated, declined
+  status: text("status").notNull().default("invited"), // pitching, invited, interested, ioi_submitted, soft_circled, firm_committed, allocated, declined
   indicatedAmount: numeric("indicated_amount"), // IOI amount
   firmCommitmentAmount: numeric("firm_commitment_amount"), // Firm commitment amount
   allocatedAmount: numeric("allocated_amount"), // Final allocation
@@ -393,3 +416,80 @@ export const insertLenderMarkupSchema = createInsertSchema(lenderMarkups).omit({
 });
 export type InsertLenderMarkup = z.infer<typeof insertLenderMarkupSchema>;
 export type LenderMarkup = typeof lenderMarkups.$inferSelect;
+
+// Bookrunner Candidates Table - Banks invited to RFP/Beauty Contest
+export const bookrunnerCandidates = pgTable("bookrunner_candidates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  bankOrgId: varchar("bank_org_id").notNull().references(() => organizations.id), // Bank organization
+  invitedByUserId: varchar("invited_by_user_id").references(() => users.id),
+  status: text("status").notNull().default("invited"), // invited, viewed, drafting, submitted, declined, mandated
+  viewedAt: timestamp("viewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  unique("bookrunner_candidates_deal_bank_unique").on(table.dealId, table.bankOrgId),
+]);
+
+export const insertBookrunnerCandidateSchema = createInsertSchema(bookrunnerCandidates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBookrunnerCandidate = z.infer<typeof insertBookrunnerCandidateSchema>;
+export type BookrunnerCandidate = typeof bookrunnerCandidates.$inferSelect;
+
+// Financing Proposals Table - RFP/Pre-launch proposals from candidate banks
+export const financingProposals = pgTable("financing_proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  bankOrgId: varchar("bank_org_id").notNull().references(() => organizations.id), // The bank organization submitting
+  submittedByUserId: varchar("submitted_by_user_id").references(() => users.id),
+  status: text("status").notNull().default("draft"), // draft, submitted, selected, withdrawn
+  // Financing Grid Fields
+  leverageSenior: numeric("leverage_senior"), // Senior leverage multiple (e.g., 4.5x)
+  leverageTotal: numeric("leverage_total"), // Total leverage multiple (e.g., 5.5x)
+  interestMarginBps: integer("interest_margin_bps"), // Spread in basis points (e.g., 450 = L+450bps)
+  oidBps: integer("oid_bps"), // Original Issue Discount in basis points (e.g., 200 = 2%)
+  upfrontFeeBps: integer("upfront_fee_bps"), // Arrangement/underwriting fee in bps
+  tenorYears: numeric("tenor_years"), // Loan tenor in years (e.g., 7)
+  amortization: text("amortization"), // Amortization schedule description
+  covenantsNotes: text("covenants_notes"), // Key covenants summary
+  conditionsNotes: text("conditions_notes"), // Conditions precedent notes
+  freeformNotes: text("freeform_notes"), // Additional notes/comments
+  submittedAt: timestamp("submitted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  unique("financing_proposals_deal_bank_unique").on(table.dealId, table.bankOrgId),
+]);
+
+export const insertFinancingProposalSchema = createInsertSchema(financingProposals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertFinancingProposal = z.infer<typeof insertFinancingProposalSchema>;
+export type FinancingProposal = typeof financingProposals.$inferSelect;
+
+// Prior Q&A Items Table - Curated Q&A from prior financing processes
+export const priorQaItems = pgTable("prior_qa_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => deals.id),
+  uploadedDocumentId: varchar("uploaded_document_id").references(() => documents.id), // Source document
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  topic: text("topic"), // Optional categorization (e.g., "Financials", "Legal", "Operations")
+  sourceProcess: text("source_process"), // e.g., "2023 Financing", "Q2 2024 Refinancing"
+  shareable: boolean("shareable").notNull().default(true), // Whether lenders can see this item
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertPriorQaItemSchema = createInsertSchema(priorQaItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPriorQaItem = z.infer<typeof insertPriorQaItemSchema>;
+export type PriorQaItem = typeof priorQaItems.$inferSelect;

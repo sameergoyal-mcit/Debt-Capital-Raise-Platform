@@ -121,7 +121,10 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
   const [dealData, setDealData] = useState<DealDetailsForm | null>(null);
   const [createdDealId, setCreatedDealId] = useState<string | null>(null);
 
-  // Bookrunner state
+  // RFP mode state
+  const [isRfpMode, setIsRfpMode] = useState(true); // Default to RFP mode for new deals
+
+  // Bookrunner state (also used for potential bookrunners in RFP mode)
   const [selectedBookrunners, setSelectedBookrunners] = useState<SelectedBookrunner[]>([]);
   const [newBookrunnerOrg, setNewBookrunnerOrg] = useState("");
   const [newBookrunnerContact, setNewBookrunnerContact] = useState("");
@@ -171,6 +174,7 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
     setCurrentStep(1);
     setDealData(null);
     setCreatedDealId(null);
+    setIsRfpMode(true);
     setSelectedBookrunners([]);
     setSelectedInvestors([]);
     setNewBookrunnerOrg("");
@@ -348,8 +352,8 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
           facilityType: dealData.facilityType,
           instrument: "Senior Secured Term Loan",
           sponsor: user?.name || "TBD",
-          stage: "Structuring",
-          status: "draft",
+          stage: isRfpMode ? "Pre-Launch" : "Structuring",
+          status: isRfpMode ? "rfp_stage" : "draft",
           targetSize: String(dealData.facilitySize * 1000000),
           committed: "0",
           pricingBenchmark: "SOFR",
@@ -370,28 +374,72 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
       const deal = await response.json();
       setCreatedDealId(deal.id);
 
-      // Add bookrunners
-      for (const bookrunner of selectedBookrunners) {
-        let bookrunnerId = bookrunner.id;
+      // Handle bookrunners/potential bookrunners
+      if (isRfpMode && selectedBookrunners.length > 0) {
+        // In RFP mode, invite banks to pitch via API
+        const lenderIds: string[] = [];
 
-        // If new bookrunner, add to mock data
-        if (bookrunner.isNew) {
-          bookrunnerId = `br-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          mockBookrunners.push({
-            id: bookrunnerId,
-            organization: bookrunner.organization,
-            contactName: bookrunner.contactName,
-            email: bookrunner.email,
-          });
+        for (const bookrunner of selectedBookrunners) {
+          let lenderId = bookrunner.id;
+
+          // If new bank, create lender record via API
+          if (bookrunner.isNew) {
+            const lenderResponse = await fetch("/api/lenders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                name: bookrunner.organization,
+                type: "Bank",
+                isBookrunner: true,
+                contactName: bookrunner.contactName,
+                contactEmail: bookrunner.email,
+              }),
+            });
+            if (lenderResponse.ok) {
+              const newLender = await lenderResponse.json();
+              lenderId = newLender.id;
+            }
+          }
+
+          if (lenderId) {
+            lenderIds.push(lenderId);
+          }
         }
 
-        if (bookrunnerId) {
-          addDealBookrunner(
-            deal.id,
-            bookrunnerId,
-            bookrunner.isLead ? "lead" : "co-manager",
-            user?.email || ""
-          );
+        // Invite all selected banks to pitch
+        if (lenderIds.length > 0) {
+          await fetch(`/api/deals/${deal.id}/invite-pitching`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ lenderIds }),
+          });
+        }
+      } else {
+        // Non-RFP mode: Add bookrunners using mock data
+        for (const bookrunner of selectedBookrunners) {
+          let bookrunnerId = bookrunner.id;
+
+          // If new bookrunner, add to mock data
+          if (bookrunner.isNew) {
+            bookrunnerId = `br-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            mockBookrunners.push({
+              id: bookrunnerId,
+              organization: bookrunner.organization,
+              contactName: bookrunner.contactName,
+              email: bookrunner.email,
+            });
+          }
+
+          if (bookrunnerId) {
+            addDealBookrunner(
+              deal.id,
+              bookrunnerId,
+              bookrunner.isLead ? "lead" : "co-manager",
+              user?.email || ""
+            );
+          }
         }
       }
 
@@ -594,11 +642,28 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
 
   const renderStep2 = () => (
     <div className="space-y-4">
+      {/* RFP Mode Toggle */}
+      <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+        <div>
+          <Label htmlFor="rfp-mode" className="font-medium">RFP Mode (Competitive Selection)</Label>
+          <p className="text-xs text-muted-foreground">
+            {isRfpMode
+              ? "Banks will compete by submitting financing proposals"
+              : "Bookrunners are confirmed and will manage syndication"}
+          </p>
+        </div>
+        <Switch
+          id="rfp-mode"
+          checked={isRfpMode}
+          onCheckedChange={setIsRfpMode}
+        />
+      </div>
+
       <div className="space-y-2">
-        <Label>Select Existing Bookrunner</Label>
+        <Label>{isRfpMode ? "Select Potential Bookrunner to Invite" : "Select Existing Bookrunner"}</Label>
         <Select value={bookrunnerSelectValue} onValueChange={handleBookrunnerSelect}>
           <SelectTrigger data-testid="select-bookrunner">
-            <SelectValue placeholder="Select a bookrunner" />
+            <SelectValue placeholder={isRfpMode ? "Select a bank to invite" : "Select a bookrunner"} />
           </SelectTrigger>
           <SelectContent>
             {mockBookrunners
@@ -613,7 +678,7 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
       </div>
 
       <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
-        <Label className="text-xs text-muted-foreground">Or Add New Bookrunner</Label>
+        <Label className="text-xs text-muted-foreground">{isRfpMode ? "Or Add New Bank to Invite" : "Or Add New Bookrunner"}</Label>
         <div className="grid grid-cols-3 gap-2">
           <Input
             placeholder="Organization"
@@ -642,30 +707,32 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
           onClick={handleAddNewBookrunner}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-1" /> Add Bookrunner
+          <Plus className="h-4 w-4 mr-1" /> {isRfpMode ? "Add Bank" : "Add Bookrunner"}
         </Button>
       </div>
 
       {selectedBookrunners.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Selected Bookrunners</Label>
+          <Label className="text-xs text-muted-foreground">{isRfpMode ? "Banks to Invite for Pitching" : "Selected Bookrunners"}</Label>
           <div className="border rounded-lg divide-y">
             {selectedBookrunners.map((bookrunner, index) => (
               <div key={index} className="flex items-center justify-between p-3">
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSetLeadBookrunner(index)}
-                    className={cn(
-                      "p-1 rounded",
-                      bookrunner.isLead
-                        ? "text-amber-500"
-                        : "text-muted-foreground hover:text-amber-500"
-                    )}
-                    title={bookrunner.isLead ? "Lead Bookrunner" : "Set as Lead"}
-                  >
-                    <Crown className="h-4 w-4" />
-                  </button>
+                  {!isRfpMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleSetLeadBookrunner(index)}
+                      className={cn(
+                        "p-1 rounded",
+                        bookrunner.isLead
+                          ? "text-amber-500"
+                          : "text-muted-foreground hover:text-amber-500"
+                      )}
+                      title={bookrunner.isLead ? "Lead Bookrunner" : "Set as Lead"}
+                    >
+                      <Crown className="h-4 w-4" />
+                    </button>
+                  )}
                   <div>
                     <p className="text-sm font-medium">{bookrunner.organization}</p>
                     <p className="text-xs text-muted-foreground">
@@ -674,9 +741,14 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {bookrunner.isLead && (
+                  {!isRfpMode && bookrunner.isLead && (
                     <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
                       Lead
+                    </span>
+                  )}
+                  {isRfpMode && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                      Pitching
                     </span>
                   )}
                   <Button
@@ -868,13 +940,15 @@ export function CreateDealWizard({ trigger }: CreateDealWizardProps) {
               </span>
             )}
             {currentStep === 1 && "Create New Deal"}
-            {currentStep === 2 && "Invite Bookrunners"}
-            {currentStep === 3 && "Invite Investors"}
+            {currentStep === 2 && (isRfpMode ? "Invite Banks to Pitch" : "Invite Bookrunners")}
+            {currentStep === 3 && "Invite Lenders"}
           </DialogTitle>
           <DialogDescription>
             {currentStep === 1 && "Enter the basic details for your new debt deal."}
-            {currentStep === 2 && "Add bookrunners to manage this deal. You can designate one as lead."}
-            {currentStep === 3 && "Optionally invite investors now, or you can do this later."}
+            {currentStep === 2 && (isRfpMode
+              ? "Invite banks to submit competitive financing proposals. After reviewing proposals, you can award the mandate."
+              : "Add bookrunners to manage this deal. You can designate one as lead.")}
+            {currentStep === 3 && "Optionally invite lenders now, or you can do this later."}
           </DialogDescription>
         </DialogHeader>
 

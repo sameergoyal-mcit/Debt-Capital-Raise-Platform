@@ -33,6 +33,12 @@ import type {
   InsertDocumentVersion,
   LenderMarkup,
   InsertLenderMarkup,
+  FinancingProposal,
+  InsertFinancingProposal,
+  Organization,
+  InsertOrganization,
+  BookrunnerCandidate,
+  InsertBookrunnerCandidate,
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -149,6 +155,34 @@ export interface IStorage {
   getLenderMarkup(id: string): Promise<LenderMarkup | undefined>;
   createLenderMarkup(markup: InsertLenderMarkup): Promise<LenderMarkup>;
   updateLenderMarkup(id: string, markup: Partial<InsertLenderMarkup>): Promise<LenderMarkup | undefined>;
+
+  // Organizations
+  listOrganizations(): Promise<Organization[]>;
+  listOrganizationsByType(orgType: string): Promise<Organization[]>;
+  getOrganization(id: string): Promise<Organization | undefined>;
+  getOrganizationByName(name: string): Promise<Organization | undefined>;
+  createOrganization(org: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, org: Partial<InsertOrganization>): Promise<Organization | undefined>;
+
+  // Bookrunner Candidates (RFP invitations)
+  listCandidatesByDeal(dealId: string): Promise<BookrunnerCandidate[]>;
+  getCandidateByDealAndBank(dealId: string, bankOrgId: string): Promise<BookrunnerCandidate | undefined>;
+  createCandidate(candidate: InsertBookrunnerCandidate): Promise<BookrunnerCandidate>;
+  updateCandidate(id: string, candidate: Partial<InsertBookrunnerCandidate>): Promise<BookrunnerCandidate | undefined>;
+  setCandidateStatus(dealId: string, bankOrgId: string, status: string): Promise<BookrunnerCandidate | undefined>;
+
+  // Financing Proposals (RFP)
+  listProposalsByDeal(dealId: string): Promise<FinancingProposal[]>;
+  getProposal(id: string): Promise<FinancingProposal | undefined>;
+  getProposalByDealAndBank(dealId: string, bankOrgId: string): Promise<FinancingProposal | undefined>;
+  createProposal(proposal: InsertFinancingProposal): Promise<FinancingProposal>;
+  updateProposal(id: string, proposal: Partial<InsertFinancingProposal>): Promise<FinancingProposal | undefined>;
+  submitProposal(id: string): Promise<FinancingProposal | undefined>;
+  selectProposal(id: string): Promise<FinancingProposal | undefined>;
+  withdrawProposal(id: string): Promise<FinancingProposal | undefined>;
+
+  // Award mandate
+  awardMandate(dealId: string, winnerBankOrgId: string): Promise<Deal | undefined>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -416,9 +450,9 @@ export class DrizzleStorage implements IStorage {
       )
       .orderBy(desc(schema.logs.createdAt));
 
-    // Document views aggregation
+    // Document views aggregation - match AuditActions constants (uppercase)
     const docViewsMap = new Map<string, { documentId: string; documentName: string; viewCount: number }>();
-    logs.filter(l => l.action === 'view_document' || l.action === 'download_doc').forEach(log => {
+    logs.filter(l => l.action === 'DOWNLOAD_DOC' || l.action === 'VIEW_DOC' || l.action === 'WATERMARK_STREAM').forEach(log => {
       const docId = log.resourceId || 'unknown';
       const docName = (log.metadata as any)?.documentName || docId;
       const existing = docViewsMap.get(docId);
@@ -804,6 +838,185 @@ export class DrizzleStorage implements IStorage {
       .set({ ...markup, updatedAt: new Date() })
       .where(eq(schema.lenderMarkups.id, id))
       .returning();
+    return results[0];
+  }
+
+  // Organizations
+  async listOrganizations(): Promise<Organization[]> {
+    return db.select().from(schema.organizations).orderBy(schema.organizations.name);
+  }
+
+  async listOrganizationsByType(orgType: string): Promise<Organization[]> {
+    return db
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.orgType, orgType))
+      .orderBy(schema.organizations.name);
+  }
+
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    const results = await db.select().from(schema.organizations).where(eq(schema.organizations.id, id));
+    return results[0];
+  }
+
+  async getOrganizationByName(name: string): Promise<Organization | undefined> {
+    const results = await db.select().from(schema.organizations).where(eq(schema.organizations.name, name));
+    return results[0];
+  }
+
+  async createOrganization(org: InsertOrganization): Promise<Organization> {
+    const results = await db.insert(schema.organizations).values(org).returning();
+    return results[0];
+  }
+
+  async updateOrganization(id: string, org: Partial<InsertOrganization>): Promise<Organization | undefined> {
+    const results = await db
+      .update(schema.organizations)
+      .set({ ...org, updatedAt: new Date() })
+      .where(eq(schema.organizations.id, id))
+      .returning();
+    return results[0];
+  }
+
+  // Bookrunner Candidates (RFP invitations)
+  async listCandidatesByDeal(dealId: string): Promise<BookrunnerCandidate[]> {
+    return db
+      .select()
+      .from(schema.bookrunnerCandidates)
+      .where(eq(schema.bookrunnerCandidates.dealId, dealId))
+      .orderBy(desc(schema.bookrunnerCandidates.createdAt));
+  }
+
+  async getCandidateByDealAndBank(dealId: string, bankOrgId: string): Promise<BookrunnerCandidate | undefined> {
+    const results = await db
+      .select()
+      .from(schema.bookrunnerCandidates)
+      .where(and(
+        eq(schema.bookrunnerCandidates.dealId, dealId),
+        eq(schema.bookrunnerCandidates.bankOrgId, bankOrgId)
+      ));
+    return results[0];
+  }
+
+  async createCandidate(candidate: InsertBookrunnerCandidate): Promise<BookrunnerCandidate> {
+    const results = await db.insert(schema.bookrunnerCandidates).values(candidate).returning();
+    return results[0];
+  }
+
+  async updateCandidate(id: string, candidate: Partial<InsertBookrunnerCandidate>): Promise<BookrunnerCandidate | undefined> {
+    const results = await db
+      .update(schema.bookrunnerCandidates)
+      .set({ ...candidate, updatedAt: new Date() })
+      .where(eq(schema.bookrunnerCandidates.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async setCandidateStatus(dealId: string, bankOrgId: string, status: string): Promise<BookrunnerCandidate | undefined> {
+    const results = await db
+      .update(schema.bookrunnerCandidates)
+      .set({ status, updatedAt: new Date() })
+      .where(and(
+        eq(schema.bookrunnerCandidates.dealId, dealId),
+        eq(schema.bookrunnerCandidates.bankOrgId, bankOrgId)
+      ))
+      .returning();
+    return results[0];
+  }
+
+  // Financing Proposals (RFP)
+  async listProposalsByDeal(dealId: string): Promise<FinancingProposal[]> {
+    return db
+      .select()
+      .from(schema.financingProposals)
+      .where(eq(schema.financingProposals.dealId, dealId))
+      .orderBy(desc(schema.financingProposals.submittedAt));
+  }
+
+  async getProposal(id: string): Promise<FinancingProposal | undefined> {
+    const results = await db.select().from(schema.financingProposals).where(eq(schema.financingProposals.id, id));
+    return results[0];
+  }
+
+  async getProposalByDealAndBank(dealId: string, bankOrgId: string): Promise<FinancingProposal | undefined> {
+    const results = await db
+      .select()
+      .from(schema.financingProposals)
+      .where(and(eq(schema.financingProposals.dealId, dealId), eq(schema.financingProposals.bankOrgId, bankOrgId)));
+    return results[0];
+  }
+
+  async createProposal(proposal: InsertFinancingProposal): Promise<FinancingProposal> {
+    const results = await db.insert(schema.financingProposals).values(proposal).returning();
+    return results[0];
+  }
+
+  async updateProposal(id: string, proposal: Partial<InsertFinancingProposal>): Promise<FinancingProposal | undefined> {
+    const results = await db
+      .update(schema.financingProposals)
+      .set({ ...proposal, updatedAt: new Date() })
+      .where(eq(schema.financingProposals.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async submitProposal(id: string): Promise<FinancingProposal | undefined> {
+    const results = await db
+      .update(schema.financingProposals)
+      .set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.financingProposals.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async selectProposal(id: string): Promise<FinancingProposal | undefined> {
+    const results = await db
+      .update(schema.financingProposals)
+      .set({ status: 'selected', updatedAt: new Date() })
+      .where(eq(schema.financingProposals.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async withdrawProposal(id: string): Promise<FinancingProposal | undefined> {
+    const results = await db
+      .update(schema.financingProposals)
+      .set({ status: 'withdrawn', updatedAt: new Date() })
+      .where(eq(schema.financingProposals.id, id))
+      .returning();
+    return results[0];
+  }
+
+  // Award mandate - sets winner and transitions deal to live_syndication
+  async awardMandate(dealId: string, winnerBankOrgId: string): Promise<Deal | undefined> {
+    // Get the winning proposal
+    const winningProposal = await this.getProposalByDealAndBank(dealId, winnerBankOrgId);
+    if (winningProposal) {
+      await this.selectProposal(winningProposal.id);
+    }
+
+    // Set winning candidate to mandated, others to declined
+    const candidates = await this.listCandidatesByDeal(dealId);
+    for (const candidate of candidates) {
+      if (candidate.bankOrgId === winnerBankOrgId) {
+        await this.setCandidateStatus(dealId, candidate.bankOrgId, 'mandated');
+      } else {
+        await this.setCandidateStatus(dealId, candidate.bankOrgId, 'declined');
+      }
+    }
+
+    // Update deal
+    const results = await db
+      .update(schema.deals)
+      .set({
+        mandatedBankOrgId: winnerBankOrgId,
+        status: 'live_syndication',
+        stage: 'Structuring',
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.deals.id, dealId))
+      .returning();
+
     return results[0];
   }
 }
